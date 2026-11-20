@@ -14,7 +14,7 @@ async function handle(question: unknown): Promise<Response> {
   }
 
   const answer = await ask(question.trim(), {
-    // Klíč si SDK vezme z ANTHROPIC_API_KEY (.env.local), v kódu není.
+    // Klíč si SDK vezme z ANTHROPIC_API_KEY; Next načítá .env automaticky.
     client: new Anthropic({ maxRetries: 3, timeout: 30_000 }),
     model: process.env.CLAUDE_MODEL ?? "claude-haiku-5-5",
     now: appNow(),

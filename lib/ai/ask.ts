@@ -35,13 +35,15 @@ function sumResults(results: TrafficResultOk[], params: TrafficResultOk["meta"][
     const values = results.map((result) => result.data.hourly[hour]);
     return values.every((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
   });
+  const rangeFrom = params.hour_from ?? 0;
+  const rangeTo = params.hour_to ?? 24;
   return {
     ok: true,
     data: { total: results.reduce((sum, result) => sum + result.data.total, 0), hourly },
     meta: {
       ...first.meta,
       params,
-      coverage: { hours: hourly.filter((value) => value !== null).length, of: hourly.length },
+      coverage: { hours: hourly.slice(rangeFrom, rangeTo).filter((value) => value !== null).length, of: rangeTo - rangeFrom },
       notes: [...new Set(results.flatMap((result) => result.meta.notes))],
     },
   };
@@ -49,18 +51,28 @@ function sumResults(results: TrafficResultOk[], params: TrafficResultOk["meta"][
 
 // Zavolá Davidovu funkci. "both" = oba směry, skupina = všechny její brány; součty dělá sumResults.
 async function runTrafficCount(input: TrafficCountInput, fn: TrafficCountFn): Promise<TrafficResult> {
-  const { gate, direction, date } = input;
+  const { gate, direction, date, hour_from, hour_to } = input;
   const members = GATES.find((g) => g.objectName === gate)?.members ?? [gate];
   const directions = direction === "both" ? (["in", "out"] as const) : [direction];
 
   const results = await Promise.all(
-    members.flatMap((member) => directions.map((d) => fn({ gate: member, direction: d, date }))),
+    members.flatMap((member) =>
+      directions.map((d) =>
+        fn({
+          gate: member,
+          direction: d,
+          date,
+          ...(hour_from !== undefined ? { hour_from } : {}),
+          ...(hour_to !== undefined ? { hour_to } : {}),
+        }),
+      ),
+    ),
   );
   const failed = results.find((result) => !result.ok);
   if (failed) return failed;
   const ok = results.filter((result): result is TrafficCountOk => result.ok);
   if (ok.length === 1) return ok[0];
-  return sumResults(ok, { gate, direction, date });
+  return sumResults(ok, { gate, direction, date, ...(hour_from !== undefined ? { hour_from } : {}), ...(hour_to !== undefined ? { hour_to } : {}) });
 }
 
 // Nejrušnější hodina. Počítá ji kód, Claude dostane jen hotový výsledek.
@@ -81,6 +93,8 @@ function summaryForClaude(result: TrafficResult) {
     gate: result.meta.params.gate,
     direction: result.meta.params.direction,
     date: result.meta.params.date,
+    ...(result.meta.params.hour_from !== undefined ? { hour_from: result.meta.params.hour_from } : {}),
+    ...(result.meta.params.hour_to !== undefined ? { hour_to: result.meta.params.hour_to } : {}),
     // Den v týdnu počítá kód, jinak si ho Claude vymýšlí.
     day: `${weekdayCz(result.meta.params.date)} ${formatCzDate(result.meta.params.date)}`,
     total: result.data.total,
@@ -105,10 +119,13 @@ function allowedNumbers(summary: unknown): Set<number> {
 }
 
 function fallbackSentence(result: TrafficResultOk): string {
-  const { gate, direction, date } = result.meta.params;
+  const { gate, direction, date, hour_from, hour_to } = result.meta.params;
   const peak = peakOf(result.data.hourly);
   const directionText = direction === "both" ? "oba směry" : direction === "in" ? "dovnitř" : "ven";
   let sentence = `${gate}, ${formatCzDate(date)}: ${cz.format(result.data.total)} vozidel (${directionText})`;
+  if (hour_from !== undefined || hour_to !== undefined) {
+    sentence += ` mezi ${hour_from ?? 0}:00 a ${hour_to ?? 24}:00`;
+  }
   if (peak) sentence += `, nejvíc mezi ${peak.hour}:00 a ${peak.hour + 1}:00 (${cz.format(peak.value)})`;
   sentence += ".";
   const { hours, of } = result.meta.coverage;

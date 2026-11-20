@@ -5,7 +5,7 @@ export type Direction = "in" | "out" | "both";
 // Výsledek Davidova trafficCount. Jediný rozdíl: směr může být i "both" (oba směry sečetl náš kód).
 export type TrafficResultOk = Omit<TrafficCountOk, "meta"> & {
   meta: Omit<TrafficCountOk["meta"], "params"> & {
-    params: { gate: string; direction: Direction; date: string };
+    params: { gate: string; direction: Direction; date: string; hour_from?: number; hour_to?: number };
   };
 };
 export type TrafficResult = TrafficResultOk | TrafficCountError;
