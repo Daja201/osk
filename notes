@@ -1,0 +1,164 @@
+jak pracovat se svoji branchi:
+
+Práce s vlastní branch – krok za krokem
+1. Vytvoření branch
+bash
+git checkout -b david-backend
+
+Tím se ti vytvoří nová branch z aktuálního stavu (obvykle z main) a rovnou se na ni přepneš.
+
+Pokud branch už existuje (třeba sis ji založil dřív) a jen se na ni chceš přepnout:
+
+bash
+git checkout david-backend
+2. Běžný pracovní cyklus
+bash
+# 1. Uprav soubory (napíšeš kód)
+
+# 2. Zkontroluj, co se změnilo
+git status
+
+# 3. Přidej změny ke commitu
+git add .
+# nebo konkrétní soubor:
+git add src/citiq-client.js
+
+# 4. Commitni s popisem
+git commit -m "Přidán CITIQ klient pro fetch dopravních dat"
+
+# 5. Nahraj na GitHub/GitLab
+git push origin david-backend
+
+Při prvním pushi může být potřeba:
+
+bash
+git push -u origin david-backend
+
+(-u nastaví “upstream”, takže příště stačí jen git push)
+
+3. Jak zůstat v obraze s tím, co dělá Jáchym
+
+Pokud chceš vidět, co je nového v main (třeba Jáchym tam něco smergoval):
+
+bash
+git checkout main
+git pull origin main
+
+A pak si to přetáhni do své branch:
+
+bash
+git checkout david-backend
+git merge main
+
+Tohle sloučí aktuální main do tvé branch – doporučuju dělat pravidelně, ať se ti na konci nenahromadí obří konflikty.
+
+4. Kdy a jak mergovat svou branch zpátky
+
+Jakmile máš hotovou část práce:
+
+Varianta A – přes Pull Request (doporučeno, hlavně na GitHubu):
+
+Pushni svou branch (git push origin david-backend)
+Na GitHubu/GitLabu klikni “Compare & Pull Request”
+Jáchym (nebo ty) to zkontroluje a smerguje přes webové rozhraní
+
+Varianta B – přímo z příkazové řádky:
+
+bash
+git checkout main
+git pull origin main          # ujisti se, že máš aktuální main
+git merge david-backend
+git push origin main
+5. Základní příkazy na orientaci
+bash
+git branch              # seznam lokálních branchí (* = na které jsi)
+git branch -a           # i včetně vzdálených (remote)
+git log --oneline       # historie commitů
+git diff                # co se změnilo, ale ještě není commitnuté
+Doporučení pro vás na hackathonu
+Commituj často – klidně po každé menší funkční části, ne jen jednou za hodiny
+Před pushem zkontroluj git status, ať nepushneš něco omylem (např. node_modules)
+Založte si .gitignore hned na začátku s node_modules/, .env apod.
+
+Chceš, ať ti rovnou připravím vzorový .gitignore pro váš Node.js projekt?
+
+Mam repo, jak teda pudelat tu nextjs kostru apod?
+
+Založení Next.js kostry v existujícím repu
+1. Přepni se na svou branch (pokud ještě nejsi)
+bash
+git checkout david-backend
+2. Inicializace Next.js projektu
+
+Pokud repo zatím neobsahuje žádný kód (prázdné nebo jen README), spusť přímo v kořenu repa:
+
+bash
+npx create-next-app@latest .
+
+Tečka . znamená “inicializuj tady, ne v nové složce”.
+
+Během instalace se tě zeptá na pár otázek:
+
+✔ Would you like to use TypeScript? → No (dohodli jste čistý JS)
+✔ Would you like to use ESLint? → Yes (doporučuji, chytne chyby za pochodu)
+✔ Would you like to use Tailwind CSS? → podle potřeby (pro rychlé stylování hodí se)
+✔ Would you like to use `src/` directory? → Yes (lepší organizace)
+✔ Would you like to use App Router? → Yes (moderní standard)
+✔ Would you like to customize the default import alias? → No
+3. Co ti to vytvoří
+.
+├── src/
+│   └── app/
+│       ├── layout.js
+│       ├── page.js
+│       └── globals.css
+├── public/
+├── package.json
+├── next.config.js
+├── .eslintrc.json
+└── .gitignore          ← Next.js ti ho vytvoří automaticky!
+
+Next.js’s .gitignore už obsahuje node_modules, .env*, .next/ atd. – nemusíš ho psát ručně.
+
+4. Ověř, že to běží
+bash
+npm run dev
+
+Otevři http://localhost:3000 – měl bys vidět výchozí Next.js stránku.
+
+5. Kam patří tvůj backend kód
+
+Protože děláš backend část (CITIQ klient, normalizace, nástroje pro AI), dvě možnosti:
+
+A) API routes přímo v Next.js (jednodušší pro hackathon, vše na jednom místě):
+
+src/app/api/
+├── sensors/
+│   └── route.js        ← GET /api/sensors
+└── ask/
+    └── route.js         ← Jáchymův endpoint pro AI dotazy
+
+B) Samostatná backend složka (čistší oddělení tvé/Jáchymovy práce):
+
+src/
+├── app/              ← Next.js frontend + API routes
+└── lib/
+    ├── citiq/
+    │   ├── client.js      ← tvůj fetch wrapper
+    │   └── schema.js      ← Zod schémata
+    ├── normalize.js
+    └── cache.js
+
+Doporučuju B – menší šance na konflikt s Jáchymem, protože on bude sahat hlavně do app/api/ask a AI logiky, ty do lib/.
+
+6. Commitni základní kostru
+bash
+git add .
+git commit -m "Inicializace Next.js projektu"
+git push origin david-backend
+7. Nainstaluj si rovnou Zod a Vitest
+bash
+npm install zod
+npm install -D vitest date-fns-tz
+
+Chceš, ať ti rovnou vygeneruju konkrétní obsah souborů (lib/citiq/client.js, schema.js) jako startovní bod, se kterým můžeš hned psát?
