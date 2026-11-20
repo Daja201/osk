@@ -1,86 +1,118 @@
 @AGENTS.md
 
-# osk – Zeptej se Olomouce (tým SleepNotFound, hackathon UPOL 20.–22. 11. 2026)
+# osk – Zeptej se Olomouce: pravidla pro Claude Code
 
 Název repa `osk` = **O**lomouc + a**sk**.
 
-Webová aplikace: člověk napíše česky otázku o dopravě v Olomouci, Claude vybere nástroj a parametry, náš kód spočítá výsledek z dat senzorů CITIQ/EnCLOD, Claude napíše jednu větu, kód zkontroluje každé číslo ve větě. Stránka ukáže větu, velké číslo, graf po hodinách, „Původ odpovědi“ (účtenku) a „Jak AI postupovala“. Když data chybí nebo je otázka mimo téma, aplikace řekne „nevím“ a důvod.
+Hackathon UPOL 20.–22. 11. 2026, tým SleepNotFound: **Jáchym** (AI vrstva + stránka), **David** (data).
+Podrobná specifikace je v `docs/SPEC.md`, pořadí kroků a prompty v `docs/PROMPTY.md`. Před každým úkolem si přečti sekce, na které úkol odkazuje.
+Ověřená fakta o datech jsou v `docs/data-notes.md` (vznikne v kroku D1) a mají přednost před hypotézami ve SPEC.
+Když se SPEC a kód rozcházejí, zeptej se. Nic neopravuj potichu.
 
-Podrobnosti: `docs/SPEC.md` (specifikace), `docs/PROMPTY.md` (kroky Prompt A, D1–D5, J1–J6). Když se tento soubor rozchází se SPEC nebo PROMPTY, nerozhoduj sám a zeptej se. Výjimka: TypeScript platí vždy (viz níže).
+## Odchylky od SPEC a PROMPTY (platí tento soubor)
+SPEC a PROMPTY vznikly při přípravě a nechávají se beze změny. Na místě jsme rozhodli jinak:
+- **TypeScript, ne JavaScript** (pátek 20. 11., 19:42). Kde SPEC/PROMPTY píše `.js`, platí `.ts` (`.tsx` u komponent). Kde píše `.mjs` skript, platí `.ts` skript spouštěný přes tsx. Testy jsou `tests/**/*.test.ts`.
+- **Git:** každý má svou větev (`jachym`, `dave`), do `main` se spojuje přes pull request. Ne „všichni přímo v main“.
+- **Kostra** vznikla jinak než v kroku 0 (Davidova `create-next-app`, repo `osk`). Krok 0 je hotový, zip `hackathon-start.zip` se nepoužil.
+- **Datová vrstva je Davidova a její rozhraní platí** (rozhodnuto v pátek 20. 11. večer). David ji psal podle projektového dokumentu (`docs/main-docs`), ne podle SPEC. Kontrakt mezi částmi jsou typy v `lib/citiq/traffic.ts` (`TrafficCountParams = { gate, direction: "in" | "out", date }`, `TrafficCountResult`), ne SPEC §3/§4.1. Kód je v `lib/citiq/`, ne v `lib/data/`. AI vrstva (`lib/ai/`) se přizpůsobuje jemu. Když něco v jeho rozhraní chybí, navrhni to Davidovi, neměň jeho soubory.
+- Ověřené poznatky o CITIQ API jsou v `docs/api` (např. bez `measurement_keys` vrací prázdné `results`).
 
-## Kdo co dělá
-- Jáchym (větev `jachym`): `lib/ai/*`, AI smyčka a kontrola čísel, stránka, eval runner, přepnutí na real data, README a prezentace.
-- David (větev `dave`): `lib/data/*`, průzkum dat CITIQ, `traffic_count` + snapshot, `sensor_status`, `/api/cards`.
-- Společný základ (Prompt A: `lib/contract.ts`, `lib/registry.ts`, time, mock) patří do `main`, obě větve z něj vycházejí a často se synchronizují.
+## Co stavíme
+Webová aplikace, kde člověk napíše česky otázku o dopravě v Olomouci (např. „Kolik aut projelo včera ulicí 17. listopadu?“).
+1. Claude (`claude-haiku-5-5`) vybere nástroj a parametry.
+2. Náš kód spočítá výsledek z dat dopravních senzorů (CITIQ / EnCLOD).
+3. Claude z výsledku napíše jednu větu.
+4. Kód zkontroluje každé číslo v té větě.
+5. Stránka ukáže větu, velké číslo, graf po hodinách, „Původ odpovědi“ a „Jak AI postupovala“.
 
-## Technologie
-- **TypeScript, ne JS.** Rozhodnuto v pátek 20. 11. v 19:42. Platí, i když SPEC, PROMPTY nebo `notes` ještě počítají s JS.
-- Next.js 16 (App Router, Turbopack), Tailwind 4, ESLint, npm, Vitest, Zod 4, luxon, `@anthropic-ai/sdk` 1.x.
-- Žádné `any`, žádné `ignoreBuildErrors`. Typy a schémata přes Zod v `lib/contract.ts`.
-- Bez složky `src/`: `app/` a `lib/` jsou v kořeni repa.
-- Skripty: `node --env-file=.env.local --import tsx scripts/X.ts`. `package.json` má `"type": "module"`, takže ve skriptech funguje `await` na nejvyšší úrovni.
-- Test API klíče a modelu: `node --env-file=.env.local --import tsx scripts/check-claude.ts`.
-- Kontrola: `npx next typegen` (vygeneruje typy jako `LayoutProps`), pak `npx tsc --noEmit` a `npm run lint`.
-- `next.config.ts` má zapnuté `cacheComponents`: data jsou dynamická, dokud je neoznačíš `use cache`. Route handlery nesmí exportovat `runtime`.
-- Model: `CLAUDE_MODEL` (výchozí `claude-haiku-5-5`). TODO: doplnit model pro srovnání v evalu.
+Když data chybí nebo otázka nejde zodpovědět, aplikace řekne „nevím“ a proč.
 
-## Architektura
-- Claude jen vybírá nástroj a píše větu. Čísla počítá kód a kód je i kontroluje. Když číslo ve větě nesedí, větu složí kód.
-- Když Claude nevybere žádný nástroj, odpověď je „nevím“ (OUT_OF_SCOPE) pevnou větou. Claude nesmí odpovídat z hlavy.
-- Spojení přes volání funkcí v jednom Next serveru: `lib/ai/ask` → `lib/registry` → funkce z `lib/data/*` → obálka. Přepínač `DATA_SOURCE=mock|real`, mock má stejný podpis jako real.
+**Hlavní princip: Claude nepočítá.** Claude vybírá nástroj a formuluje větu. Všechna čísla počítá náš kód a kód je ve větě kontroluje.
 
-```ts
-const fn = getToolFunctions()[toolUse.name];
-const { date_assumed, ...params } = toolUse.input;
-const envelope = await fn(params);
-// registry: DATA_SOURCE === "real" ? realTools : mockTools
+## Technologie (neměnit bez dotazu)
+- Next.js 16 (App Router), **TypeScript** (strict), Tailwind 4, ESLint, npm.
+- V `package.json` je `"type": "module"`.
+- Balíčky: `@anthropic-ai/sdk` 1.x, `zod` 4, `luxon` (časové zóny), `vitest`, `tsx` (spouštění `.ts` skriptů). Další balíčky nepřidávej bez mého souhlasu.
+- Žádné `any`, žádné `ignoreBuildErrors`. Typy odvozuj ze Zod schémat v `lib/contract.ts` (`z.infer`). Pro data z Claude API používej typy z SDK (`Anthropic.MessageParam`, `Anthropic.Tool`…).
+- Model je `claude-haiku-5-5` (bere se z env `CLAUDE_MODEL`). Toto ID je správné, ověřené 20. 11. přes `scripts/check-claude.ts`. Neměň ho na starší model, i když ho neznáš. Pro srovnání v evalu `claude-sonnet-5-5`.
+- Next.js 16 se liší od toho, co znáš z tréninku. Před psaním route handlerů a stránek se podívej do `node_modules/next/dist/docs/` (viz AGENTS.md).
+- `next/font/google` nepoužívat, bez internetu shodí build.
+- Nepoužíváme databázi, přihlašování, chat ani streaming.
+
+## Struktura a kdo co vlastní
 ```
+app/layout.tsx, app/page.tsx      Jáchym
+app/api/ask/route.ts              Jáchym
+app/api/cards/route.ts            David
+components/                       Jáchym
+lib/config.ts time.ts contract.ts registry.ts    společné (krok A); mění se jen po domluvě
+lib/ai/                           Jáchym  (tools, systemPrompt, ask, checkNumbers, fallback, pricing)
+lib/citiq/                        David   (client, cache, traffic, …)
+lib/mock/                         mock se stejným podpisem jako lib/citiq/ (pro testy bez sítě)
+data/gates.json                   David (přezdívky bran doplňuje ručně)
+data/raw/                         snímek dat (commituje se)
+data/samples/                     vzorky z průzkumu D1
+scripts/tool.ts                   společné: ruční spuštění nástroje
+scripts/check-claude.ts           společné: test API klíče a modelu
+scripts/explore.ts snapshot.ts    David
+scripts/eval.ts                   Jáchym
+eval/                             otázky + výsledky evalu
+tests/                            testy vitest (+ tests/fixtures/)
+docs/                             SPEC, PROMPTY, data-notes, ai-usage, prezentace
+logs/                             log odpovědí (gitignored)
+```
+Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 
-- Nástroje: `traffic_count` (jádro; gate, date_from, date_to, hour_from, hour_to bez konce, date_assumed se před voláním odstraní), `sensor_status`, `speed_distribution`. Brány mají skupiny (např. `17-listopadu` = JIH + Sever), aby Claude nesčítal sám.
-- Kontrola čísel povoluje i čísla z názvů bran (17 ze „17. listopadu“), `peak.hour+1`, části dat, `notes` a `error.message`.
-- `peak` a `low` počítá funkce, ne Claude.
-- Snímek 30 dní v `data/raw/` se commituje. Režimy mock/live/offline. `APP_NOW` zafixuje „teď“ pro eval.
+## Pravidla pro kód
+- Identifikátory, klíče v JSON a názvy souborů jsou anglicky (v JSON snake_case, v TS camelCase). Texty pro uživatele a komentáře česky.
+- V `lib/` a `scripts/` používej jen relativní importy bez přípony, např. `import { now } from "../time"`. Alias `@/` jen v `app/` a `components/`. Skripty totiž běží přes tsx mimo Next.
+- JSON soubory čti přes `fs.readFileSync` + `JSON.parse` s cestou od `process.cwd()` a zvaliduj je Zodem, ne přes `import`.
+- Čas: data jsou v UTC, uživatel myslí v Europe/Prague. Všechny převody dělej jen přes `lib/time.ts` (luxon). Nikdy nepočítej s pevným posunem +1 h a nepoužívej `new Date().getHours()`.
+- Nástroje vrací vždy obálku `{ ok, data | error, meta }` podle typů v `lib/citiq/traffic.ts`.
+- Chybějící hodnota je `null` se statusem `"missing"`, nikdy 0.
+- Funkce v `lib/citiq/` jsou async; mock v `lib/mock/` má stejný podpis.
+- Tajné klíče nesmí být v kódu, v logu ani v commitu. Klíč je jen v `.env.local`. **`.env.local` nečti a nevypisuj.**
+- Nepiš kód „pro budoucnost“. Stačí nejjednodušší řešení, které splní úkol a projde testy.
+- Testy nesmí volat síť (CITIQ ani Claude). Použij fixtures nebo falešného klienta.
 
-## Obálka (návrh, potvrdit s Davidem)
-- `{ ok, data | error, meta }`, klíče snake_case anglicky, texty česky.
-- Chybějící hodnota je `null`, nikdy 0.
-- Statusy hodnot: `ok`, `missing`, `suspect` (počítá se do součtu, ne do špičky), `partial`.
-- Kódy chyb: `NO_DATA`, `SENSOR_OFFLINE`, `BAD_PARAMS`, `SOURCE_ERROR`, `OUT_OF_SCOPE`, `AI_ERROR`.
-- `meta`: tool, params, timezone (`Europe/Prague`), period (local/utc from/to), coverage, source, fetched_at, mode, notes.
+## Jak pracovat (učíme se a musíme kód umět vysvětlit porotě)
+1. U většího úkolu nejdřív napiš krátký plán: které soubory a jaké kroky. Počkej na OK.
+2. Pracuj po malých krocích. Po každém kroku spusť `npm test`, `npx tsc --noEmit` a `npm run lint`. Když se měnilo něco v `app/` nebo `components/`, spusť i `npm run build`.
+3. Když test padá, neupravuj test jen kvůli tomu, aby prošel. Nejdřív mi vysvětli, jestli je špatně kód, nebo test.
+4. Na konci úkolu napiš česky:
+   - co jsi udělal (max 8 odrážek),
+   - co mám ručně zkontrolovat (konkrétní příkazy nebo kroky),
+   <!-- TODO: zbytek bodu 4 a body 5–6 se při kopírování originálu ztratily, doplnit. Zachovaný konec: „… jak jsme AI použili.“ -->
+   - zápis do `docs/ai-usage.md`: co udělala AI a jaká rozhodnutí a úpravy udělal tým, jak jsme AI použili.
+7. Nespouštěj interaktivní příkazy, které čekají na vstup (create-next-app, `npm init` bez `-y` apod.). Dev server spouštěj jen když o to požádám, a pak na pozadí.
+8. Když si nejsi jistý API (Anthropic, CITIQ, Next.js), ověř to v dokumentaci nebo v typech v `node_modules`. Nehádej. Tahák k Claude API je v SPEC §12.
+9. Nikdy nespouštěj `npm audit fix --force`, `--legacy-peer-deps`, `--force`, `git push --force` ani `rm -rf` mimo `.next/`.
+10. Před začátkem úkolu stáhni změny z `main` (`git pull`, případně merge `main` do své větve). Pushuj, jen když projdou testy a build. Bez souhlasu člověka necommituj, nemerguj a nepushuj.
 
-## Claude API (při pochybnosti platí typy v `node_modules/@anthropic-ai/sdk`)
-- Nástroje se `strict: true` a `additionalProperties: false`.
-- `tool_choice: { type: "auto", disable_parallel_tool_use: true }`.
-- Obsah odpovědi asistenta posílej zpět beze změny, včetně thinking bloků. `max_tokens` aspoň 2048.
-- `tool_result` patří do zprávy `user` a v obsahu jde jako první.
+## Příkazy
+- `npm run dev`: vývojový server
+- `npm test`: testy (vitest)
+- `npm run lint`, `npm run build`, `npx tsc --noEmit` (na čistém klonu nejdřív `npx next typegen`)
+- `npm run tool -- <nástroj> '<json params>'`: spustí nástroj a vypíše obálku
+- `npm run explore`: průzkum dat (D1)
+- `npm run snapshot`: stáhne snímek 30 dní do `data/raw/`
+- `npm run eval -- --set dev --model claude-haiku-5-5`: eval
+- `node --env-file=.env.local --import tsx scripts/check-claude.ts`: test API klíče a modelu
 
-## Data CITIQ
-- `https://iot.citiq.cloud/portal/api/v2/view/<view>/?format=json&start=…&stop=…&window=1h`, veřejné, umí vrátit 429.
-- Views: `olomouc-traffic-gates` (max 30 dní), `olomouc-traffic` (registr senzorů), `meteorological-data-olomouc` (max 7 dní).
-- Klíče: `gate_increment_value_sum`, `gate_len{0-2}_speed{0-3}_increment_sum`, `gate_len3_increment_sum`. len0–3 = osobní, dodávky, nákladní, nezařazeno; speed0–3 = protisměr, <30, 30–60, >60 km/h (jen pásma).
-- Neověřené hypotézy H1–H6 (čas bodu = konec okna, noční dohánění → `suspect`, zarovnané absolutní časy…) ověřuje Davidův krok D1. Dokud nejsou ověřené, nestav na nich.
-- 25. 10. 2026 má 25 hodin (změna času). Vždy počítej přes luxon v `Europe/Prague`.
+## Proměnné prostředí (`.env.local`, vzor v `.env.example`)
+| Proměnná | Význam |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | klíč k Claude API |
+| `CLAUDE_MODEL` | výchozí `claude-haiku-5-5` |
+| `DATA_SOURCE` | `mock` nebo `real` |
+| `OFFLINE` | `1` = žádná síť, jen `data/raw/` |
+| `APP_NOW` | pevné „teď“ pro eval a demo, např. `2026-11-20T18:00:00+01:00` |
+| `CITIQ_BASE_URL` | výchozí `https://iot.citiq.cloud/portal/api/v2/view` |
 
-## Slepé uličky
-- Vitest: nejdřív `npm install -D @types/node@24`, jinak ERESOLVE. Nikdy `--force`, `--legacy-peer-deps` ani `npm audit fix --force`.
-- `next/font/google` shodí build bez internetu, nepoužívat.
-- Prompt sám nestačí: Claude odpovídal z hlavy, doplňoval dnešní datum, odvozoval hodiny z pozic v poli a psal markdown. Proto kontrola v kódu.
-- Přesná data CITIQ dá jen skript, ne WebFetch (vynechává části).
-
-## Priority
-- Škrtat v pořadí: mapa → meteo → nasazení → živé stahování → karty → speed_distribution → ranking „all“.
-- Nikdy neškrtat: traffic_count na reálných datech, smyčku, účtenku, kontrolu čísel, „nevím“, eval, srovnání modelů, panel AI, snímek a OFFLINE, slide o AI.
-
-## Eval
-- Dev sada ~25 otázek (Jáchym), ladí se max 3 kola. Held-out ~15 otázek (David) je mimo repo do soboty 22:00.
-- Srovnání Haiku × druhý model patří do jádra.
-
-## Využití AI
-- Rozhodnutí a úpravy týmu zapisuj průběžně do `docs/ai-usage.md` (sekce „rozhodnutí a úpravy týmu“). V prezentaci se musí poctivě popsat, co dělala AI a co tým.
-
-## Bezpečnost
-- `.env.local` nikdy nečti ani nevypisuj. Proměnné: `ANTHROPIC_API_KEY`, `CLAUDE_MODEL`, `DATA_SOURCE=mock|real`, `OFFLINE=0|1`, `APP_NOW`.
-- API klíč nikdy do kódu, gitu, logů ani výstupu.
-
-## Git
-- Bez souhlasu člověka necommituj, nemerguj a nepushuj.
+## Slepé uličky (už jsme na ně narazili)
+- `npm install -D vitest` v TS šabloně → ERESOLVE kvůli `@types/node` ^20. Nejdřív `npm install -D @types/node@24`.
+- `next/font/google` shodí build bez internetu.
+- Top-level `await` ve skriptu padal, dokud `package.json` neměl `"type": "module"`.
+- `tsc` hlásí „Cannot find name 'LayoutProps'“ → chybí vygenerované typy, spusť `npx next typegen`.
+- Prompt sám jako pojistka nestačí: Claude odpovídal z hlavy, doplňoval dnešní datum, odvozoval hodiny z pozic v poli a psal markdown. Proto čísla kontroluje kód.
+- Přesná data CITIQ dá jen skript (D1), ne WebFetch (vynechává části).
