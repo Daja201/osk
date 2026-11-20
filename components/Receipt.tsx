@@ -1,4 +1,4 @@
-import type { AskAnswer } from "@/lib/ui/types";
+import { directionCz, type AskAnswer } from "@/lib/ui/types";
 import Badge from "./Badge";
 
 // „Původ odpovědi“ (účtenka): odkud přesně se vzala čísla.
@@ -34,7 +34,7 @@ export default function Receipt({ answer }: { answer: AskAnswer | null }) {
           <dl className="mt-2">
             <Row label="Funkce">{result.meta.tool}</Row>
             <Row label="Parametry">
-              {result.meta.params.gate}, směr {result.meta.params.direction}, {result.meta.params.date}
+              {result.meta.params.gate}, směr {directionCz[result.meta.params.direction]}, {result.meta.params.date}
             </Row>
             <Row label="Období">
               {result.meta.period_local}

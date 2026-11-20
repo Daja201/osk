@@ -1,4 +1,4 @@
-import type { AskAnswer } from "@/lib/ui/types";
+import { directionCz, type AskAnswer } from "@/lib/ui/types";
 import Badge from "./Badge";
 import HourChart from "./HourChart";
 
@@ -27,7 +27,7 @@ export default function AnswerCard({ answer, loading }: { answer: AskAnswer | nu
               <Badge tone="data">číslo a graf: data</Badge>
               <div className="rounded bg-neutral-800/60 p-4 text-center">
                 <div className="text-4xl font-semibold">{cz.format(result.data.total)}</div>
-                <div className="text-sm text-neutral-400">vozidel za den (směr {result.meta.params.direction})</div>
+                <div className="text-sm text-neutral-400">vozidel za den, směr {directionCz[result.meta.params.direction]}</div>
               </div>
               <HourChart hourly={result.data.hourly} />
             </>

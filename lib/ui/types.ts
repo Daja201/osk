@@ -9,3 +9,6 @@ export type AskAnswer = {
   // Výsledek Davidovy funkce trafficCount, beze změny.
   result: TrafficCountResult;
 };
+
+// Kladná hodnota = dovnitř, záporná = ven (podle mentora, viz docs/data-notes.md).
+export const directionCz = { in: "dovnitř", out: "ven" } as const;

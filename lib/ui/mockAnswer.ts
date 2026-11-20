@@ -23,7 +23,7 @@ const mockResult: TrafficCountOk = {
     source_url:
       "https://iot.citiq.cloud/portal/api/v2/view/olomouc-traffic-gates/?format=json&window=1h&agg_func=sum&measurement_keys=gate_increment_value_sum",
     fetched_at: "2026-11-20T18:42:10.000Z",
-    notes: ["chybí data za 2 hodin", "znaménko = směr je neověřená hypotéza, ověřit s CITIQ (p. Giesl)"],
+    notes: ["chybí data za 2 hodin"],
   },
 };
 
