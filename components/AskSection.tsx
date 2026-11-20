@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import type { AskAnswer } from "@/lib/ui/types";
-import { mockAsk } from "@/lib/ui/mockAnswer";
 import AnswerCard from "./AnswerCard";
 import Receipt from "./Receipt";
 
@@ -26,8 +25,13 @@ export default function AskSection() {
     setLoading(true);
     setError(null);
     try {
-      // TODO: nahradit voláním /api/ask, až bude hotová AI smyčka.
-      setAnswer(await mockAsk(trimmed));
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: trimmed }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setAnswer((await response.json()) as AskAnswer);
     } catch {
       setError("Odpověď se nepodařilo načíst.");
     } finally {

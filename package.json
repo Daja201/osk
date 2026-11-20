@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run && node --import tsx --test lib/citiq/*.test.ts",
+    "test:watch": "vitest",
+    "ask": "node --env-file-if-exists=.env.local --import tsx scripts/ask.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",

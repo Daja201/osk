@@ -17,9 +17,13 @@ export default function AnswerCard({ answer, loading }: { answer: AskAnswer | nu
 
       {!loading && answer && (
         <div className="space-y-3">
-          <Badge tone={answer.sentence_source === "ai" ? "ai" : "warn"}>
-            {answer.sentence_source === "ai" ? "věta: AI" : "věta: složil kód"}
-          </Badge>
+          {answer.kind === "unknown" ? (
+            <Badge tone="warn">Nevím</Badge>
+          ) : (
+            <Badge tone={answer.sentence_source === "ai" ? "ai" : "warn"}>
+              {answer.sentence_source === "ai" ? "věta: AI (čísla zkontrolována)" : "věta: složil kód"}
+            </Badge>
+          )}
           <p className="rounded bg-neutral-800/60 p-4 text-xl leading-snug">{answer.sentence}</p>
 
           {result?.ok ? (
@@ -32,11 +36,7 @@ export default function AnswerCard({ answer, loading }: { answer: AskAnswer | nu
               <HourChart hourly={result.data.hourly} />
             </>
           ) : (
-            result && (
-              <p className="rounded border border-amber-800 p-3 text-amber-200">
-                Nevím: {result.error.message}
-              </p>
-            )
+            answer.reason && <p className="text-sm text-neutral-400">Důvod: {answer.reason.code}</p>
           )}
         </div>
       )}
