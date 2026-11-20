@@ -8,7 +8,7 @@ Praktický přehled datové vrstvy: co je ověřené, co je hardcoded, kde jsou 
 
 - `lib/citiq/client.ts` – univerzální HTTP klient na CITIQ API. Nezávislý na datasetu, jen posílá query parametry (`start`, `stop`, `window`, `measurement_keys`, `agg_func`, `group_by_tags`, `format`) a vrací JSON/CSV.
 - `lib/citiq/cache.ts` – cache po dnech, nezávislá na datasetu. Funkce `getCachedDay(view, date, params)` dostane název pohledu a vrátí data za jeden den (v pražském čase), uzavřené dny se neobnovují, dnešek max 1×/hod (`REFRESH_INTERVAL_MS`).
-- `lib/citiq/traffic.ts` – rozpracovaná doménová funkce `trafficCount` pro dataset `olomouc-traffic-gates`; obsahuje typy vstupu a výsledku i validaci názvu brány.
+- `lib/citiq/traffic.ts` – doménová funkce `trafficCount` pro dataset `olomouc-traffic-gates`; validuje vstup, používá denní cache a vrací stabilní výsledek nebo strukturovanou chybu.
 - **Napojení na model zatím není implementované:** v aplikaci není API route ani adaptér pro Haiku. CITIQ klient a doménové funkce musí zůstat na serveru.
 
 ---
@@ -23,11 +23,11 @@ Praktický přehled datové vrstvy: co je ověřené, co je hardcoded, kde jsou 
   - Bez `group_by_tags=direction` CITIQ sečte oba směry do jedné hodnoty za hodinu – **nepoužitelné** pro `traffic_count`.
   - S `group_by_tags=direction` vrací dva body na hodinu, každý s `tags.direction: "1"` nebo `"-1"`.
   - Ověřeno empiricky: `direction: "1"` → hodnota vždy ≥0, `direction: "-1"` → hodnota vždy ≤0 (tag a znaménko nesou stejnou informaci u `gate_increment_value`).
-  - Fyzický význam (které číslo je "dovnitř") **není CITIQ-ověřený** – je to týmové rozhodnutí (`+ = dovnitř`), potvrdit s p. Gieslem na mentoringu.
+  - Fyzický význam mapování `"1" = in`, `"-1" = out` **není CITIQ-ověřený** – jde o týmový předpoklad, potvrdit s p. Gieslem. Výstupní počty jsou nezáporné (absolutní hodnota measurementu); směr určuje tag.
   - U dílčích measurementů podle typu/rychlosti vozidla (`gate_len0_speed0_increment` atd.) jsou hodnoty vždy nezáporné nezávisle na směru – tam funguje jen `direction` tag, ne znaménko.
 - **Chyba na neplatné uuid:** plochý objekt `{"error": "Device or entity with UUID(s) 'xxx' not found in this view."}` – ne vnořený `code`/`message`, jak byl původní návrh formátu.
 - **Díry v datech:** chybějící hodiny v poli `values` prostě nejsou (žádný `null` placeholder) – coverage se počítá z toho, kolik položek v poli reálně je, ne z hodnoty.
-- **Stav implementace:** `KNOWN_GATES` a normalizace diakritiky už jsou v `traffic.ts` aplikované. Samotná funkce ale není hotová: soubor aktuálně končí u nedokončené smyčky při skládání hodinových výsledků. Nepovažovat ji zatím za připravenou k volání ani napojení na model.
+- **Stav implementace:** `trafficCount` je dokončená doménová funkce. Rozlišuje `UNKNOWN_GATE` a `NO_DATA`, normalizuje diakritiku, filtruje podle směrového tagu a vrací hodinové hodnoty, total, coverage i metadata. Chybějící hodiny jsou `null`; lokální den má podle změny času 23, 24 nebo 25 chronologicky seřazených intervalů. Na změně času a základním chování jsou testy v `lib/citiq/traffic.test.ts`.
 
 ---
 
@@ -45,8 +45,7 @@ Praktický přehled datové vrstvy: co je ověřené, co je hardcoded, kde jsou 
 
 - **Model má volat doménové nástroje, ne CITIQ přímo.** Backend má vlastnit validaci, dotazy, cache a převod na stabilní výstup. Modelu nedávat volnost skládat CITIQ URL ani odvozovat směr ze znaménka.
 - Navržený nástroj `traffic_count` přijímá `{ "gate": string, "direction": "in" | "out", "date": "YYYY-MM-DD" }`. Datum znamená kalendářní den v časové zóně `Europe/Prague`; názvy bran přijímají varianty bez diakritiky.
-- Plánovaný úspěšný výsledek má být ve tvaru `TrafficCountOk`: `data.total`, hodinové `data.hourly` s `null` pro chybějící hodiny a `meta` s obdobím, pokrytím, zdrojem, časem načtení a poznámkami. Chyba je `TrafficCountError` s `code`, lidsky čitelnou `message` a případnými `suggestions`. Použít stabilní kódy, zejména `UNKNOWN_GATE`, `NO_DATA`, `FETCH_FAILED` a `BAD_RESPONSE`.
-- Před stabilizací schématu vyřešit délku `hourly` při změně času v Praze: místní den může mít 23 nebo 25 hodin, ne vždy 24.
+- `traffic_count` vrací `TrafficCountOk`: `data.total`, chronologické `data.hourly` s `null` pro chybějící intervaly a `meta` s obdobím, coverage, zdrojem, časem načtení a poznámkami. Délka `hourly` i `coverage.of` je 23, 24 nebo 25 podle místního dne. Chyba je `TrafficCountError` s `code`, lidsky čitelnou `message` a případnými `suggestions`; kódy zahrnují `UNKNOWN_GATE`, `NO_DATA`, `FETCH_FAILED`, `BAD_RESPONSE`, `INVALID_DATE`, `INVALID_DIRECTION` a `INVALID_PARAMS`.
 - Pro Haiku/Jáchyma vystavit jen ověřené nástroje se vstupním JSON Schema a po volání předat strukturovaný výsledek. Konkrétní transport/model SDK zatím není v projektu zvolený ani implementovaný; doménovou logiku nepřivazovat k jednomu SDK.
 - U `sensor_status` nejdřív dohodnout práh neaktivity a tvar výstupu (stav každého zařízení, nebo souhrn). `last_seen: null` musí být odlišeno od starého data; pole `enabled` není indikátorem provozního stavu.
 - Fyzický význam směru (`+`/`-` = dovnitř/ven) ověřit s p. Gieslem; současné mapování je pouze týmový předpoklad.
@@ -56,11 +55,10 @@ Praktický přehled datové vrstvy: co je ověřené, co je hardcoded, kde jsou 
 
 ## 5. Další kroky před napojením
 
-1. **Dokončit `trafficCount`** – implementovat hodinové bucketing/coverage, výpočet totalu i `meta`; vyřešit 23/25hodinové dny a doplnit testy pro neznámou bránu, bránu bez dat, chybějící hodinu a oba směry. Ověřit, že modul projde TypeScriptem.
-2. **Implementovat `sensor_status`** po rozhodnutí o prahu a výstupním kontraktu; pokrýt `last_seen: null`, staré i čerstvé datum.
-3. **Vystavit serverové rozhraní pro nástroje** (např. API endpoint nebo serverový tool adapter) a validovat vstup před voláním doménových funkcí. CITIQ dotazy a cache ponechat pouze na serveru.
-4. **Napojit Haiku/Jáchyma** přes nástrojové definice odvozené od výše popsaných kontraktů. API klíč případného modelového poskytovatele držet jen v serverové konfiguraci, nikdy v klientovi.
-5. **Teplotní dataset** (`meteorological-data-olomouc`) doplnit až po ověření jeho parametrů a odpovědi v [docs/api](./api).
+1. **Implementovat `sensor_status`** po rozhodnutí o prahu a výstupním kontraktu; pokrýt `last_seen: null`, staré i čerstvé datum.
+2. **Vystavit serverové rozhraní pro nástroje** (např. API endpoint nebo serverový tool adapter) a validovat vstup před voláním doménových funkcí. CITIQ dotazy a cache ponechat pouze na serveru.
+3. **Napojit Haiku/Jáchyma** přes nástrojové definice odvozené od výše popsaných kontraktů. API klíč případného modelového poskytovatele držet jen v serverové konfiguraci, nikdy v klientovi.
+4. **Teplotní dataset** (`meteorological-data-olomouc`) doplnit až po ověření jeho parametrů a odpovědi v [docs/api](./api).
 
 ---
 

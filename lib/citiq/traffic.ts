@@ -267,7 +267,7 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     };
   }
 
-  const total = hourly.reduce((sum, value) => sum + (value ?? 0), 0);
+  const total = hourly.reduce<number>((sum, value) => sum + (value ?? 0), 0);
   const coveredHours = hourly.filter((value) => value !== null).length;
   const notes = [
     `Směr "${direction}" je vybrán podle tags.direction="${wantedTagValue}"; výstupní počty jsou nezáporné.`,
@@ -283,7 +283,7 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     meta: {
       tool: "traffic_count",
       params: { gate: knownGate, direction, date },
-      period_local: `${date} (Europe/Prague)`,
+      period_local: `${date} (${LOCAL_TIME_ZONE})`,
       period_utc: [start.toISOString(), stop.toISOString()],
       coverage: { hours: coveredHours, of: expectedHours },
       source_url: buildSourceUrl(start, stop),
@@ -291,3 +291,4 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
       notes,
     },
   };
+}
