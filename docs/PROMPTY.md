@@ -37,7 +37,7 @@ Prompty jsou v šedých blocích. Zkopírujte je celé do Claude Code. Funguje i
 | --- | --- | --- |
 | prompty | 0, A, J1–J6 | 0b, D1–D5 |
 | ručně | dev otázky do evalu, ladění promptu, prezentace | přezdívky a umístění bran, otázky na Giesla, held-out otázky |
-| složky | `lib/ai/`, `app/` (kromě cards), `components/`, `scripts/eval.mjs` | `lib/data/`, `data/`, `scripts/explore\|snapshot.mjs`, `app/api/cards/` |
+| složky | `lib/ai/`, `app/` (kromě cards), `components/`, `scripts/eval.mjs` | `lib/data/`, `data/`, `scripts/explore.mjs`, `app/api/cards/` |
 
 **Git:**
 - Pracujeme přímo v `main`, každý jen ve svých složkách.
@@ -67,7 +67,6 @@ Pak v Cursoru vytvořte `.env.local` (ne přes Claude Code):
 ANTHROPIC_API_KEY=sk-ant-…            # nový klíč; starý z cvičení (byl na screenshotu) smažte
 CLAUDE_MODEL=claude-haiku-5-5
 DATA_SOURCE=mock
-OFFLINE=0
 APP_NOW=
 ```
 V konzoli platform.claude.com si nastavte limit útraty, třeba 10 USD.
@@ -102,9 +101,8 @@ Přečti CLAUDE.md a docs/SPEC.md (§2, §3, §4, §5.5, §5.6, §6). Úkol: spo
    "test": "vitest run", "test:watch": "vitest",
    "tool": "node --env-file=.env.local scripts/tool.mjs",
    "explore": "node --env-file=.env.local scripts/explore.mjs",
-   "snapshot": "node --env-file=.env.local scripts/snapshot.mjs",
    "eval": "node --env-file=.env.local scripts/eval.mjs"
-   (explore, snapshot a eval zatím neexistují, to je v pořádku. .env.local existuje, jen ho nečti.)
+   (explore a eval zatím neexistují, to je v pořádku. .env.local existuje, jen ho nečti.)
 2. vitest.config.mjs: environment node, testy v tests/**/*.test.js.
 3. lib/config.js: všechny proměnné prostředí z CLAUDE.md na jednom místě, s výchozími hodnotami.
 4. lib/time.js podle SPEC §6.2 (luxon, Europe/Prague, respektuje APP_NOW) + tests/time.test.js:
@@ -208,7 +206,7 @@ Přečti CLAUDE.md, docs/SPEC.md §3–§6 a docs/data-notes.md (ověřená fakt
 
 Úkol: skutečná datová vrstva pro traffic_count se stejným podpisem jako lib/mock/trafficCount.js.
 1. lib/data/citiq.js: fetchView(view, {start, stop, window}) → JSON. Timeout 15 s, opakování při 429 a 5xx s pauzou 1-2-4-8 s (max 4×, respektuj Retry-After), max 1 požadavek za sekundu. Selhání po opakováních → trafficCount z něj udělá SOURCE_ERROR.
-2. lib/data/store.js: getGatesDay(date) vrátí surová data pražského dne. Pořadí: data/raw/gates/<date>.json, pak (není-li OFFLINE) stažení. Při OFFLINE=1 nikdy nesahej na síť: den mimo snímek → trafficCount vrátí NO_DATA „Offline režim: data jsou k dispozici do …“ (SPEC §5.6). Na disk ukládej jen úplné dny. Neúplný dnešek drž jen v paměti max 10 minut.
+2. lib/data/store.js: getGatesDay(date) vrátí surová data pražského dne z cache. Na disk ukládej jen úplné dny. Neúplný dnešek drž jen v paměti max 15 minut.
 3. lib/data/parse.js: ze surové odpovědi a brány udělá hodinovou řadu podle SPEC §3.2 a §4.1:
    - hodina v místním čase přes lib/time.js podle verdiktu H2 z data-notes (konec nebo začátek okna!),
    - value podle verdiktu H1,
@@ -222,9 +220,8 @@ Přečti CLAUDE.md, docs/SPEC.md §3–§6 a docs/data-notes.md (ověřená fakt
    - total, peak, low a coverage podle §4.1, notes česky,
    - meta podle §3.1 včetně period v místním čase i UTC a source.url = přesná URL dotazu,
    - brána se status_note nebo bez dat v celém období → SENSOR_OFFLINE nebo NO_DATA se srozumitelnou zprávou.
-5. scripts/snapshot.mjs: stáhne chybějící úplné dny za posledních 30 dní (podle now()) a registr do data/raw/. Postupně, s pauzou, vypisuje průběh a na konci souhrn (počet dní, velikost).
-6. lib/data/index.js: exportuj skutečné funkce. Pro nástroje, které ještě nejsou hotové, nech mock. Doplň getDataRange() podle SPEC §2 (z data/raw/ a režimu).
-7. Testy (vitest) s fixtures z data/samples/ (zkopíruj potřebné do tests/fixtures/), bez sítě:
+5. lib/data/index.js: exportuj skutečné funkce. Pro nástroje, které ještě nejsou hotové, nech mock. Doplň getDataRange() podle SPEC §2.
+6. Testy (vitest) s fixtures z data/samples/ (zkopíruj potřebné do tests/fixtures/), bez sítě:
    - převod času včetně 25. 10. 2026,
    - missing místo nuly,
    - suspect po mezeře,
@@ -238,12 +235,10 @@ Přečti CLAUDE.md, docs/SPEC.md §3–§6 a docs/data-notes.md (ověřená fakt
 
 Hotovo, když:
 - projde npm test,
-- npm run snapshot stáhne 30 dní,
-- OFFLINE=1 npm run tool -- traffic_count '<včerejšek pro 17-listopadu-jih>' vrátí obálku s reálnými čísly,
+- npm run tool -- traffic_count '<včerejšek pro 17-listopadu-jih>' vrátí obálku s reálnými čísly,
 - ukážeš mi jednu konkrétní hodinu v surovém JSON a jak se z ní stala hodnota v řadě, abych to porovnal ručně.
 Commit a záznam do docs/ai-usage.md.
 ```
-Po D2: commitni snímek `data/raw/` a napiš Jáchymovi „snapshot je v main, můžeš na real“.
 
 ### D3: sensor_status a /api/cards (asi 1 hodina)
 ```text
@@ -351,10 +346,10 @@ Přečti CLAUDE.md a docs/SPEC.md §10. Úkol: nástroj na měření přesnosti.
    - při víc modelech srovnávací tabulka vedle sebe,
    - na konci seznam chybných otázek: co se čekalo a co přišlo.
 2. Zástupné hodnoty dat podle §10.2 přes relativeDates z lib/time.js.
-3. Varování, když neběží OFFLINE=1 nebo chybí APP_NOW (výsledky pak nejsou opakovatelné).
+3. Varování, když chybí APP_NOW (výsledky pak nejsou opakovatelné).
 4. Testy vyhodnocovací logiky a zástupných hodnot.
 
-Hotovo, když `OFFLINE=1 APP_NOW=2026-11-20T18:00:00+01:00 npm run eval -- --set example --model claude-haiku-5-5` vypíše tabulku. Commit a záznam do docs/ai-usage.md.
+Hotovo, když `APP_NOW=2026-11-20T18:00:00+01:00 npm run eval -- --set example --model claude-haiku-5-5` vypíše tabulku. Commit a záznam do docs/ai-usage.md.
 ```
 Ručně (sobota dopoledne):
 - napište `eval/questions.dev.json`, asi 25 otázek přes všechny kategorie z §10.1, s reálnými názvy bran a přezdívkami,
@@ -362,7 +357,7 @@ Ručně (sobota dopoledne):
 
 ### J4: přepnutí na reálná data (spolu, cíl sobota 14:00)
 ```text
-Přečti docs/SPEC.md §11 a docs/data-notes.md. Všechno spouštěj s proměnnými na příkazové řádce: DATA_SOURCE=real OFFLINE=1 APP_NOW=<konec snímku>. Proměnné z příkazové řádky mají přednost před .env.local, a do .env.local nesahej.
+Přečti docs/SPEC.md §11 a docs/data-notes.md. Všechno spouštěj s proměnnými na příkazové řádce: DATA_SOURCE=real APP_NOW=<pevný čas>. Proměnné z příkazové řádky mají přednost před .env.local, a do .env.local nesahej.
 1. Ověř, že lib/ai/tools.js a systémový prompt berou aktuální data/gates.json (včetně přezdívek) a getDataRange().
 2. Pusť prvních 10 otázek z eval/questions.dev.json a projdi chyby. Opravuj jen integrační chyby (tvar dat, časy, chybějící pole), na prompt nesahej.
 3. V prohlížeči zkontroluj graf s reálnými daty, Původ odpovědi (odkaz na zdroj musí fungovat) a kartu Stav senzorů.
@@ -371,13 +366,13 @@ Napiš mi seznam nalezených problémů a co jsi opravil. Commit a záznam do do
 
 ### J5: kolo ladění (max 3×, sobota 14–22)
 ```text
-Pusť OFFLINE=1 APP_NOW=<konec snímku> npm run eval -- --set dev --model claude-haiku-5-5 a přečti výsledek.
+Pusť APP_NOW=<pevný čas> npm run eval -- --set dev --model claude-haiku-5-5 a přečti výsledek.
 Seskup chyby podle typu a ke každé skupině navrhni nejmenší změnu (popis nástroje, systémový prompt, přezdívky v gates.json, nebo kód). Zatím nic neměň, počkej, kterou změnu vyberu.
 Po změně pusť dev sadu znovu, porovnej s minulým během (co se zlepšilo, co zhoršilo) a zapiš kolo do docs/ai-usage.md (přesnost před a po, co se změnilo).
 ```
 Sobota 22:00, held-out (už se neladí):
 ```text
-Zkopíroval jsem eval/questions.holdout.json. Pusť OFFLINE=1 APP_NOW=<konec snímku> npm run eval -- --set holdout --model claude-haiku-5-5,claude-sonnet-5-5 a nic neměň. Shrň výsledky do docs/eval-vysledky.md: tabulka modelů, rozpad chyb, 3 typické chyby s vysvětlením a poctivý závěr, který model a proč.
+Zkopíroval jsem eval/questions.holdout.json. Pusť APP_NOW=<pevný čas> npm run eval -- --set holdout --model claude-haiku-5-5,claude-sonnet-5-5 a nic neměň. Shrň výsledky do docs/eval-vysledky.md: tabulka modelů, rozpad chyb, 3 typické chyby s vysvětlením a poctivý závěr, který model a proč.
 ```
 
 ### J6: README a podklady k prezentaci (sobota večer / neděle ráno)
@@ -385,7 +380,7 @@ Zkopíroval jsem eval/questions.holdout.json. Pusť OFFLINE=1 APP_NOW=<konec sn�
 Z docs/ai-usage.md, docs/eval-vysledky.md, docs/data-notes.md a kódu připrav:
 1. README.md:
    - co aplikace dělá,
-   - jak ji spustit (npm install, .env.local podle .env.example, režimy mock/live/offline, npm run snapshot),
+   - jak ji spustit (npm install, .env.local podle .env.example, režimy mock/live),
    - architektura (schéma z SPEC §2),
    - jak používáme AI a jak ji hlídáme,
    - výsledky evalu,
@@ -400,10 +395,9 @@ Nic dalšího neměň. Commit.
 ## 6. Neděle ráno: příprava dema
 ```text
 Je neděle ráno, demo je ve 13:00. Projdi se mnou kontrolu:
-1. npm run snapshot, aby ve snímku byl pátek i sobota (v demu znamená „včera“ sobotu). Ověř, že nejsou nové díry.
+1. Ověř, že cache obsahuje data potřebná pro demo otázky.
 2. npm test, npm run lint, npm run build.
-3. Spusť dev server s DATA_SOURCE=real OFFLINE=1 na příkazové řádce (APP_NOW nenastavuj, do .env.local nesahej). Projdi demo otázky z docs/prezentace.md přes /api/ask a u každé ukaž větu, kontrolu čísel a čas.
-4. Pak totéž s OFFLINE=0 (živá data), abychom věděli, jestli na místě funguje síť.
+3. Spusť dev server s DATA_SOURCE=real na příkazové řádce (APP_NOW nenastavuj, do .env.local nesahej). Projdi demo otázky z docs/prezentace.md přes /api/ask a u každé ukaž větu, kontrolu čísel a čas.
 Nic nového nepřidávej, jen hlas problémy.
 ```
 Pak ručně:
@@ -422,7 +416,7 @@ Pak ručně:
 | 18:20 | Prompt A | Krok 0b → D1 |
 | 19:00 | J1 | dokončit D1, ručně přezdívky a umístění bran |
 | 21:00 | J2 | D2 |
-| ~23:00 | ✔ jedna otázka projde celou cestou (mock) | ✔ snímek 30 dní v main |
+| ~23:00 | ✔ jedna otázka projde celou cestou (mock) | |
 | noc | spát aspoň 5 h | spát aspoň 5 h |
 | so dopoledne | dev otázky (ručně), J3 | D3, held-out otázky (mimo repo) |
 | **so 14:00** | ✔ **J4: reálná data s Původem odpovědi**, jinak škrtat podle SPEC §11 | |
@@ -430,7 +424,7 @@ Pak ručně:
 | **so 20:00** | ✔ feature freeze, dál jen opravy | |
 | **so 22:00** | ✔ held-out Haiku + Sonnet → čísla do prezentace | |
 | so večer | J6, slidy | demo scénář, záložní plán |
-| ne 9:00 | kap. 6 (snapshot, kontrola) | záložní video |
+| ne 9:00 | závěrečná kontrola | záložní video |
 | **ne 11:00** | ✔ hotovo, odevzdání | |
 | ne 13–15 | prezentace | |
 
@@ -468,7 +462,7 @@ Upřímně ke spánku: kód psaný po druhé ráno se v neděli opravuje dvakrá
 | Testy padají | „Testy padají: {sem vlož výpis}. Najdi příčinu a vysvětli mi ji. Test neupravuj, dokud neřeknu.“ |
 | API 400 kvůli schématu nástroje | Zjednodušte schéma (bez `format`, číselných mezí). Hlídá to Zod. |
 | API 401 | Špatný klíč v `.env.local`, nebo neběží restart dev serveru (env se načítá při startu). |
-| CITIQ 429 nebo nefunguje síť | `OFFLINE=1` + snímek. Nezvyšovat počet požadavků. |
+| CITIQ 429 nebo nefunguje síť | Zkusit později, nezvyšovat počet požadavků. |
 | Build padá na Google Fonts | Krok A je odstraňuje. Kdyby se vrátily, smazat `next/font/google` z layoutu. |
 | Graf je posunutý o hodinu | Verdikt H2 v data-notes a převod v `parse.js`. Porovnat jednu hodinu ručně se surovým JSON. |
 | Claude ve větě zaokrouhluje nebo počítá | Kontrola čísel to chytí (fallback). Do promptu přidat příklad, víc v J5. |
@@ -494,4 +488,4 @@ Upřímně ke spánku: kód psaný po druhé ráno se v neděli opravuje dvakrá
 5. **Transparentnost (20 s):** jak jsme použili Claude Code (deník `docs/ai-usage.md`, commity) a co jsme dělali sami (data, otázky, pravidla kontroly, rozhodnutí).
 6. **Co dál (10 s):** další senzory, upozornění na výpadky, nasazení pro město.
 
-Záloha: video dema a režim OFFLINE se snímkem.
+Záloha: video dema.

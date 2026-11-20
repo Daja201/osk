@@ -1,13 +1,28 @@
-// Pražské datum a čas bez knihovny. Počítáme jen s celými dny (YYYY-MM-DD),
-// takže změna času nevadí.
+// Celé datum v aplikaci patří vždy do Europe/Prague. Nepoužíváme serverové či
+// systémové časové pásmo ani pevný posun +1/+2 hodiny.
+export const PRAGUE_TIME_ZONE = "Europe/Prague";
 
 export function appNow(): Date {
-  return process.env.APP_NOW ? new Date(process.env.APP_NOW) : new Date();
+  if (!process.env.APP_NOW) return new Date();
+  const fixedNow = new Date(process.env.APP_NOW);
+  if (Number.isNaN(fixedNow.getTime())) {
+    throw new Error(`Neplatná hodnota APP_NOW: "${process.env.APP_NOW}"`);
+  }
+  return fixedNow;
 }
 
 export function pragueDate(at: Date): string {
-  // en-CA formátuje jako YYYY-MM-DD
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague" }).format(at);
+  if (Number.isNaN(at.getTime())) {
+    throw new Error("Neplatný datum pro výpočet dnešního dne");
+  }
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: PRAGUE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(at);
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function addDays(date: string, days: number): string {

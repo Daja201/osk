@@ -1,5 +1,5 @@
 import { getCachedDay, utcStartOfPragueDay } from "./cache";
-import { CITIQ_BASE } from "./client";
+import { CITIQ_BASE, type CitiqParams } from "./client";
 
 const LOCAL_TIME_ZONE = "Europe/Prague";
 const MS_PER_HOUR = 60 * 60 * 1000;
@@ -9,6 +9,13 @@ const DIRECTION_TAG = "direction";
 const MEASUREMENT_KEY_REQUEST = "gate_increment_value"; // posílá se v measurement_keys
 const AGG_FUNC = "sum";
 const MEASUREMENT_KEY_RESPONSE = `${MEASUREMENT_KEY_REQUEST}_${AGG_FUNC}`; // "gate_increment_value_sum" v odpovědi
+export const TRAFFIC_CITIQ_PARAMS = {
+  measurement_keys: [MEASUREMENT_KEY_REQUEST],
+  window: "1h",
+  agg_func: AGG_FUNC,
+  group_by_tags: [DIRECTION_TAG],
+  format: "json",
+} satisfies Omit<CitiqParams, "view" | "start" | "stop">;
 
 // Ověřeno empiricky (20. 11. 2026, brána Parkoviště Flora, group_by_tags=direction):
 // hodnoty s tags.direction === "1" jsou vždy kladné, s "-1" vždy záporné.
@@ -45,6 +52,8 @@ export type TrafficCountParams = {
   gate: string;
   direction: "in" | "out";
   date: string; // YYYY-MM-DD, prague day
+  hour_from?: number;
+  hour_to?: number;
 };
 
 export type TrafficCountOk = {
@@ -137,7 +146,7 @@ function buildSourceUrl(start: Date, stop: Date): string {
 }
 
 export async function trafficCount(params: TrafficCountParams): Promise<TrafficCountResult> {
-  const { gate, direction, date } = params;
+  const { gate, direction, date, hour_from, hour_to } = params;
 
   if (typeof gate !== "string" || !gate.trim()) {
     return {
@@ -149,6 +158,16 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     return {
       ok: false,
       error: { code: "INVALID_DIRECTION", message: 'Směr musí být "in" nebo "out".', suggestions: [] },
+    };
+  }
+  if (
+    (hour_from !== undefined && (!Number.isInteger(hour_from) || hour_from < 0 || hour_from > 23)) ||
+    (hour_to !== undefined && (!Number.isInteger(hour_to) || hour_to < 1 || hour_to > 24)) ||
+    (hour_from !== undefined && hour_to !== undefined && hour_from >= hour_to)
+  ) {
+    return {
+      ok: false,
+      error: { code: "INVALID_HOUR_RANGE", message: "Neplatný rozsah hodin. hour_from musí být 0–23 a hour_to 1–24.", suggestions: [] },
     };
   }
 
@@ -186,13 +205,7 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
 
   let cacheEntry: { data: unknown; fetched_at: string };
   try {
-    cacheEntry = await getCachedDay(VIEW, date, {
-      measurement_keys: [MEASUREMENT_KEY_REQUEST],
-      window: "1h",
-      agg_func: AGG_FUNC,
-      group_by_tags: [DIRECTION_TAG],
-      format: "json",
-    });
+    cacheEntry = await getCachedDay(VIEW, date, TRAFFIC_CITIQ_PARAMS);
   } catch (error) {
     return {
       ok: false,
@@ -243,6 +256,8 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
   const hourly: (number | null)[] = new Array(expectedHours).fill(null);
   const startMs = start.getTime();
   let matchedPoints = 0;
+  const rangeFrom = hour_from ?? 0;
+  const rangeTo = hour_to ?? 24;
 
   for (const { point, tags } of measurement.values) {
     if (tags.direction !== wantedTagValue) continue;
@@ -251,6 +266,7 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     if (pointMs < startMs || pointMs >= nextDayStart.getTime()) continue;
 
     const hourIndex = Math.floor((pointMs - startMs) / MS_PER_HOUR);
+    if (hourIndex < rangeFrom || hourIndex >= rangeTo) continue;
     const count = Math.abs(point.value);
     hourly[hourIndex] = (hourly[hourIndex] ?? 0) + count;
     matchedPoints += 1;
@@ -268,11 +284,18 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
   }
 
   const total = hourly.reduce<number>((sum, value) => sum + (value ?? 0), 0);
-  const coveredHours = hourly.filter((value) => value !== null).length;
+  for (let hour = 0; hour < hourly.length; hour++) {
+    if (hour < rangeFrom || hour >= rangeTo) hourly[hour] = null;
+  }
+  const coveredHours = hourly.slice(rangeFrom, rangeTo).filter((value) => value !== null).length;
+  const rangeHours = rangeTo - rangeFrom;
   const notes = [
     `Směr "${direction}" je vybrán podle tags.direction="${wantedTagValue}"; výstupní počty jsou nezáporné.`,
     "Hodiny jsou seřazeny chronologicky od půlnoci v Europe/Prague; chybějící hodiny mají hodnotu null.",
   ];
+  if (hour_from !== undefined || hour_to !== undefined) {
+    notes.push(`Vybraný časový rozsah je ${rangeFrom}:00–${rangeTo}:00.`);
+  }
   if (expectedHours !== 24) {
     notes.push(`Tento místní den má kvůli změně času ${expectedHours} hodinových intervalů.`);
   }
@@ -282,10 +305,10 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     data: { total, hourly },
     meta: {
       tool: "traffic_count",
-      params: { gate: knownGate, direction, date },
+      params: { gate: knownGate, direction, date, ...(hour_from !== undefined ? { hour_from } : {}), ...(hour_to !== undefined ? { hour_to } : {}) },
       period_local: `${date} (${LOCAL_TIME_ZONE})`,
       period_utc: [start.toISOString(), stop.toISOString()],
-      coverage: { hours: coveredHours, of: expectedHours },
+      coverage: { hours: coveredHours, of: rangeHours },
       source_url: buildSourceUrl(start, stop),
       fetched_at: cacheEntry.fetched_at,
       notes,

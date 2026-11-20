@@ -49,11 +49,10 @@ lib/config.ts time.ts contract.ts registry.ts    společné (krok A); mění se 
 lib/ai/                           Jáchym  (tools, systemPrompt, ask, checkNumbers, fallback, pricing)
 lib/citiq/                        David   (client, cache, traffic, …)
 data/gates.json                   David (přezdívky bran doplňuje ručně)
-data/raw/                         snímek dat (commituje se)
 data/samples/                     vzorky z průzkumu D1
 scripts/tool.ts                   společné: ruční spuštění nástroje
 scripts/check-claude.ts           společné: test API klíče a modelu
-scripts/explore.ts snapshot.ts    David
+scripts/explore.ts                David
 scripts/eval.ts                   Jáchym
 eval/                             otázky + výsledky evalu
 tests/                            testy vitest (+ tests/fixtures/)
@@ -94,7 +93,7 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 - `npm run lint`, `npm run build`, `npx tsc --noEmit` (na čistém klonu nejdřív `npx next typegen`)
 - `npm run tool -- <nástroj> '<json params>'`: spustí nástroj a vypíše obálku
 - `npm run explore`: průzkum dat (D1)
-- `npm run snapshot`: stáhne snímek 30 dní do `data/raw/`
+- CITIQ data se automaticky ukládají do `data/cache/`; cache uchovává posledních 30 kalendářních dnů.
 - `npm run eval -- --set dev --model claude-haiku-5-5`: eval
 - `node --env-file=.env.local --import tsx scripts/check-claude.ts`: test API klíče a modelu
 
@@ -104,7 +103,6 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 | `ANTHROPIC_API_KEY` | klíč k Claude API |
 | `CLAUDE_MODEL` | výchozí `claude-haiku-5-5` |
 | `DATA_SOURCE` | zatím se nepoužívá (aplikace jede vždy na reálných datech) |
-| `OFFLINE` | `1` = žádná síť, jen `data/raw/` |
 | `APP_NOW` | pevné „teď“ pro eval a demo, např. `2026-11-20T18:00:00+01:00` |
 | `CITIQ_BASE_URL` | výchozí `https://iot.citiq.cloud/portal/api/v2/view` |
 

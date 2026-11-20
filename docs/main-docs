@@ -81,8 +81,7 @@ AI a rozhraní
 /api/cards data pro karty a mapu; bez AI, jen volá funkce
 datové vrstvy
 datová část
-Datová vrstva funkce (nástroje), stahování z CITIQ, cache po
-dnech, snapshot, režim OFFLINE
+Datová vrstva funkce (nástroje), stahování z CITIQ, cache po dnech
 datová část
 Eval skript posílá sadu otázek do stejné smyčky jako
 /api/ask
@@ -97,17 +96,14 @@ nich píše větu.
 Jak spolu části mluví. Prohlížeč pošle otázku na /api/ask . To pošle otázku a popis
 nástrojů do Claude API; Claude vrátí jen název funkce a parametry („tool use“ – model
 neodpovídá textem, ale říká „zavolej tohle s tímhle“). /api/ask funkci zavolá v datové
-vrstvě; ta vezme data z cache (v režimu OFFLINE ze snapshotu) a vrátí výsledek v
+vrstvě; ta vezme data z cache a vrátí výsledek v
 domluveném formátu JSON. Výsledek jde zpět do Claude, který napíše větu; /api/ask ji
 zkontroluje a vrátí prohlížeči větu, čísla a účtenku. Karty a mapa jdou mimo AI: prohlížeč
 volá /api/cards , které jen čte datovou vrstvu. Eval skript obchází prohlížeč a posílá
 otázky přímo do stejné smyčky, takže testuje totéž, co vidí uživatel.
-Cache a snapshot. Cache je uložená kopie dat, aby se nestahovala pořád znovu – jeden
+Cache. Cache je uložená kopie dat, aby se nestahovala pořád znovu – jeden
 soubor JSON na den. Uzavřené dny se ukládají natrvalo, dnešek se obnovuje nejvýš
-jednou za 15 minut a neúplný poslední interval se přepisuje. V pátek hned na začátku se
-stáhne snapshot (pevná kopie) dat za 30 dní. Proměnná prostředí OFFLINE=1 přepne
-aplikaci jen na snapshot, bez stahování. Když nebude čas, živé stahování se vynechá a
-aplikace pojede celá ze snapshotu.
+jednou za 15 minut a neúplný poslední interval se přepisuje.
 architektura · 7 částí a kdo s kým mluví
 Zeptej se Olomouce – projektový dokument
 Page 4 of 16
@@ -253,8 +249,8 @@ systémový prompt, kontrola čísel, „nevím“); eval
 skript a odložená sada otázek; prezentace a demo.
 V přípravě: cvičná smyčka s Claude a nástroji nad
 Open-Meteo, přečtení loňských prezentací.
-Datová část a testy David datová vrstva (funkce, stahování z CITIQ, cache,
-snapshot, OFFLINE); /api/cards ; mapa; testy
+Datová část a testy David datová vrstva (funkce, stahování z CITIQ, cache);
+/api/cards ; mapa; testy
 (Vitest); ladění promptu (podle sekce 8). V
 přípravě: průzkum dat (směr u bran, neúplné
 intervaly, UTC) a seznam zvláštností dat s důkazy;
@@ -269,18 +265,17 @@ rozhraní 20–28 h, datová část 10–15 h (odhad, spíš střízlivý). U AI
 skoro nastřelo – proto mapa a /api/cards patří datové části.
 11. Priority: jádro, pořadí škrtů, co neškrtat nikdy
 Jádro (bez něj projekt nemá smysl): traffic_count nad branami; smyčka s Claude;
-odpověď s účtenkou; kontrola čísel a „nevím“ s důvodem; eval s rozborem chyb; snapshot
-pro demo; slide o využití AI.
+odpověď s účtenkou; kontrola čísel a „nevím“ s důvodem; eval s rozborem chyb;
+slide o využití AI.
 Pořadí škrtů, když dochází čas:
 1. mapa
 2. karta Teplo a meteodata
 3. porovnání modelů v evalu
-4. živé stahování (jen snapshot)
-5. karty bez AI
-6. speed_distribution
+4. karty bez AI
+5. speed_distribution
 U „nevím“ se dají vynechat návrhy otázek a přesné datum, odkdy čidlo mlčí; důvod zůstává
 vždy.
-Neškrtat nikdy: účtenka, kontrola čísel, „nevím“ s důvodem, eval, snapshot.
+Neškrtat nikdy: účtenka, kontrola čísel, „nevím“ s důvodem, eval.
 Kontrolní otázka u každé funkce: pomůže to porotě uvěřit číslu?
 12. Nástroje a technologie
 Oblast Kdo Co zahrnuje
@@ -353,8 +348,7 @@ text, který vrátí. Kredit je předplacený, vyprší rok po nákupu a nevrac�
 přestane odpovídat – proto je v plánu kontrola zůstatku v sobotu večer. Automatické
 dobíjení nezapínat.
 Kdy Co musí platit / co se děje
-Pátek, hned na začátku domluva formátu JSON; stažení snapshotu za 30
-dní
+Pátek, hned na začátku domluva formátu JSON
 Pátek večer jedna otázka projde celou cestou (otázka → Claude
 → funkce → věta → kontrola → účtenka)
 Sobota ráno eval skript s 5 otázkami, dál se spouští průběžně
@@ -375,8 +369,7 @@ Porota hodnotí inovativnost, zpracování, využitelnost (i business), udržite
 prezentaci, každé 0–10 bodů. Povinné body prezentace: tým, název, použitá data, popis
 řešení, ukázka výstupů, využitelnost – prezentaci stavíme podle nich.
 Demo: (1) otázka s normální odpovědí a účtenkou; (2) otázka, kde aplikace řekne „nevím“ a
-proč; (3) slide s přesností z evalu a rozborem chyb. Záloha: snapshot (OFFLINE), karty bez
-AI a nahrané video.
+proč; (3) slide s přesností z evalu a rozborem chyb. Záloha: karty bez AI a nahrané video.
 Popis využití AI (pravidla ho vyžadují): v aplikaci AI jen vybírá funkci a píše větu; při
 přípravě a psaní kódu jsme AI používali také – popsat rámcově a poctivě.
 Hlavní riziko prezentace: projekt působí méně efektně než mapy a dashboardy. Rozdíl je
@@ -410,7 +403,7 @@ last_seen ).
 4. Karta Teplo. Pořadí škrtů a popis dat ji zmiňují, rozhraní uvádí jen tři karty (Rychlost,
 Parkování, Stav senzorů). Kde by byla, podklady neříkají.
 5. Karty jsou záloha i škrt. „Karty bez AI“ jsou záloha pro výpadek AI a pro demo, ale také
-pátá položka škrtů. Po jejich škrtnutí zbývá jako záloha jen snapshot a video.
+pátá položka škrtů. Po jejich škrtnutí zbývá jako záloha jen video.
 Rizika
 1. Hypotéza o směru nese jádro. Parametr direction ve traffic_count i formát JSON
 stojí na neověřeném významu znaménka. U Flora.IN je navíc 28 % hodnot v protisměru
@@ -431,8 +424,7 @@ zpochybnit. Je to vědomý kompromis kvůli času – v prezentaci ho říct dř
 zeptá porota.
 6. EnCLOD vs. CITIQ. Pravidla vyžadují data ze senzorové sítě EnCLOD; podklady pracují
 s pohledy CITIQ a nikde výslovně neříkají, že je to totéž. Ověřit (sekce 17).
-7. Limity CITIQ. Bez klíče nejsou známé, chyba 429 existuje. Zmírnění je snapshot a
-OFFLINE; páteční stažení 30 dní je první místo, kde se limit může projevit.
+7. Limity CITIQ. Bez klíče nejsou známé, chyba 429 existuje.
 Zeptej se Olomouce – projektový dokument
 Page 13 of 16
 8. „Vlastní práce týmu“ a AI při psaní kódu. AI při psaní kódu plánujeme použít a popsat;
@@ -484,8 +476,7 @@ registr v olomouctraffic ( last_seen ,
 enabled )
 těsně před hackathonem
 Jaké jsou limity CITIQ bez klíče? nejsou zveřejněné; dotaz
-na p. Giesla; jinak spoléhat
-na snapshot
+na p. Giesla
 mentorská setkání
 Zeptej se Olomouce – projektový dokument
 Page 14 of 16
@@ -536,10 +527,6 @@ Next.js framework nad Reactem; stránky i API v jednom
 projektu
 Pokrytí (coverage) kolik hodin z období data opravdu obsahují, např. 23
 z 24
-Režim OFFLINE aplikace čte jen ze snapshotu, nic nestahuje
-( OFFLINE=1 )
-Snapshot pevná kopie dat stažená v jeden okamžik; u nás za
-30 dní, v pátek na začátku
 Systémový prompt úvodní instrukce pro model: co umí, jaké nástroje
 má, jak se má chovat
 Token jednotka textu, za kterou se u AI platí; zhruba část

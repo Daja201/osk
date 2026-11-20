@@ -7,7 +7,8 @@ Praktický přehled datové vrstvy: co je ověřené, co je hardcoded, kde jsou 
 ## 1. Architektura datové vrstvy
 
 - `lib/citiq/client.ts` – univerzální HTTP klient na CITIQ API. Nezávislý na datasetu, jen posílá query parametry (`start`, `stop`, `window`, `measurement_keys`, `agg_func`, `group_by_tags`, `format`) a vrací JSON/CSV.
-- `lib/citiq/cache.ts` – cache po dnech, nezávislá na datasetu. Funkce `getCachedDay(view, date, params)` dostane název pohledu a vrátí data za jeden den (v pražském čase), uzavřené dny se neobnovují, dnešek max 1×/hod (`REFRESH_INTERVAL_MS`).
+- `lib/citiq/cache.ts` – cache přesného staženého rozsahu. `getCachedRange` rozlišuje start/stop a opakování stejného požadavku vrátí uloženou odpověď. Data starší než posledních 30 kalendářních dnů se automaticky mažou při čtení i zápisu; nic se nepřednačítá.
+- `getCachedDay(view, date, params)` je wrapper pro celý pražský den; aktuální `traffic_count` ho používá, protože nástroj zatím neumí dotaz na část dne.
 - `lib/citiq/traffic.ts` – doménová funkce `trafficCount` pro dataset `olomouc-traffic-gates`; validuje vstup, používá denní cache a vrací stabilní výsledek nebo strukturovanou chybu.
 - **Napojení na model zatím není implementované:** v aplikaci není API route ani adaptér pro Haiku. CITIQ klient a doménové funkce musí zůstat na serveru.
 

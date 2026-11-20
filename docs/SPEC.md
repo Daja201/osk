@@ -21,7 +21,7 @@ Povinné podmínky:
 | Kritérium | Čím ho plníme |
 | --- | --- |
 | Využití AI | Claude vybírá nástroj a píše větu, ale nepočítá. Kód kontroluje čísla. Aplikace řekne „nevím“ s důvodem. Eval na odložené (held-out) sadě. Srovnání Haiku × Sonnet: přesnost, čas, cena. Panel „Jak AI postupovala“. Deník použití Claude Code. |
-| Zpracování | Spolehlivé demo na reálných datech, offline snímek, testy, žádná vymyšlená čísla. |
+| Zpracování | Spolehlivé demo na reálných datech, testy, žádná vymyšlená čísla. |
 | Využitelnost | Otázka česky místo API a tabulek. Stav senzorů a jejich výpadků jako informace pro město. |
 | Inovativnost | „Účtenka“ (Původ odpovědi) u každé odpovědi a kontrola čísel z AI. |
 | Prezentace | 3 demo otázky (běžná, s chybějícími daty, mimo téma) a čísla z evalu. |
@@ -42,7 +42,7 @@ app/api/ask/route.js ──► lib/ai/ask.js
                          JSON pro stránku: answer + result (obálka) + trace
 
 Prohlížeč ◄── GET /api/cards ◄── lib/data/* (bez AI)
-lib/data/* ──► data/raw/ (snímek) ──► CITIQ API (jen když OFFLINE ≠ 1)
+lib/data/* ──► CITIQ API
 ```
 
 Obě části se spojují v `lib/registry.js` a v obálce z `lib/contract.js`.
@@ -52,7 +52,7 @@ Obě části se spojují v `lib/registry.js` a v obálce z `lib/contract.js`.
 
 `lib/registry.js` exportuje:
 - `getToolFunctions()` → `{ traffic_count, sensor_status, speed_distribution? }`. Každá funkce je `async (params) => Envelope`.
-- `getDataRange()` → `{ first: "YYYY-MM-DD", last: "YYYY-MM-DD", mode: "mock" | "live" | "offline" }`. `first` a `last` jsou první a poslední úplný den s daty.
+- `getDataRange()` → `{ first: "YYYY-MM-DD", last: "YYYY-MM-DD", mode: "mock" | "live" }`. `first` a `last` jsou první a poslední úplný den s daty.
 
 ## 3. Obálka (kontrakt mezi částmi)
 
@@ -81,7 +81,7 @@ Každý nástroj vrací buď úspěch, nebo chybu, vždy s `meta`.
 }
 ```
 - `period`, `coverage` a `fetched_at` mohou být `null`, když nedávají smysl.
-- `mode` je `live`, `offline` nebo `mock`.
+- `mode` je `live` nebo `mock`.
 - `notes` jsou krátké české věty pro člověka. Ukazují se v „Původu odpovědi“ a dostává je i Claude.
 
 ### 3.2 Bod řady
@@ -99,10 +99,10 @@ Statusy:
 ### 3.3 Kódy chyb
 | Kód | Kdy |
 | --- | --- |
-| `NO_DATA` | V období nejsou žádná data (nebo je mimo dostupný rozsah, offline režim). |
+| `NO_DATA` | V období nejsou žádná data nebo je mimo dostupný rozsah. |
 | `SENSOR_OFFLINE` | Senzor dlouhodobě nefunguje (status_note v gates.json nebo bez dat déle než 24 h). |
 | `BAD_PARAMS` | Neplatné parametry: budoucnost, rozsah > 31 dní, neznámá brána, `hour_from ≥ hour_to`, špatný formát data. |
-| `SOURCE_ERROR` | CITIQ neodpovídá ani po opakování (režim `live`). V režimu `offline` se chybějící data hlásí jako `NO_DATA`. |
+| `SOURCE_ERROR` | CITIQ neodpovídá ani po opakování (režim `live`). |
 
 AI vrstva má navíc vlastní důvody „nevím“, které nástroje nikdy nevrací: `OUT_OF_SCOPE` (otázka mimo naše data) a `AI_ERROR` (selhalo volání Claude).
 
@@ -164,7 +164,6 @@ Pravidla:
 ```
 - Stav podle stáří posledních dat: `ok` = data za poslední 3 h, `delayed` = 3–24 h, `offline` = déle než 24 h nebo nikdy.
 - Zdroj: `last_seen` a `enabled` z registru a pokrytí za 7 dní z cache.
-- V režimu `offline` se stav počítá ke konci snímku a do `notes` patří věta „Stav k {datum a čas konce snímku}.“
 
 ### 4.3 speed_distribution (až bude čas)
 - Vstup: `gate` (bez `"all"`), `date_from`, `date_to`.
@@ -266,18 +265,17 @@ Dočasný seznam pro krok A (D1 ho přepíše):
 
 Tip do dema: Envelopa Hub i Aula PřF stojí na ulici 17. listopadu. Pokud je brána opravdu blízko (ověřit v D1 podle souřadnic), je otázka „Kolik aut včera projelo kolem budovy, kde právě jsme?“ dobrý háček. Jinak ji nepoužívejte.
 
-### 5.6 Cache, snímek a režimy
+### 5.6 Cache a režimy
 Soubory:
-- `data/raw/gates/YYYY-MM-DD.json`: surová odpověď za **celý pražský den** (start = místní půlnoc, stop = další místní půlnoc, obojí v UTC). Ukládá se jen úplný den. Commituje se.
-- `data/raw/registry.json`: snímek registru. Commituje se.
-- Dnešek (neúplný den) se nikdy neukládá jako hotový den. V režimu `live` se drží v paměti max 10 min.
-- `npm run snapshot` stáhne chybějící úplné dny za posledních 30 dní a registr, postupně a s pauzou.
+- Cache obsahuje jeden soubor JSON na den.
+- Dnešek se obnovuje nejvýš jednou za 15 minut.
+- Uzavřené dny se ukládají trvale.
+- Neúplný poslední interval se přepisuje.
 
 | Režim | Nastavení | Chování |
 | --- | --- | --- |
 | `mock` | `DATA_SOURCE=mock` | vymyšlená data z `lib/mock/` |
-| `live` | `DATA_SOURCE=real`, `OFFLINE=0` | cache a když chybí, síť |
-| `offline` | `DATA_SOURCE=real`, `OFFLINE=1` | jen `data/raw/`, žádný síťový požadavek; mimo snímek → `NO_DATA` „Offline režim: data jsou k dispozici do …“ |
+| `live` | `DATA_SOURCE=real` | cache a když chybí, síť |
 
 `APP_NOW` zafixuje „teď“ (pro eval a opakovatelné demo). `lib/time.js` ho respektuje všude.
 
@@ -285,14 +283,13 @@ Soubory:
 - Max 1 požadavek za sekundu.
 - Opakování při 429 a 5xx s pauzou 1, 2, 4 a 8 s (max 4×). Respektuj `Retry-After`.
 - Timeout 15 s.
-- Snímek stahovat jednou, ne při každém dotazu.
 
 ## 6. Čas
 
 ### 6.1 Pravidla
 - Uvnitř jsou časy ISO 8601 s posunem: v datech UTC (`Z`), v UI místní čas.
 - Pražský den je [00:00, 24:00) místního času. V zimě je to v UTC [23:00 předchozího dne, 23:00).
-- **25. 10. 2026 má 25 hodin** (konec letního času) a 29. 3. 2026 má 23 hodin. Snímek 30 dní 25. 10. obsahuje.
+- **25. 10. 2026 má 25 hodin** (konec letního času) a 29. 3. 2026 má 23 hodin.
 - Server může běžet v UTC (Vercel). Proto nikdy nepoužívej `Date#getHours()` ani pevný posun.
 
 ### 6.2 lib/time.js (krok A)
@@ -306,7 +303,7 @@ Soubory:
 
 ### 6.3 Význam relativních výrazů
 Stejná pravidla platí pro systémový prompt i pro eval:
-- „dnes“ = dnešek. V `live` jsou data jen do teď. V `offline` dnešek data nemá.
+- „dnes“ = dnešek. Data jsou jen do teď.
 - „včera“ = dnes − 1, „předevčírem“ = dnes − 2.
 - „v pondělí“ (a jiné dny v týdnu) = poslední takový den **před** dneškem.
 - „minulý týden“ = pondělí–neděle předchozího týdne.
@@ -349,7 +346,7 @@ Stejná pravidla platí pro systémový prompt i pro eval:
   "trace": {
     "model": "claude-haiku-5-5",
     "now": "2026-11-20T19:03:00+01:00",
-    "mode": "offline",
+    "mode": "live",
     "steps": [
       { "type": "model", "ms": 1210, "input_tokens": 1834, "output_tokens": 212, "stop_reason": "tool_use" },
       { "type": "tool",  "name": "traffic_count", "input": { }, "ms": 35, "ok": true },
@@ -505,7 +502,7 @@ Ke každému „nevím“ patří 2–3 návrhy otázek. Generuje je kód z funk
 
 Styl: klidný a věcný, ne startupový. Jedna akcentová barva. Funguje na mobilu i na projektoru (velké písmo odpovědi). Česky.
 
-1. **Hlavička**: „Zeptej se Olomouce“ a podtitul „Odpovědi z dat dopravních senzorů (CITIQ / EnCLOD)“. Vpravo štítek režimu (ŽIVÁ DATA / OFFLINE SNÍMEK k … / MOCK) a „Data staženo: …“.
+1. **Hlavička**: „Zeptej se Olomouce“ a podtitul „Odpovědi z dat dopravních senzorů (CITIQ / EnCLOD)“. Vpravo štítek režimu (ŽIVÁ DATA / MOCK) a „Data staženo: …“.
 2. **Otázka**: pole s labelem, Enter odešle, tlačítko „Zeptat se“.
 3. **Návrhy (3)**, upravit podle skutečných bran:
    - „Kolik aut projelo včera ulicí 17. listopadu?“
@@ -568,7 +565,7 @@ Stavy stránky:
 ### 10.2 Zástupné hodnoty
 `{today}`, `{yesterday}`, `{day_before_yesterday}`, `{days_ago:N}`, `{last_monday}` až `{last_sunday}`, `{last_week_mon}`, `{last_week_sun}`, `{last_weekend_sat}`, `{last_weekend_sun}`.
 - Řeší se při běhu z `now()` přes `relativeDates` z `lib/time.js`.
-- Eval se pouští s `OFFLINE=1`, `DATA_SOURCE=real` a `APP_NOW` = konec snímku, aby byl opakovatelný.
+- Eval se pouští s `DATA_SOURCE=real` a `APP_NOW`, aby byl opakovatelný.
 
 ### 10.3 Kontroly a chyby
 U každé otázky se kontroluje:
@@ -604,14 +601,12 @@ Nikdy neškrtat:
 - eval s rozpadem chyb,
 - **srovnání modelů** (je to jeden parametr evalu a pokrývá „vhodnost modelů“),
 - panel „Jak AI postupovala“,
-- snímek a OFFLINE,
 - slide o AI.
 
 Škrtá se v tomto pořadí (první jde pryč první):
 1. mapa,
 2. meteo,
 3. nasazení na Vercel,
-4. živé stahování (zůstane jen snímek),
 5. karty bez AI,
 6. speed_distribution,
 7. pořadí `"all"`.

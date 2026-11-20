@@ -11,7 +11,7 @@ const gateList = GATES.map((gate) =>
 export const trafficCountTool: Anthropic.Tool = {
   name: "traffic_count",
   description:
-    "Počet průjezdů vozidel dopravní branou (senzorem) v Olomouci za jeden den. " +
+    "Počet průjezdů vozidel dopravní branou (senzorem) v Olomouci za jeden den nebo vybraný časový rozsah. " +
     "Vrací součet za den, nejrušnější hodinu a poznámky o chybějících datech. " +
     `Brány (název a v závorce přezdívky): ${gateList}.`,
   strict: true,
@@ -26,8 +26,16 @@ export const trafficCountTool: Anthropic.Tool = {
       },
       date: { type: "string", description: "Den ve formátu YYYY-MM-DD (místní datum v Praze). Nikdy ne budoucnost." },
       date_assumed: { type: "boolean", description: "true, když v otázce nebylo datum a použil jsi včerejšek." },
+      hour_from: {
+        type: ["integer", "null"],
+        description: "Začátek hodiny 0–23 místního času. Bez omezení null.",
+      },
+      hour_to: {
+        type: ["integer", "null"],
+        description: "Konec hodiny 1–24 (nezahrnuje se). Bez omezení null.",
+      },
     },
-    required: ["gate", "direction", "date", "date_assumed"],
+    required: ["gate", "direction", "date", "date_assumed", "hour_from", "hour_to"],
     additionalProperties: false,
   },
 };
@@ -39,7 +47,18 @@ export const TrafficCountInput = z
     direction: z.enum(["in", "out", "both"]),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     date_assumed: z.boolean(),
+    hour_from: z.number().int().min(0).max(23).nullable().optional().transform((value) => value ?? undefined),
+    hour_to: z.number().int().min(1).max(24).nullable().optional().transform((value) => value ?? undefined),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.hour_from !== undefined && value.hour_to !== undefined && value.hour_from >= value.hour_to) {
+      ctx.addIssue({
+        code: "custom",
+        message: "hour_from musí být menší než hour_to.",
+        path: ["hour_from"],
+      });
+    }
+  });
 
 export type TrafficCountInput = z.infer<typeof TrafficCountInput>;
