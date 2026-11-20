@@ -1,0 +1,25 @@
+# CITIQ API — traffic gates reverse-engineering notes
+
+**Base:** `https://iot.citiq.cloud/portal/api/v2/view/<view>/`
+Params: `format` (json/csv/geojson), `start`, `stop`, `window` (15m/1h/1d), `measurement_keys`, `agg_func`, `group_by_tags`. Public, no key required (key only raises rate limits; not needed for this project).
+
+## Views
+- **`olomouc-traffic`** — device registry + live totals. Fields: `object_name`/`nick` (e.g. `"Flora.IN"`, direction baked into name), `last_seen`, `enabled`, `location`, `last_value` (cumulative LoRa counters, `device_frmpayload_data_len{0-3}_speed{0-3}_cnt32`). Use for sensor status / map, **not** for counting traffic.
+- **`olomouc-traffic-gates`** — gate time series, used for `traffic_count`. **Needs explicit `measurement_keys`** — `measurement_keys=null` or omitted → empty `results`.
+  - Allowed `group_by_tags`: `direction`, `uuid` only (NOT `object_name` — errors with `Invalid group_by_tags value(s)`). In practice these tags did **not** show up as separate series in the response even when requested — direction comes from the sign of the value, not a tag.
+  - **Dates matter**: querying old/unavailable ranges with `agg_func=sum` silently returns `results: []` — no error. Always sanity-check with a wide date range covering known-good data (we confirmed service with `start=2025-10-12T00:00:00Z&stop=2025-10-13T00:00:00Z&window=1h`).
+
+## Measurement keys (confirmed from real data)
+One row per gate (`source_identifier` = uuid, `object_name` = clean gate name, no direction suffix), each with 13 measurement series:
+- `gate_increment_value_sum` — **the one that matters**. Signed integer per hour. **Sign = direction** (unconfirmed which sign means in/out — flagged as open hypothesis, verify with CITIQ contact before hackathon).
+- `gate_len{0-3}_speed{0-3}_increment_sum` — vehicle category × speed band breakdown (cars/vans/trucks/uncategorized × opposite/<30/30-60/>60 km/h). Always non-negative, no direction info. Useful later for `speed_distribution`, not for `traffic_count`.
+- Response shape: `results: [{ source_identifier, object_name, measurements: [{ key, name, unit, values: [{ point: { time, value }, tags: {} }] }] }]`. `tags` was always empty `{}` in our tests despite passing `group_by_tags`.
+
+## Gotchas
+- Values are **not cumulative** in this view (unlike `olomouc-traffic`'s `last_value`) — each hourly bucket is already a delta/increment. Don't re-diff.
+- Missing hours are simply absent rows, not zeros/nulls — matches the project doc's "data has holes" warning.
+- `olomouc-traffic-gates` seems to require `window` compatible with how the data is binned; `1h` confirmed working, `1d`/wider windows untested successfully.
+- `/portal/api/v2/view/olomouc-traffic/` (registry) has no such `measurement_keys` requirement and returns full objects by default.
+
+## Open question for CITIQ contact (p. Giesl)
+Does positive `gate_increment_value_sum` mean "in" or "out"? Is this consistent across all gates, or per-device?
