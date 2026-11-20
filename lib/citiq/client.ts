@@ -1,5 +1,5 @@
 // URL API
-const CITIQ_BASE = "https://iot.citiq.cloud/portal/api/v2/view";
+export const CITIQ_BASE = "https://iot.citiq.cloud/portal/api/v2/view";
 
 //type of data that fetchCitiq can get
 export type CitiqParams = {
@@ -24,9 +24,10 @@ export class CitiqError extends Error {
 //function to get API data
 export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
   const { view, ...query } = params;
-  const url = new URL(`${CITIQ_BASE}/${view}/`);
+  const url = new URL(`${CITIQ_BASE}/${encodeURIComponent(view)}/`);
 
-  url.searchParams.set("format", query.format ?? "json");
+  const format = query.format ?? "json";
+  url.searchParams.set("format", format);
   if (query.start) url.searchParams.set("start", query.start);
   if (query.stop) url.searchParams.set("stop", query.stop);
   if (query.window) url.searchParams.set("window", query.window);
@@ -47,5 +48,5 @@ export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
     throw new CitiqError(res.status, `CITIQ: error ${res.status} on ${view}`);
   }
 
-  return res.json();
+  return format === "csv" ? res.text() : res.json();
 }
