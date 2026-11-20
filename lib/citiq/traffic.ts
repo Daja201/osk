@@ -1,12 +1,45 @@
 import { getCachedDay, utcStartOfPragueDay } from "./cache";
 import { CITIQ_BASE } from "./client";
 
-const POSITIVE_SIGN_MEANS_IN = true;
-
 const LOCAL_TIME_ZONE = "Europe/Prague";
 const HOURS_IN_DAY = 24;
 const VIEW = "olomouc-traffic-gates";
-const MEASUREMENT_KEY = "gate_increment_value_sum";
+const DIRECTION_TAG = "direction";
+
+const MEASUREMENT_KEY_REQUEST = "gate_increment_value"; // posílá se v measurement_keys
+const AGG_FUNC = "sum";
+const MEASUREMENT_KEY_RESPONSE = `${MEASUREMENT_KEY_REQUEST}_${AGG_FUNC}`; // "gate_increment_value_sum" v odpovědi
+
+// Ověřeno empiricky (20. 11. 2026, brána Parkoviště Flora, group_by_tags=direction):
+// hodnoty s tags.direction === "1" jsou vždy kladné, s "-1" vždy záporné.
+// Fyzický směr (dovnitř/ven) je týmové rozhodnutí, ne CITIQ-ověřené - ověřit s p. Giesl.
+const DIRECTION_TAG_VALUE_FOR_IN = "1";
+const DIRECTION_TAG_VALUE_FOR_OUT = "-1";
+
+// Všech 19 bran z olomouc-traffic-gates/metadata/, včetně těch, co aktuálně nevysílají
+// (Aksamitova/Vídeňská, Voskovcova) - CITIQ je v results jednoduše vynechá, nevrátí je
+// s prázdnými hodnotami. Potřebujeme to pro rozlišení UNKNOWN_GATE vs NO_DATA.
+const KNOWN_GATES = [
+  "17.listopadu JIH",
+  "17.listopadu Sever",
+  "Aksamitova/Vídeňská",
+  "Billa (Hynaisova)",
+  "Fisherova",
+  "Fugnerova",
+  "Kafkova - levá",
+  "Kafkova - pravá",
+  "Parkoviště Flora",
+  "Peškova",
+  "Trnkova/Rooseveltova",
+  "Trnkova/Zítkova",
+  "Tržnice/Polská",
+  "U Letadla",
+  "Voskovcova",
+  "Zikova",
+  "Šmeralova IN",
+  "Šmeralova OUT/17.listopadu",
+  "Šmeralova OUT/Blahoslavova",
+];
 
 export type TrafficCountParams = {
   gate: string;
@@ -36,7 +69,10 @@ export type TrafficCountError = {
 
 export type TrafficCountResult = TrafficCountOk | TrafficCountError;
 
-type CitiqValuePoint = { point: { time: string; value: number }; tags: Record<string, unknown> };
+type CitiqValuePoint = {
+  point: { time: string; value: number };
+  tags: { direction?: string } & Record<string, unknown>;
+};
 type CitiqMeasurement = { key: string; name: string; unit: string; values: CitiqValuePoint[] };
 type CitiqGateRow = { source_identifier: string; object_name: string; measurements: CitiqMeasurement[] };
 
@@ -55,15 +91,20 @@ function pragueHourOfDay(isoTimestamp: string): number {
 }
 
 function normalizeGateName(name: string): string {
-  return name.trim().toLowerCase();
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // odstraní diakritiku, aby se AI nemusela trefit do háčků/čárek
 }
 
 function buildSourceUrl(): string {
   const url = new URL(`${CITIQ_BASE}/${VIEW}/`);
   url.searchParams.set("format", "json");
   url.searchParams.set("window", "1h");
-  url.searchParams.set("agg_func", "sum");
-  url.searchParams.set("measurement_keys", MEASUREMENT_KEY);
+  url.searchParams.set("agg_func", AGG_FUNC);
+  url.searchParams.set("measurement_keys", MEASUREMENT_KEY_REQUEST);
+  url.searchParams.set("group_by_tags", DIRECTION_TAG);
   return url.toString();
 }
 
@@ -76,12 +117,25 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
   const nextDayStart = utcStartOfPragueDay(nextLocalDate.toISOString().slice(0, 10));
   const stop = new Date(nextDayStart.getTime() - 1000);
 
+  const knownGate = KNOWN_GATES.find((g) => normalizeGateName(g) === normalizeGateName(gate));
+  if (!knownGate) {
+    return {
+      ok: false,
+      error: {
+        code: "UNKNOWN_GATE",
+        message: `Brána "${gate}" neexistuje. Dostupné brány: ${KNOWN_GATES.join(", ")}.`,
+        suggestions: KNOWN_GATES,
+      },
+    };
+  }
+
   let cacheEntry: { data: unknown; fetched_at: string };
   try {
     cacheEntry = await getCachedDay(VIEW, date, {
-      measurement_keys: [MEASUREMENT_KEY],
+      measurement_keys: [MEASUREMENT_KEY_REQUEST],
       window: "1h",
-      agg_func: "sum",
+      agg_func: AGG_FUNC,
+      group_by_tags: [DIRECTION_TAG],
       format: "json",
     });
   } catch (error) {
@@ -106,57 +160,33 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     (row) => normalizeGateName(row.object_name) === normalizeGateName(gate)
   );
   if (!gateRow) {
-    return {
-      ok: false,
-      error: { code: "UNKNOWN_GATE", message: `Brána "${gate}" nebyla v datech nalezena.`, suggestions: [] },
-    };
-  }
-
-  const measurement = gateRow.measurements.find((m) => m.key === MEASUREMENT_KEY);
-  if (!measurement || measurement.values.length === 0) {
+    // Brána existuje (prošla KNOWN_GATES), ale CITIQ ji v results nevrátil -> čidlo nevysílá
     return {
       ok: false,
       error: {
         code: "NO_DATA",
-        message: `Čidlo na bráně "${gate}" za ${date} neposlalo žádná data.`,
+        message: `Čidlo na bráně "${knownGate}" nevysílá - CITIQ pro ni nemá žádná data.`,
         suggestions: [],
       },
     };
   }
 
+  const measurement = gateRow.measurements.find((m) => m.key === MEASUREMENT_KEY_RESPONSE);
+  if (!measurement || measurement.values.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "NO_DATA",
+        message: `Čidlo na bráně "${knownGate}" za ${date} neposlalo žádná data.`,
+        suggestions: [],
+      },
+    };
+  }
+
+  const wantedTagValue = direction === "in" ? DIRECTION_TAG_VALUE_FOR_IN : DIRECTION_TAG_VALUE_FOR_OUT;
+
   const hourly: (number | null)[] = new Array(HOURS_IN_DAY).fill(null);
   let coveredHours = 0;
   let total = 0;
-  const wantPositive = direction === "in" ? POSITIVE_SIGN_MEANS_IN : !POSITIVE_SIGN_MEANS_IN;
 
-  for (const { point } of measurement.values) {
-    const hourIdx = pragueHourOfDay(point.time);
-    if (hourIdx < 0 || hourIdx >= HOURS_IN_DAY) continue;
-    coveredHours += 1;
-    const matchesDirection = wantPositive ? point.value >= 0 : point.value < 0;
-    const contribution = matchesDirection ? Math.abs(point.value) : 0;
-    hourly[hourIdx] = (hourly[hourIdx] ?? 0) + contribution;
-    total += contribution;
-  }
-
-  const notes: string[] = [];
-  if (coveredHours < HOURS_IN_DAY) {
-    notes.push(`chybí data za ${HOURS_IN_DAY - coveredHours} hodin`);
-  }
-  notes.push("znaménko = směr je neověřená hypotéza, ověřit s CITIQ (p. Giesl)");
-
-  return {
-    ok: true,
-    data: { total, hourly },
-    meta: {
-      tool: "traffic_count",
-      params,
-      period_local: `${date} 0:00–24:00`,
-      period_utc: [start.toISOString(), stop.toISOString()],
-      coverage: { hours: coveredHours, of: HOURS_IN_DAY },
-      source_url: buildSourceUrl(),
-      fetched_at: cacheEntry.fetched_at,
-      notes,
-    },
-  };
-}
+  for (const { point,
