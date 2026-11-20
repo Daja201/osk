@@ -51,7 +51,7 @@ async function fakeTraffic(params: TrafficCountParams): Promise<TrafficCountResu
 }
 
 function deps(client: ReturnType<typeof fakeClient>): AskDeps {
-  return { client, model: "test", now: new Date("2026-11-20T18:00:00Z"), mode: "mock", trafficCount: fakeTraffic };
+  return { client, model: "test", now: new Date("2026-11-20T18:00:00Z"), trafficCount: fakeTraffic };
 }
 
 const input = { gate: "17.listopadu JIH", direction: "in", date: "2026-11-19", date_assumed: false };

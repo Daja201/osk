@@ -1,6 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { TrafficCountOk } from "../citiq/traffic";
-import type { TrafficCountFn } from "./registry";
+import type { TrafficCountOk, TrafficCountParams, TrafficCountResult } from "../citiq/traffic";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
 import { formatCzDate, pragueDate, weekdayCz } from "./dates";
 import { GATES } from "./gates";
@@ -13,11 +12,13 @@ export type MessagesClient = {
   messages: { create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> };
 };
 
+// Podpis Davidovy funkce trafficCount. V testech se podstrčí falešná funkce.
+export type TrafficCountFn = (params: TrafficCountParams) => Promise<TrafficCountResult>;
+
 export type AskDeps = {
   client: MessagesClient;
   model: string;
   now: Date;
-  mode: "real" | "mock";
   trafficCount: TrafficCountFn;
 };
 
@@ -138,7 +139,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     ...rest,
     assumptions,
     result,
-    trace: { model: deps.model, mode: deps.mode, now: deps.now.toISOString(), steps, total_ms: Date.now() - started },
+    trace: { model: deps.model, now: deps.now.toISOString(), steps, total_ms: Date.now() - started },
   });
   const aiError = (note: string) => {
     steps.push({ type: "note", text: note });

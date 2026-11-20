@@ -48,7 +48,6 @@ components/                       Jáchym
 lib/config.ts time.ts contract.ts registry.ts    společné (krok A); mění se jen po domluvě
 lib/ai/                           Jáchym  (tools, systemPrompt, ask, checkNumbers, fallback, pricing)
 lib/citiq/                        David   (client, cache, traffic, …)
-lib/mock/                         mock se stejným podpisem jako lib/citiq/ (pro testy bez sítě)
 data/gates.json                   David (přezdívky bran doplňuje ručně)
 data/raw/                         snímek dat (commituje se)
 data/samples/                     vzorky z průzkumu D1
@@ -70,7 +69,7 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 - Čas: data jsou v UTC, uživatel myslí v Europe/Prague. Všechny převody dělej jen přes `lib/time.ts` (luxon). Nikdy nepočítej s pevným posunem +1 h a nepoužívej `new Date().getHours()`.
 - Nástroje vrací vždy obálku `{ ok, data | error, meta }` podle typů v `lib/citiq/traffic.ts`.
 - Chybějící hodnota je `null` se statusem `"missing"`, nikdy 0.
-- Funkce v `lib/citiq/` jsou async; mock v `lib/mock/` má stejný podpis.
+- Funkce v `lib/citiq/` jsou async. Aplikace volá vždy reálná data (mock jsme 20. 11. zrušili); testy si podstrkují falešnou funkci se stejným podpisem.
 - Tajné klíče nesmí být v kódu, v logu ani v commitu. Klíč je jen v `.env.local`. **`.env.local` nečti a nevypisuj.**
 - Nepiš kód „pro budoucnost“. Stačí nejjednodušší řešení, které splní úkol a projde testy.
 - Testy nesmí volat síť (CITIQ ani Claude). Použij fixtures nebo falešného klienta.
@@ -104,7 +103,7 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 | --- | --- |
 | `ANTHROPIC_API_KEY` | klíč k Claude API |
 | `CLAUDE_MODEL` | výchozí `claude-haiku-5-5` |
-| `DATA_SOURCE` | `mock` nebo `real` |
+| `DATA_SOURCE` | zatím se nepoužívá (aplikace jede vždy na reálných datech) |
 | `OFFLINE` | `1` = žádná síť, jen `data/raw/` |
 | `APP_NOW` | pevné „teď“ pro eval a demo, např. `2026-11-20T18:00:00+01:00` |
 | `CITIQ_BASE_URL` | výchozí `https://iot.citiq.cloud/portal/api/v2/view` |

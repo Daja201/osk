@@ -28,5 +28,5 @@ export type AskAnswer = {
   reason: { code: ReasonCode; message: string } | null;
   assumptions: string[];
   result: TrafficResult | null;
-  trace: { model: string; mode: "real" | "mock"; now: string; steps: TraceStep[]; total_ms: number };
+  trace: { model: string; now: string; steps: TraceStep[]; total_ms: number };
 };

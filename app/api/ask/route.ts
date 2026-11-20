@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ask } from "@/lib/ai/ask";
 import { appNow } from "@/lib/ai/dates";
-import { dataMode, getTrafficCount } from "@/lib/ai/registry";
+import { trafficCount } from "@/lib/citiq/traffic";
 
 const MAX_QUESTION_LENGTH = 300;
 
@@ -18,8 +18,8 @@ async function handle(question: unknown): Promise<Response> {
     client: new Anthropic({ maxRetries: 3, timeout: 30_000 }),
     model: process.env.CLAUDE_MODEL ?? "claude-haiku-5-5",
     now: appNow(),
-    mode: dataMode(),
-    trafficCount: await getTrafficCount(),
+    // Davidova reálná funkce: data z CITIQ přes cache v data/cache/.
+    trafficCount,
   });
   // „Nevím“ je platná odpověď, proto vždy 200.
   return Response.json({ ok: true, ...answer });

@@ -8,7 +8,7 @@ import Receipt from "./Receipt";
 const suggestions = [
   "Kolik aut projelo včera ulicí 17. listopadu?",
   "Kolik aut včera vjelo na parkoviště Flora?",
-  "Která čidla nevysílají?",
+  "Kdy byla včera největší špička u Billy?",
 ];
 
 // Otázka + odpověď + účtenka. Drží stav stránky (prázdno / načítání / odpověď / chyba).
