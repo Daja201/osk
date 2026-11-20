@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# osk – Zeptej se Olomouce: pravidla pro Claude Code
+# Osk: pravidla pro Claude Code
 
-Název repa `osk` = **O**lomouc + a**sk**.
+Aplikace i repo se jmenují **Osk** = **O**lomouc + a**sk** (náš název). „Zeptej se Olomouce“ ve SPEC a PROMPTY je pracovní název z přípravy.
 
 Hackathon UPOL 20.–22. 11. 2026, tým SleepNotFound: **Jáchym** (AI vrstva + stránka), **David** (data).
 Podrobná specifikace je v `docs/SPEC.md`, pořadí kroků a prompty v `docs/PROMPTY.md`. Před každým úkolem si přečti sekce, na které úkol odkazuje.
