@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OSK
 
-## Getting Started
+OSK je česká webová aplikace pro dotazy k otevřeným měřením ze sítě CITIQ v Olomouci.
+Zeptáte se přirozeně, například „Kolik aut včera projelo u Billy?“, a aplikace spočítá
+odpověď z dat a zobrazí ji jako větu, graf, tabulku nebo odkaz na zdroj.
 
-First, run the development server:
+V současnosti podporuje:
+- průjezdovou dopravu v Olomouci,
+- meteorologická měření z olomouckých stanic,
+- stahování a sdílení výsledků.
+
+## Stažení a spuštění
+
+Požadavky: Node.js 20+, npm.
+
+```bash
+git clone https://github.com/Daja201/osk.git
+cd osk
+npm ci
+```
+
+Vytvořte soubor `.env.local`:
+
+```env
+ANTHROPIC_API_KEY=váš-klíč
+CLAUDE_MODEL=název-modelu
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+`ANTHROPIC_API_KEY` je povinný pro dotazy. `CLAUDE_MODEL` nastavte na model dostupný
+ve vašem Anthropic účtu. `NEXT_PUBLIC_SITE_URL` je volitelný pro místní vývoj.
+CLI příkaz `npm run ask` načítá stejné proměnné ze souboru `.env` (nebo můžete hodnoty
+exportovat v terminálu).
+
+Spusťte aplikaci:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Otevřete <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Další příkazy:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run lint
+npm test
+npm run ask -- "Kolik aut včera projelo u Billy?"
+```
 
-## Learn More
+Pro ověření Anthropic připojení použijte
+`node --env-file=.env.local --import tsx scripts/check-claude.ts`.
 
-To learn more about Next.js, take a look at the following resources:
+## Jak implementovat nový dataset
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+CITIQ data se načítají přes [lib/citiq/client.ts](lib/citiq/client.ts).
+Přidejte nový dataset malými kroky:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Nastavte `view`, měřené klíče a parametry dotazu podle odpovědi CITIQ.
+2. Přidejte seznam názvů a přezdívek míst/stanic do souboru [lib/citiq/gates.ts](lib/citiq/gates.ts)
+   nebo vytvořte podobnou konfiguraci pro nový typ.
+3. Přidejte parser a výpočet dat, například podle [lib/citiq/parse.ts](lib/citiq/parse.ts)
+   a [lib/citiq/series.ts](lib/citiq/series.ts).
+4. Popište nový nástroj pro Claude a jeho vstupní pole v [lib/ai/tools.ts](lib/ai/tools.ts).
+5. Připojte výpočet do [app/api/ask/route.ts](app/api/ask/route.ts)
+   a přidejte krátká pravidla pro nový typ dotazu do [lib/ai/systemPrompt.ts](lib/ai/systemPrompt.ts).
+6. Přidejte testy parseru a výsledku.
 
-## Deploy on Vercel
+Claude vybírá města, čas, formát a směr. Výpočty a kontrola čísel zůstávají
+v našem kódu; Claude by neměl počítat vlastní data.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Jak části kódu fungují
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/page.tsx` a `components/` vykreslují stránku a výsledky.
+- `app/api/ask/route.ts` přijímá otázku a volá Claude i výpočet dat.
+- `lib/ai/ask.ts` sestaví zadání a rozhoduje o odpovědi.
+- `lib/citiq/series.ts` stáhne data po dnech a sestaví hodnoty po hodinách, dnech nebo celkem.
+- `lib/citiq/cache.ts` ukládá CITIQ odpovědi do `data/cache/` na 30 dní.
+- `lib/answers.ts` uloží sdílenou odpověď na 7 dní.
+- `app/a/[id]/page.tsx` zobrazí uloženou odpověď; ostatní API routy poskytují JSON a CSV.
+
+Více podrobností o užívání a datech je v [docs/usage.md](docs/usage.md)
+a [docs/data-notes.md](docs/data-notes.md).
