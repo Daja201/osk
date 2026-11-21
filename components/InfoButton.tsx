@@ -2,18 +2,13 @@
 
 import { useRef } from "react";
 import { PRESS } from "./styles";
+import Suggestions, { EXAMPLES } from "./Suggestions";
 
 export type InfoTopic = "ask" | "answer" | "details";
 
 // Místa pro nápovědu. TODO: později z gates.json (Davidova data).
 const PLACES = ["17. listopadu", "Kafkova", "Hynaisova (u Billy)", "Tržnice", "U Letadla", "Parkoviště Flora", "Peškova", "Voskovcova"];
 
-const EXAMPLES = [
-  "Kolik aut včera projelo ulicí 17. listopadu?",
-  "Kolik aut včera přijelo na parkoviště Flora?",
-  "Kdy byla včera největší špička u Billy?",
-  "Kolik aut projelo v pondělí mezi 6 a 10 ulicí Kafkova?",
-];
 
 function Item({ term, children }: { term: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -35,18 +30,7 @@ function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
       </dl>
       <div className="flex flex-col gap-2">
         <p className="m-0 font-semibold">Zkuste třeba</p>
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((question) => (
-            <button
-              key={question}
-              type="button"
-              onClick={() => onPick?.(question)}
-              className={`${PRESS} rounded-xl border border-line bg-band px-3 py-2 text-left text-[16px] text-ink hover:border-ink`}
-            >
-              {question}
-            </button>
-          ))}
-        </div>
+        <Suggestions questions={EXAMPLES} onPick={(question) => onPick?.(question)} />
       </div>
     </>
   );

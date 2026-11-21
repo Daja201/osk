@@ -9,16 +9,12 @@ import { splitSentence } from "@/lib/ui/sentence";
 import Footer from "./Footer";
 import HourlyChart from "./HourlyChart";
 import { PRESS } from "./styles";
+import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
 import TopBar from "./TopBar";
 
 const OUT_OF_SCOPE_TEXT =
   "Odpovídám jen na otázky o dopravě v Olomouci, a to z dat dopravních senzorů: kolik aut projelo místem za den nebo jeho část a kdy byla špička.";
 
-const SUGGESTIONS = [
-  "Kolik aut včera projelo ulicí 17. listopadu?",
-  "Kolik aut včera přijelo na parkoviště Flora?",
-  "Kdy byla včera největší špička u Billy?",
-];
 
 function WarningIcon() {
   return (
@@ -80,23 +76,12 @@ function AnswerBody({ answer, facts }: { answer: AskAnswer; facts: Facts }) {
   );
 }
 
-function Suggestions() {
+function TrySuggestions() {
   const { ask } = useAsk();
   return (
     <div className="mt-6 flex flex-col gap-2.5">
       <p className="m-0 text-[16px] font-semibold">Zkuste se zeptat třeba</p>
-      <div className="flex flex-wrap gap-2">
-        {SUGGESTIONS.map((question) => (
-          <button
-            key={question}
-            type="button"
-            onClick={() => void ask(question)}
-            className={`${PRESS} rounded-xl border border-line bg-band px-3 py-2 text-left text-[16px] text-ink hover:border-ink`}
-          >
-            {question}
-          </button>
-        ))}
-      </div>
+      <Suggestions questions={TOP_EXAMPLES} onPick={(question) => void ask(question)} />
     </div>
   );
 }
@@ -134,7 +119,7 @@ function OtherBody({ answer }: { answer: AskAnswer }) {
       <p className="m-0 mt-3 text-[19px] leading-[1.45] text-pretty sm:text-[21px]">
         {view === "out_of_scope" ? OUT_OF_SCOPE_TEXT : answer.sentence}
       </p>
-      <Suggestions />
+      <TrySuggestions />
     </>
   );
 }
