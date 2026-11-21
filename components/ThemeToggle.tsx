@@ -36,7 +36,7 @@ export default function ThemeToggle({ tone }: { tone: "light" | "blue" }) {
       onClick={() => setTheme(next)}
       aria-label={label}
       title={label}
-      className={`${PRESS} flex size-10 shrink-0 items-center justify-center rounded-[10px] ${
+      className={`${PRESS} flex size-11 shrink-0 items-center justify-center rounded-[10px] ${
         tone === "blue" ? "bg-white/15 text-white hover:bg-white/25" : "border border-line bg-surface text-ink hover:border-ink"
       }`}
     >

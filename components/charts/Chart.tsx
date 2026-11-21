@@ -48,7 +48,15 @@ function wrap(text: string, maxChars: number): string[] {
   return lines;
 }
 
-const shorten = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+// Popisky na ose x: kolikátý ukázat (ať se nepřekrývají) a jak je zalomit. Dlouhý popisek („Billa (Hynaisova)“)
+// se zalomí do dvou řádků, místo aby se zkrátil. Každý řádek je samostatný <text> (kvůli exportu do PNG).
+function xLabels(categories: string[], plotW: number) {
+  const n = Math.max(1, categories.length);
+  const step = labelStep(n, Math.max(2, Math.floor(plotW / 64)));
+  const maxChars = Math.max(6, Math.floor(((plotW / n) * step) / 7.5));
+  const lines = categories.map((label, i) => (i % step === 0 ? wrap(label, maxChars) : []));
+  return { step, lines, rows: Math.max(1, ...lines.map((l) => l.length)) };
+}
 
 type Legend = { label: string; color: string }[];
 
@@ -120,7 +128,7 @@ export default function Chart({
   title,
   colors,
   svgRef,
-  height: HEIGHT = 460,
+  height,
   onPick,
   picked,
   qrUrl,
@@ -129,6 +137,8 @@ export default function Chart({
 }: ChartProps) {
   const interaction = { onPick, picked };
   const [box, width] = useWidth();
+  // Výška: zadaná, jinak na telefonu nižší (graf se vejde na obrazovku i s tlačítky pod ním).
+  const HEIGHT = height ?? (width < 500 ? 360 : 460);
   const pad = width < 500 ? 16 : 28;
   // QR kód vpravo nahoře vedle nadpisu; nadpis se zúží, graf začne pod QR.
   const qrSize = qrUrl ? (width < 500 ? 64 : 84) : 0;
@@ -168,7 +178,9 @@ export default function Chart({
           .join("; ");
   const bottom = HEIGHT - pad - 22 - (legend.height > 0 ? legend.height + 12 : 0);
 
-  const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad, top, bottom: bottom - (kind === "pie" ? 0 : 30) };
+  // Místo pod grafem na popisky osy x: jeden, nebo dva řádky.
+  const labelRows = kind === "pie" ? 0 : xLabels(data.categories, width - pad - (pad + 52)).rows;
+  const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad, top, bottom: bottom - (kind === "pie" ? 0 : 14 + labelRows * 16) };
   const plotW = plot.right - plot.left;
   const plotH = plot.bottom - plot.top;
 
@@ -205,7 +217,7 @@ export default function Chart({
         {qrUrl && (
           <>
             <QrCode inline text={qrUrl} size={qrSize} x={width - pad - qrSize} y={pad} />
-            <text x={width - pad - qrSize / 2} y={pad + qrSize + 14} fontSize="11" textAnchor="middle" fill={colors.muted}>
+            <text x={width - pad - qrSize / 2} y={pad + qrSize + 15} fontSize="12" textAnchor="middle" fill={colors.muted}>
               Ověřit data
             </text>
           </>
@@ -243,11 +255,10 @@ function Axes({
   // Hodnota → výška. Osa může začínat nad nulou (axis.min), pak je to u ní vyznačené přerušením.
   const y = (value: number) => plot.bottom - ((value - axis.min) / (axis.max - axis.min)) * plotH;
   const n = data.categories.length;
-  const step = labelStep(n, Math.max(2, Math.floor(plotW / 64)));
+  const labels = xLabels(data.categories, plotW);
   const slot = plotW / n;
   const x = (i: number) => (kind === "bar" ? plot.left + slot * (i + 0.5) : plot.left + (n === 1 ? plotW / 2 : (plotW * i) / (n - 1)));
   const showValues = kind === "bar" && n * data.series.length <= 16;
-  const maxLabel = Math.max(6, Math.floor((slot * step) / 7.5));
 
   return (
     <g>
@@ -276,12 +287,12 @@ function Axes({
       )}
 
       {data.categories.map((label, i) =>
-        i % step === 0 ? (
-          <text key={i} x={x(i)} y={plot.bottom + 22} fontSize="14" textAnchor="middle" fill={colors.muted}>
+        labels.lines[i].map((line, row) => (
+          <text key={`${i}-${row}`} x={x(i)} y={plot.bottom + 22 + row * 16} fontSize="14" textAnchor="middle" fill={colors.muted}>
             <title>{label}</title>
-            {shorten(label, maxLabel)}
+            {line}
           </text>
-        ) : null,
+        )),
       )}
 
       {kind === "bar"

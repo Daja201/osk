@@ -8,7 +8,7 @@ import { type AxisSetting, type ChartView, SWATCHES, colorSlots, customAxisError
 import { PRESS } from "./styles";
 
 const LABEL = "text-[14px] font-semibold uppercase tracking-wide text-muted";
-const CHIP = `${PRESS} rounded-full border px-3.5 py-1.5 text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100`;
+const CHIP = `${PRESS} min-h-11 rounded-full border px-3.5 py-1.5 text-[15px] font-semibold sm:min-h-9 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100`;
 const chip = (active: boolean) => `${CHIP} ${active ? "border-ink bg-ink text-surface" : "border-line bg-surface text-ink hover:border-ink"}`;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -51,7 +51,7 @@ function DataColors({ slots, colorOf, onChange }: { slots: string[]; colorOf: (s
             aria-label={`${slots[slot]}: barva ${color}`}
             aria-pressed={value.toUpperCase() === color}
             onClick={() => onChange(slot, color)}
-            className={`size-7 cursor-pointer rounded-md ring-1 ring-line transition-transform hover:scale-110 ${value.toUpperCase() === color ? "outline-2 outline-offset-2 outline-ink" : ""}`}
+            className={`size-10 cursor-pointer rounded-md ring-1 ring-line transition-transform hover:scale-110 sm:size-7 ${value.toUpperCase() === color ? "outline-2 outline-offset-2 outline-ink" : ""}`}
             style={{ background: color }}
           />
         ))}
@@ -64,7 +64,7 @@ function DataColors({ slots, colorOf, onChange }: { slots: string[]; colorOf: (s
           value={value.toLowerCase()}
           onChange={(event) => onChange(slot, event.target.value.toUpperCase())}
           title="Vlastní barva"
-          className="h-7 w-10 cursor-pointer rounded-md border border-line bg-surface p-0.5"
+          className="h-10 w-12 cursor-pointer rounded-md border border-line bg-surface p-0.5 sm:h-7 sm:w-10"
         />
       </div>
     </Section>
@@ -161,7 +161,7 @@ export default function ChartEditor({
     <section aria-label="Úprava vzhledu" className="flex flex-col gap-6 rounded-3xl bg-surface p-5 text-ink sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="m-0 font-sign text-[24px] leading-tight font-bold">Úprava vzhledu</h2>
-        <button type="button" onClick={onClose} className={`${PRESS} rounded-full border border-line px-3 py-1.5 text-[15px] font-semibold hover:border-ink`}>
+        <button type="button" onClick={onClose} className={`${PRESS} min-h-11 rounded-full border border-line px-4 py-1.5 text-[15px] font-semibold hover:border-ink sm:min-h-9`}>
           Hotovo
         </button>
       </div>
@@ -208,7 +208,7 @@ export default function ChartEditor({
           value={view.title}
           maxLength={120}
           onChange={(event) => set({ title: event.target.value })}
-          className="h-11 w-full rounded-lg border border-line bg-surface px-3 text-[16px] text-ink"
+          className="h-12 w-full rounded-lg border border-line bg-surface px-3 text-[16px] text-ink sm:h-11"
         />
       </Section>
 
@@ -222,7 +222,7 @@ export default function ChartEditor({
               aria-pressed={background === name}
               title={PALETTE[name].label}
               onClick={() => set({ background: name })}
-              className={`size-9 cursor-pointer rounded-lg ring-1 ring-line transition-transform hover:scale-110 ${background === name ? "outline-2 outline-offset-2 outline-ink" : ""}`}
+              className={`size-11 cursor-pointer rounded-lg ring-1 ring-line transition-transform hover:scale-110 sm:size-9 ${background === name ? "outline-2 outline-offset-2 outline-ink" : ""}`}
               style={{ background: PALETTE[name].bg }}
             />
           ))}
@@ -251,11 +251,11 @@ export default function ChartEditor({
           type="button"
           onClick={onSave}
           disabled={saving}
-          className={`${PRESS} rounded-full bg-tabule px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-60`}
+          className={`${PRESS} min-h-11 rounded-full bg-tabule px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-60`}
         >
           {saving ? "Ukládám…" : saved ? "Uloženo do odkazu" : "Uložit vzhled do odkazu"}
         </button>
-        <button type="button" onClick={onReset} className={`${PRESS} rounded-full border border-line px-4 py-2 text-[15px] font-semibold hover:border-ink`}>
+        <button type="button" onClick={onReset} className={`${PRESS} min-h-11 rounded-full border border-line px-4 py-2 text-[15px] font-semibold hover:border-ink`}>
           Obnovit původní
         </button>
       </div>

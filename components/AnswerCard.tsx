@@ -137,7 +137,9 @@ export default function AnswerCard({
   view = null,
   svgRef,
   interactive = true,
+  chartHeight,
 }: {
+  chartHeight?: number; // výška grafu (např. menší nad editorem na mobilu); jinak podle obrazovky
   answer: AskAnswer;
   view?: ChartView | null;
   svgRef?: Ref<SVGSVGElement>;
@@ -158,7 +160,7 @@ export default function AnswerCard({
   if (shown) {
     return (
       <div className="flex flex-col gap-3">
-        <ViewChart answer={answer} result={result} view={shown} svgRef={svgRef} />
+        <ViewChart answer={answer} result={result} view={shown} svgRef={svgRef} height={chartHeight} />
         <Notes notes={answer.notes} className="text-white" />
       </div>
     );

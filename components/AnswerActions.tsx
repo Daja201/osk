@@ -16,7 +16,7 @@ function QrButton({ url, name, className }: { url: string; name: string; classNa
   const box = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const close = () => dialog.current?.close();
-  const button = `${PRESS} rounded-full border border-line px-4 py-2 text-[15px] font-semibold text-ink hover:border-ink`;
+  const button = `${PRESS} min-h-11 rounded-full border border-line px-4 py-2 text-[15px] font-semibold text-ink hover:border-ink`;
   return (
     <>
       <button type="button" onClick={() => dialog.current?.showModal()} className={className} aria-haspopup="dialog">
@@ -30,12 +30,12 @@ function QrButton({ url, name, className }: { url: string; name: string; classNa
         }}
         className="m-auto w-[min(420px,calc(100vw-32px))] rounded-3xl bg-surface p-0 text-ink backdrop:bg-black/50"
       >
-        <div className="flex flex-col items-center gap-4 p-6 text-center sm:p-8">
-          <h2 id="qr-nadpis" className="m-0 font-sign text-[26px] leading-tight font-bold">
+        <div className="flex flex-col items-center gap-3 p-5 text-center sm:gap-4 sm:p-8">
+          <h2 id="qr-nadpis" className="m-0 font-sign text-[22px] leading-tight font-bold sm:text-[26px]">
             Odkaz na tuhle odpověď
           </h2>
           <div ref={box} className="rounded-2xl bg-white p-2">
-            <QrCode text={url} size={240} />
+            <QrCode text={url} size={240} className="block h-auto w-[min(240px,58vw)]" />
           </div>
           <p className="m-0 text-[15px] text-muted">
             Platí 7 dní. Kdo ho otevře, uvidí stejnou odpověď i s tím, jak vznikla a odkud jsou data.
@@ -104,7 +104,7 @@ export default function AnswerActions({
     setTimeout(() => setStatus(null), 2000);
   };
 
-  const button = `${PRESS} inline-flex h-10 items-center gap-2 rounded-full bg-white/15 px-4 text-[15px] font-semibold text-white hover:bg-white/25`;
+  const button = `${PRESS} inline-flex h-11 items-center gap-2 rounded-full bg-white/15 px-4 text-[15px] font-semibold text-white hover:bg-white/25`;
   type Action = { label: string; hint?: string; run: () => Promise<void> | void };
   const downloads: Action[] = [];
   if (isChart) {
@@ -139,9 +139,9 @@ export default function AnswerActions({
   }
   if (!onEdit && downloads.length === 0 && !url) return null;
 
-  // Pořadí: Upravit vzhled · QR kód · Kopírovat odkaz · Stáhnout ▾
+  // Pořadí: Upravit vzhled · QR kód · Kopírovat odkaz · Stáhnout ▾ (relative: na mobilu se k řadě váže nabídka)
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="relative flex flex-wrap items-center gap-2">
       {onEdit && (
         <button type="button" onClick={onEdit} className={button} aria-expanded={editing}>
           {editing ? "Zavřít úpravy" : "Upravit vzhled"}
@@ -185,7 +185,7 @@ function DownloadMenu({ actions, className }: { actions: { label: string; hint?:
   return (
     <details
       ref={menu}
-      className="relative"
+      className="sm:relative"
       onToggle={(event) => setOpen(event.currentTarget.open)}
       onKeyDown={(event) => {
         if (event.key === "Escape") close();
@@ -197,7 +197,10 @@ function DownloadMenu({ actions, className }: { actions: { label: string; hint?:
           <path d="M6 9l6 6 6-6" />
         </svg>
       </summary>
-      <ul className="animate-rise absolute top-full left-0 z-20 m-0 mt-2 flex w-72 list-none flex-col rounded-2xl bg-surface p-1.5 text-ink shadow-[0_8px_28px_rgba(0,0,0,0.22)]">
+      {/* Na mobilu se nabídka otevře NAHORU od levého okraje řady tlačítek (dole by ji uřízl konec obrazovky,
+          vpravo by vyjela za okraj), na větší obrazovce pod tlačítkem. Ne position: fixed: rodič má transform
+          (posun obrazovek), takže by se fixed vázalo k němu, ne k oknu. */}
+      <ul className="animate-rise absolute bottom-full left-0 z-30 m-0 mb-2 flex w-[min(18rem,calc(100vw-2rem))] list-none flex-col rounded-2xl bg-surface p-1.5 text-ink shadow-[0_8px_28px_rgba(0,0,0,0.3)] sm:top-full sm:bottom-auto sm:mt-2 sm:mb-0">
         {actions.map((action) => (
           <li key={action.label}>
             <button

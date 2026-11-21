@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
+import { useIsWide } from "@/lib/ui/media";
 import { type ChartView, defaultView } from "@/lib/view";
 import AnswerActions from "./AnswerActions";
 import AnswerCard from "./AnswerCard";
@@ -52,6 +53,7 @@ export default function AnswerScreen({
   onViewChange: (view: ChartView | null) => void;
 }) {
   const { answer, status, replace } = useAsk();
+  const wide = useIsWide();
   const region = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const [editing, setEditing] = useState(false);
@@ -90,22 +92,47 @@ export default function AnswerScreen({
     onViewChange(null);
   }
 
+  const editor = editorOpen ? (
+    <div className="flex flex-col gap-2">
+      <ChartEditor
+        result={result}
+        view={current}
+        onChange={(next) => {
+          setSaveError(null);
+          onViewChange(next);
+        }}
+        onReset={() => onViewChange(null)}
+        onSave={() => void save()}
+        onClose={() => setEditing(false)}
+        saving={saving}
+        saved={view === null && shown.view !== null}
+        hasLink={shown.id !== null}
+      />
+      {saveError && <p className="m-0 text-[15px] text-white">{saveError}</p>}
+    </div>
+  ) : null;
+
+  // Rozložení:
+  // - široká obrazovka: editor vedle grafu,
+  // - telefon: editor jako panel zespodu (vlastní posouvání), graf nad ním zmenšený, aby byly změny hned vidět.
+  // Patička je v posouvané části, aby na malém displeji nezabírala místo tlačítkům.
   return (
     <div className="flex h-dvh flex-col bg-tabule text-white">
       <TopBar tone="blue" info="answer" onNew={onNew} />
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-8">
-        <div className={`m-auto flex w-full flex-col ${editorOpen ? "max-w-[1240px]" : "max-w-[900px]"}`}>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen && wide ? "max-w-[1240px]" : "max-w-[900px]"}`}>
           {shown === null ? (
             <p aria-live="polite" className="m-0 text-center font-sign text-[24px] font-semibold text-on-sign-muted">
               Počítám z dat senzorů…
             </p>
           ) : (
-            <div className={editorOpen ? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]" : ""}>
+            <div className={editorOpen && wide ? "grid items-start gap-5 grid-cols-[minmax(0,1fr)_360px]" : ""}>
               <div className="min-w-0">
                 <div ref={region} tabIndex={-1} role="region" aria-label="Odpověď" className="animate-rise rounded-3xl">
-                  <AnswerCard answer={shown} view={view} svgRef={svg} />
+                  <AnswerCard answer={shown} view={view} svgRef={svg} chartHeight={editorOpen && !wide ? 220 : undefined} />
                 </div>
-                <div className="mt-4 flex items-start justify-between gap-3">
+                {/* Při úpravách na telefonu tlačítka schováme: místo dostane graf, editor se zavírá tlačítkem Hotovo. */}
+                <div className={`mt-3 items-start justify-between gap-3 sm:mt-4 ${editorOpen && !wide ? "hidden" : "flex"}`}>
                   <AnswerActions answer={shown} view={view} svg={svg} onEdit={result ? toggleEditor : undefined} editing={editing} />
                   {canOpenDetails && (
                     <button
@@ -120,30 +147,17 @@ export default function AnswerScreen({
                   )}
                 </div>
               </div>
-              {editorOpen && (
-                <div className="animate-rise flex flex-col gap-2 lg:sticky lg:top-0">
-                  <ChartEditor
-                    result={result}
-                    view={current}
-                    onChange={(next) => {
-                      setSaveError(null);
-                      onViewChange(next);
-                    }}
-                    onReset={() => onViewChange(null)}
-                    onSave={() => void save()}
-                    onClose={() => setEditing(false)}
-                    saving={saving}
-                    saved={view === null && shown.view !== null}
-                    hasLink={shown.id !== null}
-                  />
-                  {saveError && <p className="m-0 text-[15px] text-white">{saveError}</p>}
-                </div>
-              )}
+              {wide && editor && <div className="animate-rise sticky top-0">{editor}</div>}
             </div>
           )}
         </div>
+        {!(editorOpen && !wide) && <Footer tone="blue" />}
       </main>
-      <Footer tone="blue" />
+      {!wide && editor && (
+        <div className="animate-rise max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain rounded-t-3xl bg-surface shadow-[0_-8px_24px_rgba(0,0,0,0.25)]">
+          {editor}
+        </div>
+      )}
     </div>
   );
 }
