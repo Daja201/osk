@@ -1,5 +1,7 @@
 import { PALETTE } from "@/lib/ai/palette";
 import type { AskAnswer } from "@/lib/ai/types";
+import { aggregateValue } from "@/lib/citiq/display";
+import { resolveWeatherMetric } from "@/lib/citiq/weatherStations";
 import {
   DIRECTION_LABEL,
   FORMAT_LABEL,
@@ -157,6 +159,26 @@ function stopsOf(answer: AskAnswer): StopData[] {
   const spec = answer.spec;
   const result = answer.result?.ok ? answer.result : null;
   const time = (ms: number | null) => (ms === null ? undefined : formatSeconds(ms));
+  const datasetRows: [string, React.ReactNode][] =
+    spec && "stations" in spec
+      ? [
+          ["Stanice", spec.stations.join(", ")],
+          ["Veličiny", spec.metrics.map((metric) => `${resolveWeatherMetric(metric)?.name ?? metric} (${resolveWeatherMetric(metric)?.unit ?? ""})`).join(", ")],
+        ]
+      : spec
+        ? [
+            ["Místa", spec.gates.map(placeName).join(", ")],
+            ["Směr", DIRECTION_LABEL[spec.direction]],
+          ]
+        : [];
+  const resultRows: [string, React.ReactNode][] = result
+    ? result.data.series.map((s) => [
+        s.gate,
+        result.meta.tool === "weather_series"
+          ? `${aggregateValue(s) === null ? "bez dat" : formatNumber(aggregateValue(s) ?? 0)} · průměr za ${s.coverage.hours} z ${s.coverage.of} h`
+          : `${formatNumber(aggregateValue(s) ?? 0)} vozidel · data za ${s.coverage.hours} z ${s.coverage.of} h${s.sensors.length > 1 ? ` · senzory ${s.sensors.join(", ")}` : ""}`,
+      ])
+    : [];
   const stops: StopData[] = [{ marker: "end", title: "Vaše otázka", body: <p className="m-0">{quote(answer.question)}</p> }];
 
   if (view === "out_of_scope") {
@@ -188,8 +210,7 @@ function stopsOf(answer: AskAnswer): StopData[] {
           <Details
             rows={[
               ["Ukázat jako", FORMAT_LABEL[spec.format]],
-              ["Místa", spec.gates.map(placeName).join(", ")],
-              ["Směr", DIRECTION_LABEL[spec.direction]],
+              ...datasetRows,
               [
                 "Období",
                 <span key="obdobi" className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -197,7 +218,7 @@ function stopsOf(answer: AskAnswer): StopData[] {
                   {spec.date_assumed && <span className="rounded border-[1.5px] border-ink px-2 text-[15px] font-semibold">předpoklad AI</span>}
                 </span>,
               ],
-              ["Rozlišení", GRANULARITY_LABEL[spec.granularity]],
+              ["Rozlišení", "stations" in spec && spec.granularity === "total" ? "průměr za období" : GRANULARITY_LABEL[spec.granularity]],
               ...(spec.title ? [["Nadpis", quote(spec.title)] as [string, string]] : []),
               ...(spec.background ? [["Pozadí", PALETTE[spec.background].label] as [string, string]] : []),
               ["Model", model],
@@ -217,13 +238,11 @@ function stopsOf(answer: AskAnswer): StopData[] {
       body: (
         <>
           <p className="m-0">
-            Stáhl hodinové hodnoty ze senzorové sítě CITIQ {dotazu} a sečetl je podle zadání. AI v tomhle kroku nic nepočítá.
+            Stáhl hodinové hodnoty ze senzorové sítě CITIQ {dotazu} a{" "}
+            {result.meta.tool === "weather_series" ? "spočítal průměry podle zadání." : "sečetl je podle zadání."} AI v tomhle kroku nic nepočítá.
           </p>
           <Details
-            rows={result.data.series.map((s) => [
-              placeName(s.gate),
-              `${formatNumber(s.total)} vozidel · data za ${s.coverage.hours} z ${s.coverage.of} h${s.sensors.length > 1 ? ` · senzory ${s.sensors.join(", ")}` : ""}`,
-            ])}
+            rows={resultRows}
           />
           {answer.notes.length > 0 && (
             <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-muted">
@@ -240,7 +259,7 @@ function stopsOf(answer: AskAnswer): StopData[] {
       marker: "code",
       title: answer.reason?.code === "SOURCE_ERROR" ? "Data se nepodařilo stáhnout" : "Odpověď z dat nejde",
       time: time(timings.compute),
-      body: <p className="m-0">{answer.result.error.message}</p>,
+      body: <p className="m-0">{"error" in answer.result ? answer.result.error.message : answer.result.message}</p>,
     });
   }
 

@@ -1,5 +1,5 @@
 // Stažení a kopírování v prohlížeči: PNG z grafu, CSV z dat, text do schránky.
-import type { SeriesOk } from "../citiq/series";
+import type { SeriesDisplayOk } from "../citiq/display";
 import { seriesCsv } from "../csv";
 import { placeName } from "./chart";
 
@@ -150,12 +150,12 @@ export async function renderPng(svg: SVGSVGElement): Promise<Blob> {
   return blob;
 }
 
-export function downloadCsv(result: SeriesOk, filename: string) {
+export function downloadCsv(result: SeriesDisplayOk, filename: string) {
   download(new Blob([seriesCsv(result)], { type: "text/csv;charset=utf-8" }), filename);
 }
 
 // Tabulka jako text oddělený tabulátory: po vložení do Excelu nebo Google Tabulek se rozdělí do buněk.
-export function tableTsv(result: SeriesOk): string {
+export function tableTsv(result: SeriesDisplayOk): string {
   const { buckets, series } = result.data;
   const header = ["Období", ...series.map((s) => placeName(s.gate))];
   const rows = buckets.map((b, i) => [b.label, ...series.map((s) => (s.values[i] === null ? "" : String(s.values[i])))]);

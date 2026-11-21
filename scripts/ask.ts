@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ask } from "../lib/ai/ask";
 import { appNow } from "../lib/ai/dates";
 import { trafficSeries } from "../lib/citiq/series";
+import { weatherSeries } from "../lib/citiq/weatherSeries";
 
 const question = process.argv.slice(2).join(" ").trim();
 if (!question) {
@@ -17,6 +18,7 @@ const answer = await ask(question, {
   model: process.env.CLAUDE_MODEL ?? "claude-haiku-5-5",
   now,
   trafficSeries: (params) => trafficSeries(params, { now }),
+  weatherSeries: (params) => weatherSeries(params, { now }),
 });
 
 console.log(`${answer.kind} · ${answer.format ?? "-"} (${answer.sentence_source ?? "bez věty"}${answer.reason ? `, ${answer.reason.code}` : ""})`);

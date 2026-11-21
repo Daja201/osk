@@ -1,8 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import { ask, type AskDeps } from "../lib/ai/ask";
-import { buildAnswerTool } from "../lib/ai/tools";
+import { buildAnswerTool, weatherSeriesTool } from "../lib/ai/tools";
+import { effectiveView } from "../components/ViewChart";
+import { formatOptions } from "../lib/view";
 import type { SeriesParams, SeriesResult } from "../lib/citiq/series";
+import type { WeatherSeriesParams, WeatherSeriesResult } from "../lib/citiq/weatherSeries";
+import type { WeatherMetricKey } from "../lib/citiq/weatherStations";
 
 // Falešný Claude: vrací předem připravené odpovědi popořadě a pamatuje si, co dostal.
 function fakeClient(responses: Partial<Anthropic.Message>[]) {
@@ -20,11 +24,11 @@ function fakeClient(responses: Partial<Anthropic.Message>[]) {
   };
 }
 
-const toolUse = (input: object, id = "tu_1"): Partial<Anthropic.Message> => ({
+const toolUse = (input: object, id = "tu_1", name = "build_answer"): Partial<Anthropic.Message> => ({
   stop_reason: "tool_use",
   content: [
     { type: "thinking", thinking: "", signature: "sig" },
-    { type: "tool_use", id, name: "build_answer", input, caller: { type: "direct" } },
+    { type: "tool_use", id, name, input, caller: { type: "direct" } },
   ] as Anthropic.ContentBlock[],
 });
 const text = (value: string): Partial<Anthropic.Message> => ({
@@ -60,7 +64,13 @@ async function fakeSeries(params: SeriesParams): Promise<SeriesResult> {
 
 function deps(client: ReturnType<typeof fakeClient>): AskDeps {
   seriesCalls.length = 0;
-  return { client, model: "test", now: new Date("2026-11-20T18:00:00Z"), trafficSeries: fakeSeries };
+  return {
+    client,
+    model: "test",
+    now: new Date("2026-11-20T18:00:00Z"),
+    trafficSeries: fakeSeries,
+    weatherSeries: async () => ({ ok: false, code: "NOT_CONFIGURED", message: "Weather mock not configured." }),
+  };
 }
 
 const spec = {
@@ -74,11 +84,135 @@ const spec = {
   granularity: "hour",
   date_assumed: false,
 };
+const weatherSpec = {
+  format: "bar",
+  title: null,
+  background: null,
+  stations: ["Tržnice.meteostanice"],
+  metrics: ["device_device_frmpayload_data_hih_temp"] as WeatherMetricKey[],
+  from: "2026-11-19T08:00",
+  to: "2026-11-19T11:00",
+  granularity: "hour",
+  date_assumed: false,
+};
+const weatherCalls: WeatherSeriesParams[] = [];
+const fakeWeather: WeatherSeriesResult = {
+  ok: true,
+  data: {
+    granularity: "hour",
+    buckets: ["8:00", "9:00", "10:00"].map((label) => ({
+      label,
+      start: "2026-11-19T07:00:00.000Z",
+      end: "2026-11-19T08:00:00.000Z",
+    })),
+    series: [
+      {
+        gate: "Tržnice.meteostanice · temperature (°C)",
+        station: "Tržnice.meteostanice",
+        metric: "device_device_frmpayload_data_hih_temp",
+        unit: "°C",
+        sensors: ["TMaBoxXbvgezGR4LrQL7cw"],
+        values: [9, 10, 11],
+        mean: 10,
+        coverage: { hours: 3, of: 3 },
+      },
+    ],
+  },
+  meta: {
+    tool: "weather_series",
+    params: {
+      stations: ["Tržnice.meteostanice"],
+      metrics: ["device_device_frmpayload_data_hih_temp"],
+      from: "2026-11-19T08:00",
+      to: "2026-11-19T11:00",
+      granularity: "hour",
+    },
+    period: { start: "2026-11-19T07:00:00.000Z", end: "2026-11-19T10:00:00.000Z", clipped: false },
+    sources: [{ date: "2026-11-19", url: "https://iot.citiq.cloud/portal/api/v2/view/meteorological-data-olomouc/?agg_func=mean", fetched_at: "2026-11-20T10:00:00.000Z" }],
+    notes: [],
+  },
+};
 
 describe("build_answer: nástroj", () => {
   it("strict schéma vyžaduje všechna pole", () => {
     expect(buildAnswerTool.strict).toBe(true);
     expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "direction", "from", "to", "granularity", "date_assumed"]);
+  });
+
+  it("weather_series má samostatné strict schéma bez dopravního směru", () => {
+    expect(weatherSeriesTool.strict).toBe(true);
+    expect(weatherSeriesTool.input_schema.required).toEqual(["format", "title", "background", "stations", "metrics", "from", "to", "granularity", "date_assumed"]);
+    expect(weatherSeriesTool.input_schema.properties).not.toHaveProperty("direction");
+    expect(weatherSeriesTool.description).toContain("humidity (%)");
+  });
+});
+
+describe("ask: meteorologická data", () => {
+  it("volá samostatný weather tool a vynutí tabulku pro veličiny s různými jednotkami", async () => {
+    weatherCalls.length = 0;
+    const multiMetricResult: WeatherSeriesResult = {
+      ...fakeWeather,
+      meta: {
+        ...fakeWeather.meta,
+        params: {
+          ...fakeWeather.meta.params,
+          metrics: [...weatherSpec.metrics, "device_device_frmpayload_data_hih_relh"],
+        },
+      },
+      data: {
+        ...fakeWeather.data,
+        series: [
+          ...fakeWeather.data.series,
+          {
+            ...fakeWeather.data.series[0],
+            gate: "Tržnice.meteostanice · humidity (%)",
+            metric: "device_device_frmpayload_data_hih_relh",
+            unit: "%",
+            mean: 62,
+            values: [60, 62, 64],
+          },
+        ],
+      },
+    };
+    const answer = await ask("Jaká byla teplota a vlhkost?", {
+      ...deps(fakeClient([toolUse({ ...weatherSpec, metrics: [...weatherSpec.metrics, "device_device_frmpayload_data_hih_relh"] }, "tu_weather", "weather_series")])),
+      weatherSeries: async (params) => {
+        weatherCalls.push(params);
+        return multiMetricResult;
+      },
+    });
+
+    expect(weatherSeriesTool.name).toBe("weather_series");
+    expect(answer).toMatchObject({ kind: "answer", format: "table" });
+    expect(answer.notes).toContain("Veličiny mají různé jednotky, proto místo společného grafu ukazujeme tabulku.");
+    if (!answer.result?.ok) throw new Error("weather response should have a result");
+    expect(formatOptions(answer.result).filter((option) => option.format !== "table").every((option) => option.disabled !== null)).toBe(true);
+    expect(effectiveView(answer, { format: "bar", title: "", background: null, colors: [], axis: { mode: "auto" }, qr: false })?.format).toBe("table");
+    expect(weatherCalls).toEqual([
+      {
+        stations: ["Tržnice.meteostanice"],
+        metrics: ["device_device_frmpayload_data_hih_temp", "device_device_frmpayload_data_hih_relh"],
+        from: weatherSpec.from,
+        to: weatherSpec.to,
+        granularity: "hour",
+      },
+    ]);
+  });
+
+  it("souhrn pro text obsahuje vypočtený průměr s jednotkou", async () => {
+    const client = fakeClient([toolUse({ ...weatherSpec, format: "text" }, "tu_weather", "weather_series"), text("Průměrná teplota byla 10 °C.")]);
+    const answer = await ask("Jaká byla teplota?", {
+      ...deps(client),
+      weatherSeries: async () => fakeWeather,
+    });
+    expect(answer).toMatchObject({ kind: "answer", format: "text", sentence_source: "ai" });
+    const result = client.calls[1].messages[2].content as Anthropic.ToolResultBlockParam[];
+    expect(JSON.parse(String(result[0].content)).stations[0]).toMatchObject({
+      station: "Tržnice.meteostanice",
+      metric: "temperature",
+      unit: "°C",
+      mean: 10,
+    });
   });
 });
 
@@ -87,10 +221,10 @@ describe("ask: grafy a tabulky", () => {
     const client = fakeClient([]);
     const answer = await ask("Na co se mohu zeptat?", deps(client));
     expect(answer).toMatchObject({
-      kind: "answer",
-      format: "text",
-      title: "Na co se můžete zeptat",
+      kind: "unknown",
+      format: null,
       sentence_source: "fixed",
+      reason: { code: "DATASET_HELP" },
     });
     expect(answer.sentence).toContain("počty vozidel");
     expect(answer.sentence).toContain("graf");

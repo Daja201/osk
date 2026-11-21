@@ -3,7 +3,7 @@
 import { type Ref, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
-import type { SeriesOk } from "@/lib/citiq/series";
+import { aggregateValue, type SeriesDisplayOk } from "@/lib/citiq/display";
 import { checkOf, viewOf } from "@/lib/ui/answer";
 import { copyText } from "@/lib/ui/export";
 import { formatNumber } from "@/lib/ui/format";
@@ -16,7 +16,7 @@ import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
 import ViewChart, { effectiveView } from "./ViewChart";
 
 const OUT_OF_SCOPE_TEXT =
-  "Odpovídám jen na otázky o dopravě v Olomouci z dat dopravních senzorů: kolik vozidel projelo branami v libovolném čase, porovnání míst a dnů, grafy a tabulky.";
+  "Odpovídám jen na otázky o dopravě nebo naměřeném počasí v Olomouci: průjezdy dopravními branami a teplota, vlhkost, tlak či vítr z meteorologických stanic.";
 
 function WarningIcon() {
   return (
@@ -71,7 +71,7 @@ function Sentence({ sentence, main }: { sentence: string; main: number | null })
 }
 
 // Zdroj dat: přesné dotazy na CITIQ, ze kterých odpověď je (otevřou se v prohlížeči jako JSON).
-function Sources({ answer, result }: { answer: AskAnswer; result: SeriesOk }) {
+function Sources({ answer, result }: { answer: AskAnswer; result: SeriesDisplayOk }) {
   const [copied, setCopied] = useState<string | null>(null);
   return (
     <>
@@ -103,6 +103,20 @@ function Sources({ answer, result }: { answer: AskAnswer; result: SeriesOk }) {
 function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: boolean }) {
   const { ask } = useAsk();
   const view = viewOf(answer);
+  if (view === "dataset_help") {
+    return (
+      <>
+        <p className="m-0 font-sign text-[34px] leading-[1.05] font-bold sm:text-[44px]">Na co se můžete zeptat?</p>
+        <p className="m-0 mt-3 text-[19px] leading-[1.45] text-pretty sm:text-[21px]">{answer.sentence}</p>
+        {interactive && (
+          <div className="mt-6 flex flex-col gap-2.5">
+            <p className="m-0 text-[16px] font-semibold">Zkuste se zeptat třeba</p>
+            <Suggestions questions={TOP_EXAMPLES} onPick={(question) => void ask(question)} />
+          </div>
+        )}
+      </>
+    );
+  }
   if (view === "error") {
     const aiFailed = answer.reason?.code === "AI_ERROR";
     const rateLimited = answer.reason?.code === "RATE_LIMIT_ERROR";
@@ -192,7 +206,7 @@ export default function AnswerCard({
   }
 
   // Věta: velké číslo jen u jediného místa (jeho součet).
-  const main = result.data.series.length === 1 ? result.data.series[0].total : null;
+  const main = result.data.series.length === 1 ? aggregateValue(result.data.series[0]) : null;
   return (
     <div className={plain}>
       <Sentence sentence={answer.sentence ?? ""} main={main} />

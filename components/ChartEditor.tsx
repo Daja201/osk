@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { PALETTE, PALETTE_NAMES, type PaletteName } from "@/lib/ai/palette";
-import type { SeriesOk } from "@/lib/citiq/series";
+import type { SeriesDisplayOk } from "@/lib/citiq/display";
 import { formatNumber } from "@/lib/ui/format";
 import { type AxisSetting, type ChartView, SWATCHES, colorSlots, customAxisError, formatOptions, slotColor, uniformColors } from "@/lib/view";
 import { PRESS } from "./styles";
@@ -142,7 +142,7 @@ export default function ChartEditor({
   hasLink,
 }: {
   hasLink: boolean; // má odpověď odkaz (id)? Bez něj QR není na co vést
-  result: SeriesOk;
+  result: SeriesDisplayOk;
   view: ChartView;
   onChange: (view: ChartView) => void;
   onReset: () => void;

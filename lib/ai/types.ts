@@ -1,7 +1,8 @@
 import type { SeriesResult } from "../citiq/series";
+import type { WeatherSeriesResult } from "../citiq/weatherSeries";
 import type { ChartView } from "../view";
 import type { PaletteName } from "./palette";
-import type { BuildAnswerInput, Format } from "./tools";
+import type { BuildAnswerInput, Format, WeatherSeriesInput } from "./tools";
 
 export type ReasonCode = "OUT_OF_SCOPE" | "AI_ERROR" | "BAD_PARAMS" | "SOURCE_ERROR" | string;
 
@@ -27,8 +28,8 @@ export type AskAnswer = {
   // "ai" = napsal Claude a prošla kontrolou čísel, "fallback" = složil ji kód, "fixed" = pevná věta.
   sentence_source: "ai" | "fallback" | "fixed" | null;
   reason: { code: ReasonCode; message: string } | null;
-  spec: BuildAnswerInput | null; // co AI vybrala
-  result: SeriesResult | null; // co spočítal náš kód
+  spec: BuildAnswerInput | WeatherSeriesInput | null; // co AI vybrala
+  result: SeriesResult | WeatherSeriesResult | null; // co spočítal náš kód
   notes: string[]; // úpravy, které udělal kód (např. „V otázce nebyl čas, ukazujeme včerejšek.“)
   view: ChartView | null; // vzhled upravený v editoru (uložená kopie odpovědi), null = jak vybrala AI
   trace: { model: string; now: string; steps: TraceStep[]; total_ms: number };

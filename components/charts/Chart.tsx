@@ -2,7 +2,7 @@
 
 import { type Ref, useEffect, useRef, useState } from "react";
 import type { PALETTE } from "@/lib/ai/palette";
-import type { SeriesOk } from "@/lib/citiq/series";
+import type { SeriesDisplayOk } from "@/lib/citiq/display";
 import { type DataPick, type ValueAxis, axisFor, chartData, extremes, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
 import type { AxisSetting } from "@/lib/view";
 import { formatNumber } from "@/lib/ui/format";
@@ -149,7 +149,7 @@ const samePick = (a: DataPick | null | undefined, b: DataPick) => a?.gate === b.
 
 type ChartProps = Interaction & {
   kind: Kind;
-  result: SeriesOk;
+  result: SeriesDisplayOk;
   title: string;
   colors: Colors;
   svgRef?: Ref<SVGSVGElement>;
@@ -282,7 +282,7 @@ function Axes({
   interaction,
 }: {
   kind: "bar" | "line";
-  result: SeriesOk;
+  result: SeriesDisplayOk;
   interaction: Interaction;
   axis: ValueAxis;
   data: ReturnType<typeof chartData>;

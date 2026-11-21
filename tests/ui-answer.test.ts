@@ -11,6 +11,15 @@ const ok = (name: string) => {
 };
 
 describe("testovací odpovědi", () => {
+  it("briefing datasetu má vlastní stav místo „nevím“", () => {
+    const help = {
+      ...FIXTURES["out-of-scope"],
+      kind: "unknown" as const,
+      reason: { code: "DATASET_HELP", message: "Briefing možností datasetu." },
+    };
+    expect(viewOf(help)).toBe("dataset_help");
+  });
+
   it("každá má stav, který stránka umí ukázat", () => {
     expect(Object.fromEntries(Object.entries(FIXTURES).map(([name, answer]) => [name, viewOf(answer)]))).toEqual({
       bar: "answer",

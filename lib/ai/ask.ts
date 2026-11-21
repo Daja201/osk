@@ -1,10 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
+import type { WeatherSeriesOk, WeatherSeriesParams, WeatherSeriesResult } from "../citiq/weatherSeries";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
 import { formatPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
-import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool } from "./tools";
+import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool, weatherSeriesTool, WeatherSeriesInput } from "./tools";
+import { resolveWeatherMetric, WEATHER_STATIONS } from "../citiq/weatherStations";
 import type { AskAnswer, TraceStep } from "./types";
 
 // Jen část klienta, kterou potřebujeme. V testech se podstrčí falešný klient.
@@ -14,12 +16,14 @@ export type MessagesClient = {
 
 // Podpis výpočtu lib/citiq/series.ts. V testech se podstrčí falešná funkce.
 export type SeriesFn = (params: SeriesParams) => Promise<SeriesResult>;
+export type WeatherSeriesFn = (params: WeatherSeriesParams) => Promise<WeatherSeriesResult>;
 
 export type AskDeps = {
   client: MessagesClient;
   model: string;
   now: Date;
   trafficSeries: SeriesFn;
+  weatherSeries: WeatherSeriesFn;
 };
 
 // 1. volání = zadání, případně 2. = oprava neplatného zadání, poslední = věta (jen u formátu text).
@@ -29,10 +33,12 @@ const MAX_PIE_SLICES = 6;
 const MAX_VALUES_FOR_CLAUDE = 48;
 
 const OUT_OF_SCOPE_TEXT =
-  "Na tohle odpovědět neumím – mám jen data o průjezdech vozidel dopravními branami v Olomouci.";
+  "Na tohle odpovědět neumím – mám jen data o dopravě a měření počasí z meteorologických stanic v Olomouci.";
 const AI_ERROR_TEXT = "Teď se nepodařilo spojit s AI. Zkuste to prosím znovu.";
 const SOURCE_TEXT =
   "Data bereme z otevřeného API senzorové sítě Olomouc (CITIQ, view olomouc-traffic-gates): hodinové součty průjezdů dopravními branami. Přesné dotazy pro tuto odpověď jsou v odkazech.";
+const WEATHER_SOURCE_TEXT =
+  "Data bereme z otevřeného API senzorové sítě Olomouc (CITIQ, view meteorological-data-olomouc): hodinové průměry z meteorologických stanic. Přesné dotazy pro tuto odpověď jsou v odkazech.";
 const cz = new Intl.NumberFormat("cs-CZ");
 
 // Název místa pro lidi: skupina „17. listopadu (obě brány)“ → „17. listopadu“.
@@ -45,6 +51,19 @@ export function defaultTitle(result: SeriesOk): string {
   const placeText = places.length > 3 ? `${places.slice(0, 3).join(", ")} a další` : places.join(", ");
   const what = direction === "in" ? "Vjezdy" : direction === "out" ? "Výjezdy" : "Počet vozidel";
   return `${what} · ${placeText} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+}
+
+type AskSeriesOk = SeriesOk | WeatherSeriesOk;
+
+function isWeatherResult(result: AskSeriesOk): result is WeatherSeriesOk {
+  return result.meta.tool === "weather_series";
+}
+
+function titleFor(result: AskSeriesOk): string {
+  if (!isWeatherResult(result)) return defaultTitle(result);
+  const stations = [...new Set(result.data.series.map((series) => series.station))];
+  const metrics = [...new Set(result.data.series.map((series) => resolveWeatherMetric(series.metric)?.name ?? series.metric))];
+  return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
 }
 
 // Nejvyšší a nejnižší bucket řady (počítá kód, Claude dostane jen výsledek).
@@ -60,7 +79,26 @@ function extremes(labels: string[], values: (number | null)[]) {
 }
 
 // Co uvidí Claude u formátu text: hotová čísla s popisky, nic k dopočítání.
-function summaryForClaude(result: SeriesOk) {
+function summaryForClaude(result: AskSeriesOk) {
+  if (isWeatherResult(result)) {
+    const labels = result.data.buckets.map((bucket) => bucket.label);
+    const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
+    return {
+      period: formatPeriod(result.meta.period.start, result.meta.period.end),
+      granularity: result.data.granularity,
+      dataset: "počasí",
+      stations: result.data.series.map((series) => ({
+        station: series.station,
+        metric: resolveWeatherMetric(series.metric)?.name ?? series.metric,
+        unit: series.unit,
+        mean: series.mean,
+        coverage: series.coverage,
+        ...(result.data.granularity === "total" ? {} : extremes(labels, series.values)),
+        ...(withValues ? { values: labels.map((label, index) => ({ label, value: series.values[index] })) } : {}),
+      })),
+      notes: result.meta.notes,
+    };
+  }
   const labels = result.data.buckets.map((b) => b.label);
   const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
   return {
@@ -90,11 +128,18 @@ function allowedNumbers(summary: unknown): Set<number> {
   };
   walk(summary);
   GATES.forEach((gate) => walk([gate.objectName, ...gate.aliases]));
+  WEATHER_STATIONS.forEach((station) => walk(station.nick));
   return allowed;
 }
 
-function fallbackSentence(result: SeriesOk): string {
+function fallbackSentence(result: AskSeriesOk): string {
   const period = formatPeriod(result.meta.period.start, result.meta.period.end);
+  if (isWeatherResult(result)) {
+    const parts = result.data.series.map((series) =>
+      `${series.station}, ${resolveWeatherMetric(series.metric)?.name ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
+    );
+    return `${period}: průměr ${parts.join("; ")}.`;
+  }
   const parts = result.data.series.map((s) => `${placeName(s.gate)} ${cz.format(s.total)} vozidel`);
   let sentence = `${period}: ${parts.join(", ")}.`;
   if (result.data.series.some((s) => s.coverage.hours < s.coverage.of)) sentence += " Část dat chybí, součty jsou neúplné.";
@@ -121,9 +166,22 @@ function isDatasetHelpQuestion(question: string): boolean {
 }
 
 // Úprava zadání, kterou dělá kód, ne Claude. Vrací výsledný formát a poznámky pro uživatele.
-function finalFormat(format: Format, result: SeriesOk, notes: string[]): Format {
+function finalFormat(format: Format, result: AskSeriesOk, notes: string[]): Format {
+  if (isWeatherResult(result) && format !== "text" && format !== "table" && format !== "source") {
+    const metrics = new Set(result.data.series.map((series) => series.metric));
+    if (metrics.size > 1) {
+      notes.push("Veličiny mají různé jednotky, proto místo společného grafu ukazujeme tabulku.");
+      return "table";
+    }
+  }
   const buckets = result.data.buckets.length;
-  const slices = result.data.granularity === "total" ? result.data.series.length : buckets;
+  const slices = isWeatherResult(result)
+    ? new Set(result.data.series.map((series) => series.station)).size > 1 || buckets === 1
+      ? result.data.series.length
+      : buckets
+    : result.data.granularity === "total"
+      ? result.data.series.length
+      : buckets;
   if (format === "pie" && slices > MAX_PIE_SLICES) {
     notes.push(`Na koláčový graf je položek moc (${slices}), ukazujeme sloupcový.`);
     return "bar";
@@ -145,8 +203,8 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
   const notes: string[] = [];
   const system = buildSystemPrompt(deps.now);
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
-  let spec: BuildAnswerInput | null = null;
-  let result: SeriesResult | null = null;
+  let spec: BuildAnswerInput | WeatherSeriesInput | null = null;
+  let result: SeriesResult | WeatherSeriesResult | null = null;
   let finalText: string | null = null;
   let title: string | null = null;
 
@@ -165,12 +223,12 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
   });
   if (isDatasetHelpQuestion(question)) {
     return answer({
-      kind: "answer",
-      format: "text",
-      title: "Na co se můžete zeptat",
+      kind: "unknown",
+      format: null,
+      title: null,
       sentence: DATASET_BRIEF,
       sentence_source: "fixed",
-      reason: null,
+      reason: { code: "DATASET_HELP", message: "Briefing možností datasetu." },
     });
   }
   const unknown = (code: string, message: string, sentence = message): AskAnswer =>
@@ -189,7 +247,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
         max_tokens: 2048,
         system,
         messages,
-        tools: [buildAnswerTool],
+        tools: [buildAnswerTool, weatherSeriesTool],
         tool_choice: { type: "auto", disable_parallel_tool_use: true },
       });
     } catch (error) {
@@ -213,14 +271,15 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     if (response.stop_reason !== "tool_use") return aiError(`Neočekávaný stop_reason: ${response.stop_reason}`);
 
     const block = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (!block || block.name !== buildAnswerTool.name) return aiError(`Neznámý nástroj: ${block?.name}`);
+    const isWeatherTool = block?.name === weatherSeriesTool.name;
+    if (!block || (!isWeatherTool && block.name !== buildAnswerTool.name)) return aiError(`Neznámý nástroj: ${block?.name}`);
     // Druhé zadání po hotovém výsledku nečekáme; větu pak složí kód.
     if (result) break;
 
     // Obsah odpovědi vracíme beze změny, včetně thinking bloků (jinak API vrátí 400).
     messages.push({ role: "assistant", content: response.content });
     const toolStarted = Date.now();
-    const parsed = BuildAnswerInput.safeParse(block.input);
+    const parsed = isWeatherTool ? WeatherSeriesInput.safeParse(block.input) : BuildAnswerInput.safeParse(block.input);
     if (!parsed.success) {
       // Neplatné zadání: Claude dostane chybu a jeden pokus na opravu.
       steps.push({ type: "tool", name: block.name, input: block.input, ms: 0, ok: false });
@@ -232,11 +291,23 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     }
     spec = parsed.data;
     if (spec.date_assumed) notes.push("V otázce nebyl čas, ukazujeme celý včerejšek.");
-    // Koláč porovnává místa: s víc místy vždy jedno číslo za místo.
-    const granularity = spec.format === "pie" && spec.gates.length > 1 ? "total" : spec.granularity;
 
     try {
-      result = await deps.trafficSeries({ gates: spec.gates, direction: spec.direction, from: spec.from, to: spec.to, granularity });
+      if (isWeatherTool && "stations" in spec) {
+        result = await deps.weatherSeries({
+          stations: spec.stations,
+          metrics: spec.metrics,
+          from: spec.from,
+          to: spec.to,
+          granularity: spec.granularity,
+        });
+      } else if ("gates" in spec) {
+        // Koláč porovnává místa: s víc místy vždy jedno číslo za místo.
+        const granularity = spec.format === "pie" && spec.gates.length > 1 ? "total" : spec.granularity;
+        result = await deps.trafficSeries({ gates: spec.gates, direction: spec.direction, from: spec.from, to: spec.to, granularity });
+      } else {
+        return aiError("Zadání nástroje neodpovídá jeho typu.");
+      }
     } catch (error) {
       steps.push({ type: "note", text: `Výjimka ve výpočtu: ${String(error)}` });
       result = { ok: false, error: { code: "SOURCE_ERROR", message: "Zdroj dat teď neodpovídá. Zkuste to prosím za chvíli.", suggestions: [] } };
@@ -244,18 +315,19 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     steps.push({ type: "tool", name: block.name, input: block.input, ms: Date.now() - toolStarted, ok: result.ok });
 
     if (!result.ok) {
-      const code = result.error.code === "FETCH_FAILED" ? "SOURCE_ERROR" : result.error.code;
-      return unknown(code, result.error.message);
+      const error = "error" in result ? result.error : result;
+      const code = error.code === "FETCH_FAILED" ? "SOURCE_ERROR" : error.code;
+      return unknown(code, error.message);
     }
     notes.push(...result.meta.notes);
 
     // Nadpis od Claude smí obsahovat jen čísla z otázky nebo z výsledku, jinak ho složí kód.
     const allowed = allowedNumbers(summaryForClaude(result));
     extractNumbers(question).forEach((n) => allowed.add(n));
-    title = spec.title && checkNumbers(spec.title, allowed).passed ? spec.title : defaultTitle(result);
+    title = spec.title && checkNumbers(spec.title, allowed).passed ? spec.title : titleFor(result);
 
     if (spec.format === "source") {
-      return answer({ kind: "answer", format: "source", title, sentence: SOURCE_TEXT, sentence_source: "fixed", reason: null });
+      return answer({ kind: "answer", format: "source", title, sentence: isWeatherResult(result) ? WEATHER_SOURCE_TEXT : SOURCE_TEXT, sentence_source: "fixed", reason: null });
     }
     if (spec.format !== "text") {
       // Graf nebo tabulka: druhé volání modelu není potřeba, žádný zbytečný text.
@@ -284,7 +356,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
   return answer({
     kind: "answer",
     format: "text",
-    title: title ?? defaultTitle(result),
+    title: title ?? titleFor(result),
     sentence: passed ? sentence : fallbackSentence(result),
     sentence_source: passed ? "ai" : "fallback",
     reason: null,

@@ -1,4 +1,5 @@
 // Příprava dat pro grafy. Jen přeskupení čísel, která spočítal lib/citiq/series.ts. Testy: tests/chart.test.ts.
+import { aggregateValue, type SeriesDisplayOk } from "../citiq/display";
 import type { SeriesOk } from "../citiq/series";
 import { PALETTE, type PaletteName } from "../ai/palette";
 import { type AxisSetting, customAxisError } from "../view";
@@ -10,7 +11,7 @@ export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "
 // a řada jen jedna; jinak jsou kategorie období (hodiny / dny) a řada = místo.
 export type ChartData = { categories: string[]; series: { name: string; values: (number | null)[] }[] };
 
-export function chartData(result: SeriesOk): ChartData {
+export function chartData(result: SeriesDisplayOk): ChartData {
   const { buckets, series } = result.data;
   if (buckets.length === 1) {
     return {
@@ -53,19 +54,19 @@ export function hourSummary(result: SeriesOk): string | null {
 export type DataPick = { gate: number; bucket: number | null };
 
 // Kliknutí na graf → bod v datech. S jediným bucketem jsou kategorie místa, jinak období a řady místa.
-export function pickAt(result: SeriesOk, seriesIndex: number, categoryIndex: number): DataPick {
+export function pickAt(result: SeriesDisplayOk, seriesIndex: number, categoryIndex: number): DataPick {
   return result.data.buckets.length === 1 ? { gate: categoryIndex, bucket: 0 } : { gate: seriesIndex, bucket: categoryIndex };
 }
 
 // Výseče koláče: s víc místy = součet za místo, s jedním místem = jeho buckety. Prázdné (null, 0) vynecháme.
 // Každá výseč si pamatuje, kterému bodu v datech odpovídá (pick).
-export function pieSlices(result: SeriesOk): { label: string; value: number; pick: DataPick }[] {
+export function pieSlices(result: SeriesDisplayOk): { label: string; value: number; pick: DataPick }[] {
   const { buckets, series } = result.data;
   const raw =
     series.length > 1 || buckets.length === 1
       ? series.map((s, gate) => ({
           label: placeName(s.gate),
-          value: buckets.length === 1 ? s.values[0] : s.total,
+          value: buckets.length === 1 ? s.values[0] : aggregateValue(s),
           pick: { gate, bucket: buckets.length === 1 ? 0 : null },
         }))
       : buckets.map((b, bucket) => ({ label: b.label, value: series[0].values[bucket], pick: { gate: 0, bucket } }));

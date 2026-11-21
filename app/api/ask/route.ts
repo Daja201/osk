@@ -3,6 +3,7 @@ import { ask } from "@/lib/ai/ask";
 import { saveAnswer } from "@/lib/answers";
 import { appNow } from "@/lib/ai/dates";
 import { trafficSeries } from "@/lib/citiq/series";
+import { weatherSeries } from "@/lib/citiq/weatherSeries";
 import { checkAskRateLimit, clientIp } from "@/lib/askRateLimit";
 
 const MAX_QUESTION_LENGTH = 300;
@@ -31,6 +32,7 @@ async function handle(question: unknown, request: Request): Promise<Response> {
     now,
     // Výpočet z dat CITIQ (přes cache v data/cache/), se stejným „teď“ jako prompt.
     trafficSeries: (params) => trafficSeries(params, { now }),
+    weatherSeries: (params) => weatherSeries(params, { now }),
   });
   // Každou odpověď uložíme na 7 dní, aby šla sdílet odkazem /a/<id>. „Nevím“ je platná odpověď, proto vždy 200.
   const saved = await saveAnswer(answer);

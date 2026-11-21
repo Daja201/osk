@@ -3,15 +3,16 @@
 import { formatPeriod } from "../ai/dates";
 import type { Format } from "../ai/tools";
 import type { AskAnswer } from "../ai/types";
+import { aggregateValue } from "../citiq/display";
 import { type DataPick, placeName } from "./chart";
 import { formatNumber } from "./format";
 import type { NumberToken } from "./sentence";
 
-export type View = "answer" | "out_of_scope" | "error" | "unknown";
-
+export type View = "answer" | "dataset_help" | "out_of_scope" | "error" | "unknown";
 export function viewOf(answer: AskAnswer): View {
   if (answer.kind === "answer" && answer.result?.ok) return "answer";
   const code = answer.reason?.code;
+  if (code === "DATASET_HELP") return "dataset_help";
   if (code === "OUT_OF_SCOPE") return "out_of_scope";
   if (
     code === "SOURCE_ERROR" ||
@@ -74,7 +75,10 @@ type TokenLike = Pick<NumberToken, "value" | "kind" | "text">;
 
 export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: number[] = []): NumberSource {
   const result = answer.result?.ok ? answer.result : null;
-  const places = result ? result.data.series.map((s) => placeName(s.gate)) : (answer.spec?.gates.map(placeName) ?? []);
+  const places =
+    result ? result.data.series.map((s) => placeName(s.gate)) :
+    answer.spec && "gates" in answer.spec ? answer.spec.gates.map(placeName) :
+    answer.spec && "stations" in answer.spec ? answer.spec.stations : [];
   const fromQuestion = "Vybrala ho AI z vaší otázky, náš kód s ním jen počítal.";
   const placeSource = (place: string): NumberSource => ({
     who: "ai",
@@ -96,7 +100,10 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
     // nakonec hodnoty jednotlivých hodin / dnů.
     for (const s of result.data.series) {
       const place = placeName(s.gate);
-      if (s.total === token.value) return { who: "code", short: `součet za období, ${place}`, long: `Součet za celé období u místa ${place}. ${from}` };
+      if ("mean" in s && s.mean === token.value) {
+        return { who: "code", short: `průměr za období, ${place}`, long: `Průměr za celé období u místa ${place}. ${from}` };
+      }
+      if ("total" in s && s.total === token.value) return { who: "code", short: `součet za období, ${place}`, long: `Součet za celé období u místa ${place}. ${from}` };
     }
     for (const s of result.data.series) {
       const missing = s.coverage.of - s.coverage.hours;
@@ -151,17 +158,20 @@ export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | n
   const bucket = pick.bucket === null ? null : result.data.buckets[pick.bucket];
   const start = bucket ? bucket.start : result.meta.period.start;
   const end = bucket ? bucket.end : result.meta.period.end;
-  const value = bucket ? series.values[pick.bucket ?? 0] : series.total;
+  const value = bucket ? series.values[pick.bucket ?? 0] : aggregateValue(series);
   const hours = Math.round((Date.parse(end) - Date.parse(start)) / 3600000);
   const sensors = series.sensors.length > 1 ? `senzorů ${series.sensors.join(" a ")}` : `senzoru ${series.sensors[0]}`;
-  const direction = DIRECTION_TEXT[result.meta.params.direction];
+  const direction = result.meta.tool === "weather_series" ? "meteorologické veličiny" : DIRECTION_TEXT[result.meta.params.direction];
   const firstDate = pragueDate(Date.parse(start));
   const lastDate = pragueDate(Date.parse(end) - 1);
   const text =
     value === null
       ? `Senzory v tomto čase neposlaly žádná data. Nedoplňujeme je nulou, proto tu číslo chybí.`
-      : `${hours === 1 ? "Hodinová hodnota" : `Součet ${hours} hodinových hodnot`} ${sensors} (${direction}) ze sítě CITIQ. ` +
-        `Sečetl je náš kód, AI do čísla nezasahovala.`;
+      : result.meta.tool === "weather_series"
+        ? `${hours === 1 ? "Hodinový průměr" : `Průměr ${hours} hodinových hodnot`} ${result.data.series[pick.gate].gate} ze sítě CITIQ. ` +
+          `Spočítal ho náš kód, AI do čísla nezasahovala.`
+        : `${hours === 1 ? "Hodinová hodnota" : `Součet ${hours} hodinových hodnot`} ${sensors} (${direction}) ze sítě CITIQ. ` +
+          `Sečetl je náš kód, AI do čísla nezasahovala.`;
   return {
     place: placeName(series.gate),
     period: formatPeriod(start, end),

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { PALETTE, PALETTE_NAMES } from "./ai/palette";
 import type { AskAnswer } from "./ai/types";
-import type { SeriesOk } from "./citiq/series";
+import type { SeriesDisplayOk } from "./citiq/display";
 
 export const VIEW_FORMATS = ["bar", "line", "pie", "table"] as const;
 export type ViewFormat = (typeof VIEW_FORMATS)[number];
@@ -40,23 +40,35 @@ export function defaultView(answer: AskAnswer): ChartView {
 }
 
 // Které typy grafu se k datům hodí. Nevhodné jsou v editoru vypnuté i s důvodem.
-export function formatOptions(result: SeriesOk): { format: ViewFormat; label: string; disabled: string | null }[] {
+export function formatOptions(result: SeriesDisplayOk): { format: ViewFormat; label: string; disabled: string | null }[] {
   const { buckets, series } = result.data;
+  const metricCount = new Set(series.flatMap((item) => (item.metric ? [item.metric] : []))).size;
+  const mixedUnits = result.meta.tool === "weather_series" && metricCount > 1;
   const slices = series.length > 1 || buckets.length === 1 ? series.length : buckets.length;
   return [
-    { format: "bar", label: "Sloupcový", disabled: null },
-    { format: "line", label: "Čárový", disabled: buckets.length < 2 ? "Čárový graf potřebuje průběh v čase (aspoň 2 období)." : null },
+    { format: "bar", label: "Sloupcový", disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : null },
+    {
+      format: "line",
+      label: "Čárový",
+      disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : buckets.length < 2 ? "Čárový graf potřebuje průběh v čase (aspoň 2 období)." : null,
+    },
     {
       format: "pie",
       label: "Koláčový",
-      disabled: slices < 2 ? "Koláč s jedinou položkou nic neukáže." : slices > MAX_PIE_SLICES ? `Na koláč je položek moc (${slices}, nejvýš ${MAX_PIE_SLICES}).` : null,
+      disabled: mixedUnits
+        ? "Veličiny mají různé jednotky; zobrazte je v tabulce."
+        : slices < 2
+          ? "Koláč s jedinou položkou nic neukáže."
+          : slices > MAX_PIE_SLICES
+            ? `Na koláč je položek moc (${slices}, nejvýš ${MAX_PIE_SLICES}).`
+            : null,
     },
     { format: "table", label: "Tabulka", disabled: null },
   ];
 }
 
 // Položky, kterým jde nastavit barva: místa; u koláče jednoho místa jeho období (výseče).
-export function colorSlots(result: SeriesOk, format: ViewFormat): string[] {
+export function colorSlots(result: SeriesDisplayOk, format: ViewFormat): string[] {
   const { buckets, series } = result.data;
   const place = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
   if (format === "pie" && series.length === 1 && buckets.length > 1) return buckets.map((b) => b.label);
@@ -64,7 +76,7 @@ export function colorSlots(result: SeriesOk, format: ViewFormat): string[] {
 }
 
 // Sloupcový graf „celkem za místo“ má ve výchozím stavu všechny sloupce jednou barvou (jako vždycky).
-export function uniformColors(result: SeriesOk, format: ViewFormat): boolean {
+export function uniformColors(result: SeriesDisplayOk, format: ViewFormat): boolean {
   return format === "bar" && result.data.buckets.length === 1;
 }
 

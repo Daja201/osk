@@ -2,7 +2,7 @@
 
 import type { Ref } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
-import type { SeriesOk } from "@/lib/citiq/series";
+import type { SeriesDisplayOk } from "@/lib/citiq/display";
 import { type DataPick, chartColors } from "@/lib/ui/chart";
 import { useShareUrl } from "@/lib/ui/qr";
 import { type ChartView, defaultView } from "@/lib/view";
@@ -13,9 +13,16 @@ import TitleParts from "./TitleParts";
 // Vzhled, podle kterého se odpověď kreslí: úprava z editoru, uložený vzhled, nebo výchozí od AI.
 // null = odpověď není graf ani tabulka (věta, zdroj dat) a nikdo ji v editoru nepřepnul.
 export function effectiveView(answer: AskAnswer, edited: ChartView | null | undefined): ChartView | null {
-  if (edited) return edited;
-  if (answer.view) return answer.view;
-  return answer.format === "bar" || answer.format === "line" || answer.format === "pie" || answer.format === "table" ? defaultView(answer) : null;
+  const view =
+    edited ??
+    answer.view ??
+    (answer.format === "bar" || answer.format === "line" || answer.format === "pie" || answer.format === "table" ? defaultView(answer) : null);
+  if (!view) return null;
+  const result = answer.result?.ok ? answer.result : null;
+  if (result?.meta.tool === "weather_series" && result.meta.params.metrics.length > 1 && view.format !== "table") {
+    return { ...view, format: "table" };
+  }
+  return view;
 }
 
 // Graf nebo tabulka přesně podle vzhledu (typ, nadpis, pozadí, barvy, osa, QR).
@@ -31,7 +38,7 @@ export default function ViewChart({
 }: {
   ring?: string; // rámeček: bílý na modré stránce, šedý na bílé (podrobnosti)
   answer: AskAnswer;
-  result: SeriesOk;
+  result: SeriesDisplayOk;
   view: ChartView;
   svgRef?: Ref<SVGSVGElement>;
   height?: number;

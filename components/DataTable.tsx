@@ -1,4 +1,4 @@
-import type { SeriesOk } from "@/lib/citiq/series";
+import { aggregateValue, isMeanSeries, type SeriesDisplayOk } from "@/lib/citiq/display";
 import { type DataPick, placeName } from "@/lib/ui/chart";
 import { formatNumber } from "@/lib/ui/format";
 
@@ -10,11 +10,12 @@ export default function DataTable({
   onPick,
   picked,
 }: {
-  result: SeriesOk;
+  result: SeriesDisplayOk;
   onPick?: (pick: DataPick) => void;
   picked?: DataPick | null;
 }) {
   const { buckets, series } = result.data;
+  const mean = isMeanSeries(result);
   const showTotal = buckets.length > 1;
   const cell = (pick: DataPick, content: React.ReactNode, label: string) =>
     onPick ? (
@@ -67,11 +68,15 @@ export default function DataTable({
           <tfoot>
             <tr className="font-semibold">
               <th scope="row" className="px-3 py-2">
-                Celkem
+                {mean ? "Průměr" : "Celkem"}
               </th>
               {series.map((s, gate) => (
                 <td key={s.gate} className="px-3 py-2 text-right">
-                  {cell({ gate, bucket: null }, formatNumber(s.total), `${placeName(s.gate)}, celkem: ${formatNumber(s.total)}`)}
+                  {cell(
+                    { gate, bucket: null },
+                    aggregateValue(s) === null ? <span className="opacity-60">–</span> : formatNumber(aggregateValue(s) ?? 0),
+                    `${placeName(s.gate)}, ${mean ? "průměr" : "celkem"}: ${aggregateValue(s) === null ? "bez dat" : formatNumber(aggregateValue(s) ?? 0)}`,
+                  )}
                 </td>
               ))}
             </tr>
