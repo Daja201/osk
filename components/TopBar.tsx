@@ -17,12 +17,20 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
   const onBlue = tone === "blue";
   return (
     <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5">
-      <span className={`flex items-baseline gap-2.5 font-sign ${onBlue ? "text-white" : "text-ink"}`}>
+      {/* Obyčejný <a>, ne next/link: kliknutí stránku celou znovu načte (jako logo na většině webů),
+          takže se smaže odpověď a začne se od úvodu. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- chceme úplné znovunačtení, <Link> by ho neudělal */}
+      <a
+        href="/"
+        className={`flex items-baseline gap-2.5 rounded-md font-sign no-underline transition-opacity hover:opacity-80 ${
+          onBlue ? "text-white hover:text-white" : "text-ink hover:text-ink"
+        }`}
+      >
         <span className="text-[26px] leading-none font-bold">Osk</span>
         <span className={`hidden text-[17px] leading-none font-medium sm:inline ${onBlue ? "text-on-sign-muted" : "text-muted"}`}>
           Zeptej se Olomouce
         </span>
-      </span>
+      </a>
       <div className="flex items-center gap-2">
         {onBack && (
           <button type="button" onClick={onBack} className={PILL[tone]}>
