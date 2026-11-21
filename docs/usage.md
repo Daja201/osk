@@ -1,4 +1,5 @@
 # Osk: jak ho používat
+# AI-Generated-Overview
 
 Osk (Olomouc + ask) je generátor grafů, tabulek a čísel z dat dopravních senzorů v Olomouci.
 Napíšete česky, co chcete vidět, a dostanete graf, tabulku nebo větu, kterou můžete zkopírovat,
