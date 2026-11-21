@@ -13,7 +13,7 @@ export type CitiqParams = {
   format?: "json" | "csv" | "geojson";
 };
 
-//error
+//class for error
 export class CitiqError extends Error {
   constructor(public status: number, message: string) {
     super(message);

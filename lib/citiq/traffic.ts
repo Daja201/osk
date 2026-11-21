@@ -265,7 +265,8 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     const pointMs = Date.parse(point.time);
     if (pointMs < startMs || pointMs >= nextDayStart.getTime()) continue;
 
-    const hourIndex = Math.floor((pointMs - startMs) / MS_PER_HOUR);
+    //oprava "-1" kvůli posunu d at z CITIQu
+    const hourIndex = Math.floor((pointMs - startMs) / MS_PER_HOUR)  - 1;
     if (hourIndex < rangeFrom || hourIndex >= rangeTo) continue;
     const count = Math.abs(point.value);
     hourly[hourIndex] = (hourly[hourIndex] ?? 0) + count;
