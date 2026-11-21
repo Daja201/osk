@@ -1,7 +1,7 @@
 // URL API
 export const CITIQ_BASE = "https://iot.citiq.cloud/portal/api/v2/view";
 
-//type of data that fetchCitiq can get
+//type of data that fetchCitiq can get (becomes a part of URL when API call)
 export type CitiqParams = {
   view: string;
   start?: string;
@@ -13,7 +13,7 @@ export type CitiqParams = {
   format?: "json" | "csv" | "geojson";
 };
 
-//error
+//class for error
 export class CitiqError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -23,9 +23,9 @@ export class CitiqError extends Error {
 
 //function to get API data
 export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
+  //builds URL when API call
   const { view, ...query } = params;
   const url = new URL(`${CITIQ_BASE}/${encodeURIComponent(view)}/`);
-
   const format = query.format ?? "json";
   url.searchParams.set("format", format);
   if (query.start) url.searchParams.set("start", query.start);
@@ -38,15 +38,15 @@ export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
   if (query.group_by_tags) {
     url.searchParams.set("group_by_tags", query.group_by_tags.join(","));
   }
-
+  //call
   const res = await fetch(url.toString());
-
+  //error handler
   if (res.status === 429) {
     throw new CitiqError(429, "CITIQ: error (rate limit)");
   }
   if (!res.ok) {
     throw new CitiqError(res.status, `CITIQ: error ${res.status} on ${view}`);
   }
-
+  //
   return format === "csv" ? res.text() : res.json();
 }
