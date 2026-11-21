@@ -1,15 +1,17 @@
 // Počty vozidel pro víc bran a libovolný časový rozsah, po hodinách, po dnech nebo celkem.
 // Tohle je jediný výpočet, ze kterého AI vrstva bere čísla. Claude tu nic nepočítá.
-import { getCachedDay, getCachedRange, utcStartOfPragueDay } from "./cache";
+import { getCachedDay, getCachedRange, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
 import { GATE_NAMES, type Gate, MAX_GATES, placesOf, resolveGate, sensorsOf } from "./gates";
 import { type CitiqGateRow, MS_PER_HOUR, TRAFFIC_CITIQ_PARAMS, VIEW, findGateRow, hourlyOf, isCitiqGateRows } from "./parse";
+import type { ComparisonPeriod, PeriodComparison } from "./comparison";
+import { validateSelectedDays } from "./selectedDays";
 
 const TIME_ZONE = "Europe/Prague";
 export const MAX_DAYS = 31; // cache drží 30 dní, víc najednou nestahujeme
 
 export type Direction = "in" | "out" | "both";
-export type Granularity = "hour" | "day" | "total";
+export type Granularity = "hour" | "day" | "total" | "period";
 
 // from / to jsou místní (pražský) čas „YYYY-MM-DDTHH:00“, `to` se nezahrnuje. „T24:00“ = půlnoc dalšího dne.
 export type SeriesParams = {
@@ -17,6 +19,8 @@ export type SeriesParams = {
   direction: Direction;
   from: string;
   to: string;
+  dates?: string[];
+  periods?: ComparisonPeriod[];
   granularity: Granularity;
 };
 
@@ -35,7 +39,7 @@ export type Source = { date: string; url: string; fetched_at: string };
 
 export type SeriesOk = {
   ok: true;
-  data: { granularity: Granularity; buckets: Bucket[]; series: GateSeries[] };
+  data: { granularity: Granularity; buckets: Bucket[]; series: GateSeries[]; comparison?: PeriodComparison };
   meta: {
     tool: "traffic_series";
     params: SeriesParams;
@@ -67,15 +71,7 @@ function nextDate(date: string): string {
 
 // „2026-11-19T15:00“ → UTC milisekundy. Hodina se počítá od místní půlnoci (jako hodiny v datech).
 function parseLocal(value: string): number | null {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):00$/.exec(value);
-  if (!match) return null;
-  const hour = Number(match[2]);
-  if (hour > 24) return null;
-  try {
-    return utcStartOfPragueDay(match[1]).getTime() + hour * MS_PER_HOUR;
-  } catch {
-    return null;
-  }
+  return parsePragueDateTime(value);
 }
 
 const timeFormat = new Intl.DateTimeFormat("cs-CZ", { timeZone: TIME_ZONE, hour: "numeric", minute: "2-digit" });
@@ -127,17 +123,25 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
   if (fromMs >= lastFullHour) return fail("FUTURE", "Na budoucnost data nemám. Zkuste se zeptat na hodiny, které už proběhly.");
   const endMs = Math.min(toMs, lastFullHour);
   const clipped = endMs < toMs;
+  const today = pragueDate(now);
+  const selection = validateSelectedDays(params.dates, fromMs, toMs, today);
+  if (selection.error) return fail(selection.error.code, selection.error.message);
+  const selectedDates = selection.dates;
 
   // 2) Stažení dat po místních dnech (jeden dotaz na CITIQ vrátí všechny brány za den)
   //    a z nich hodiny v rozsahu s hodnotou pro každé místo.
   type Slot = { start: number; date: string; values: (number | null)[] };
   const slots: Slot[] = [];
   const sources: Source[] = [];
-  const today = pragueDate(now);
+  const datesToFetch = selectedDates ?? [];
+  if (!selectedDates) {
+    for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) datesToFetch.push(date);
+  }
   let dayCount = 0;
   let otherDayLength = false;
-  for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) {
+  for (const date of datesToFetch) {
     const dayStart = utcStartOfPragueDay(date).getTime();
+    if (dayStart >= endMs) continue;
     const dayEnd = utcStartOfPragueDay(nextDate(date)).getTime();
     const hours = Math.round((dayEnd - dayStart) / MS_PER_HOUR); // 23 / 24 / 25 (změna času)
     // Dnešek je neúplný: ptáme se jen do poslední celé hodiny (cache má pro každou hodinu jiný soubor).
@@ -210,6 +214,7 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
 
   const notes: string[] = [];
   if (clipped) notes.push(`Rozsah sahal do budoucnosti, data jsou do ${timeFormat.format(endMs)} (poslední celá hodina).`);
+  if (selectedDates) notes.push(`Zahrnujeme jen vybrané dny: ${selectedDates.map((date) => dayFormat.format(utcStartOfPragueDay(date).getTime())).join(", ")}.`);
   for (const s of series) {
     if (s.coverage.hours === 0) notes.push(`${s.gate}: senzor v tomto čase nevysílal.`);
     else if (s.coverage.hours < s.coverage.of) notes.push(`${s.gate}: chybí data za ${s.coverage.of - s.coverage.hours} h, součet je neúplný.`);
@@ -225,7 +230,7 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
     },
     meta: {
       tool: "traffic_series",
-      params,
+      params: { ...params, ...(selectedDates ? { dates: selectedDates } : {}) },
       period: { start: iso(fromMs), end: iso(endMs), clipped },
       sources,
       notes,

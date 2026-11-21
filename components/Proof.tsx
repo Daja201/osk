@@ -51,7 +51,7 @@ function Limits() {
         <li>Když senzor nevysílá, hodina chybí. Nedoplňujeme ji nulou, součet pak není úplný a je to u odpovědi napsané.</li>
         <li>Dnešek je jen do poslední celé hodiny.</li>
         <li>U bran na ulicích jsme zatím neověřili, který směr je „dovnitř“ a který „ven“. Proto počítáme hlavně oba směry dohromady.</li>
-        <li>Najednou umíme nejvýš 31 dní a {MAX_GATES} míst.</li>
+        <li>Najednou umíme nejvýš 31 dní a {MAX_GATES} míst; porovnat lze až 12 období v tomto rozsahu.</li>
       </ul>
     </section>
   );

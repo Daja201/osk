@@ -1,10 +1,12 @@
 import type { Granularity } from "./series";
 import type { WeatherGranularity } from "./weatherSeries";
+import type { PeriodComparison } from "./comparison";
 
 export type DisplaySeries = {
   gate: string;
   sensors: string[];
   metric?: string;
+  unit?: string;
   values: (number | null)[];
   coverage: { hours: number; of: number };
 } & ({ total: number; mean?: never } | { mean: number | null; total?: never });
@@ -14,9 +16,11 @@ export type SeriesDisplayOk = {
     granularity: Granularity | WeatherGranularity;
     buckets: { label: string; start: string; end: string }[];
     series: DisplaySeries[];
+    comparison?: PeriodComparison;
   };
   meta: {
     tool?: "traffic_series" | "weather_series";
+    params?: { dates?: string[] };
     period: { start: string; end: string; clipped: boolean };
     sources: { date: string; url: string; fetched_at: string }[];
     notes: string[];

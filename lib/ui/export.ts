@@ -157,6 +157,34 @@ export function downloadCsv(result: SeriesDisplayOk, filename: string) {
 // Tabulka jako text oddělený tabulátory: po vložení do Excelu nebo Google Tabulek se rozdělí do buněk.
 export function tableTsv(result: SeriesDisplayOk): string {
   const { buckets, series } = result.data;
+  const comparison = result.data.comparison;
+  if (comparison) {
+    const header = ["Období"];
+    for (const item of comparison.series) {
+      if (comparison.basis === "weather_mean") {
+        header.push(`${item.gate} — průměr (${item.unit ?? ""})`, `${item.gate} — rozdíl vs ${comparison.baseline} (${item.unit ?? ""})`, `${item.gate} — pokrytí (h)`);
+      } else {
+        header.push(
+          `${item.gate} — součet (vozidla)`,
+          `${item.gate} — průměr (voz/h)`,
+          `${item.gate} — rozdíl vs ${comparison.baseline} (${comparison.basis === "traffic_per_hour" ? "voz/h" : "vozidla"})`,
+          `${item.gate} — změna (%)`,
+          `${item.gate} — pokrytí (h)`,
+        );
+      }
+    }
+    const rows = buckets.map((bucket, index) => [
+      bucket.label,
+      ...comparison.series.flatMap((item) => {
+        const point = item.points[index];
+        const coverage = `${point.coverage.hours}/${point.coverage.of}`;
+        return comparison.basis === "weather_mean"
+          ? [point.value, point.delta, coverage].map((value) => value === null ? "" : String(value))
+          : [point.total, point.perHour, point.delta, point.percent, coverage].map((value) => value === null ? "" : String(value));
+      }),
+    ]);
+    return [header, ...rows].map((row) => row.join("\t")).join("\n");
+  }
   const header = ["Období", ...series.map((s) => placeName(s.gate))];
   const rows = buckets.map((b, i) => [b.label, ...series.map((s) => (s.values[i] === null ? "" : String(s.values[i])))]);
   return [header, ...rows].map((row) => row.join("\t")).join("\n");

@@ -21,7 +21,7 @@ const params: WeatherSeriesParams = {
   to: "2026-11-19T11:00",
   granularity: "hour" as const,
 };
-const entry = (values: number[]): CacheEntry => ({
+const entry = (values: number[], date = "2026-11-19"): CacheEntry => ({
   fetched_at: "2026-11-20T10:00:00.000Z",
   data: {
     results: [
@@ -34,7 +34,7 @@ const entry = (values: number[]): CacheEntry => ({
             name: "temperature",
             unit: "°C",
             values: values.map((value, index) => ({
-              point: { time: `2026-11-19T${String(index + 8).padStart(2, "0")}:00:00Z`, value },
+              point: { time: `${date}T${String(index + 8).padStart(2, "0")}:00:00Z`, value },
             })),
           },
         ],
@@ -109,6 +109,45 @@ describe("weatherSeries", () => {
     expect(daily.ok && daily.data.series[0].values).toEqual([10]);
     expect(total.ok && total.data.series[0].values).toEqual([10]);
     expect(total.ok && total.data.series[0].mean).toBe(10);
+  });
+
+  it("vybrané nesouvislé dny porovná bez započítání dnů mezi nimi", async () => {
+    vi.mocked(getCachedDay).mockImplementation(async (_view, date) => entry([Number(date.slice(-2))], date));
+    const result = await weatherSeries(
+      {
+        ...params,
+        from: "2026-11-17T00:00",
+        to: "2026-11-20T00:00",
+        dates: ["2026-11-17", "2026-11-19"],
+        granularity: "day",
+      },
+      { now: NOW },
+    );
+    if (!result.ok) throw new Error(result.message);
+
+    expect(result.data.buckets.map((bucket) => bucket.label)).toEqual(["út 17. 11.", "čt 19. 11."]);
+    expect(result.data.series[0].values).toEqual([17, 19]);
+    expect(getCachedDay).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(getCachedDay).mock.calls.map((call) => call[1])).toEqual(["2026-11-17", "2026-11-19"]);
+  });
+
+  it("celkem za vybrané dny zůstává průměrem u počasí, ne součtem", async () => {
+    vi.mocked(getCachedDay).mockImplementation(async (_view, date) => entry([Number(date.slice(-2))], date));
+    const result = await weatherSeries(
+      {
+        ...params,
+        from: "2026-11-17T00:00",
+        to: "2026-11-20T00:00",
+        dates: ["2026-11-17", "2026-11-19"],
+        granularity: "total",
+      },
+      { now: NOW },
+    );
+    if (!result.ok) throw new Error(result.message);
+
+    expect(result.data.series[0].values).toEqual([18]);
+    expect(result.data.series[0].mean).toBe(18);
+    expect(getCachedDay).toHaveBeenCalledTimes(2);
   });
 
   it("uses the current-day range cache and clips future hours", async () => {

@@ -174,9 +174,11 @@ function stopsOf(answer: AskAnswer): StopData[] {
   const resultRows: [string, React.ReactNode][] = result
     ? result.data.series.map((s) => [
         s.gate,
-        result.meta.tool === "weather_series"
-          ? `${aggregateValue(s) === null ? "bez dat" : formatNumber(aggregateValue(s) ?? 0)} · průměr za ${s.coverage.hours} z ${s.coverage.of} h`
-          : `${formatNumber(aggregateValue(s) ?? 0)} vozidel · data za ${s.coverage.hours} z ${s.coverage.of} h${s.sensors.length > 1 ? ` · senzory ${s.sensors.join(", ")}` : ""}`,
+        result.data.comparison
+          ? `${result.data.comparison.periods.length} období · ${result.data.comparison.basis === "weather_mean" ? "průměry a rozdíly" : result.data.comparison.basis === "traffic_per_hour" ? "vozidla na dostupnou hodinu" : "celkové počty"} vůči ${result.data.comparison.baseline} · podrobnosti níže`
+          : result.meta.tool === "weather_series"
+            ? `${aggregateValue(s) === null ? "bez dat" : formatNumber(aggregateValue(s) ?? 0)} · průměr za ${s.coverage.hours} z ${s.coverage.of} h`
+            : `${formatNumber(aggregateValue(s) ?? 0)} vozidel · data za ${s.coverage.hours} z ${s.coverage.of} h${s.sensors.length > 1 ? ` · senzory ${s.sensors.join(", ")}` : ""}`,
       ])
     : [];
   const stops: StopData[] = [{ marker: "end", title: "Vaše otázka", body: <p className="m-0">{quote(answer.question)}</p> }];
@@ -238,7 +240,9 @@ function stopsOf(answer: AskAnswer): StopData[] {
         <>
           <p className="m-0">
             Stáhl hodinové hodnoty ze senzorové sítě CITIQ {dotazu} a{" "}
-            {result.meta.tool === "weather_series" ? "spočítal průměry podle zadání." : "sečetl je podle zadání."} AI v tomhle kroku nic nepočítá.
+            {result.data.comparison
+              ? result.meta.tool === "weather_series" ? "spočítal průměry a jejich rozdíly." : "spočítal součty a srovnání podle zadání."
+              : result.meta.tool === "weather_series" ? "spočítal průměry podle zadání." : "sečetl je podle zadání."} AI v tomhle kroku nic nepočítá.
           </p>
           <Details
             rows={resultRows}

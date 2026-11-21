@@ -3,6 +3,12 @@ import { explainNumber, periodOf, timingsOf, viewOf } from "../lib/ui/answer";
 import { chartColors, chartData, extremes, hourSummary, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
 import { tableTsv } from "../lib/ui/export";
 import { FIXTURES } from "../lib/ui/fixtures";
+import type { SeriesOk, SeriesResult } from "../lib/citiq/series";
+import type { WeatherSeriesResult } from "../lib/citiq/weatherSeries";
+
+function isTrafficResult(result: SeriesResult | WeatherSeriesResult): result is SeriesOk {
+  return result.ok && result.meta.tool === "traffic_series";
+}
 
 const ok = (name: string) => {
   const result = FIXTURES[name].result;
@@ -101,6 +107,67 @@ describe("vysvětlení čísel a časy", () => {
     expect(periodOf(FIXTURES.bar)).toBe("21. 11. 2026, 8:00–11:00");
     expect(periodOf(FIXTURES.line)).toBe("14.–20. 11. 2026");
   });
+
+  it("porovnání ukazuje všechna období v důkazu, vysvětlení i TSV", async () => {
+    const original = FIXTURES.bar.result;
+    if (!original || !isTrafficResult(original)) throw new Error("bar fixture nemá dopravní výsledek");
+    const labels = ["17. 11. 2026", "19. 11. 2026"];
+    const result = {
+      ...original,
+      data: {
+        ...original.data,
+        granularity: "period" as const,
+        buckets: labels.map((label, index) => ({
+          label,
+          start: index === 0 ? "2026-11-16T23:00:00.000Z" : "2026-11-18T23:00:00.000Z",
+          end: index === 0 ? "2026-11-17T23:00:00.000Z" : "2026-11-19T23:00:00.000Z",
+        })),
+        series: original.data.series.map((series) => ({ ...series, values: [10, 15] })),
+        comparison: {
+          basis: "traffic_per_hour" as const,
+          baseline: labels[0],
+          periods: labels.map((label, index) => ({
+            label,
+            start: index === 0 ? "2026-11-16T23:00:00.000Z" : "2026-11-18T23:00:00.000Z",
+            end: index === 0 ? "2026-11-17T23:00:00.000Z" : "2026-11-19T23:00:00.000Z",
+            durationHours: 24,
+          })),
+          series: original.data.series.map((series) => ({
+            gate: series.gate,
+            unit: "vozidel",
+            points: [
+              { value: 10, total: 240, perHour: 10, delta: 0, percent: 0, coverage: { hours: 24, of: 24 } },
+              { value: 15, total: 360, perHour: 15, delta: 5, percent: 50, coverage: { hours: 24, of: 24 } },
+            ],
+          })),
+        },
+      },
+      meta: {
+        ...original.meta,
+        params: {
+          ...original.meta.params,
+          from: "2026-11-17T00:00",
+          to: "2026-11-20T00:00",
+          periods: [
+            { from: "2026-11-17T00:00", to: "2026-11-18T00:00" },
+            { from: "2026-11-19T00:00", to: "2026-11-20T00:00" },
+          ],
+          granularity: "period" as const,
+        },
+      },
+    };
+    const answer = { ...FIXTURES.bar, result };
+    const { explainPoint } = await import("../lib/ui/answer");
+    const point = explainPoint(answer, { gate: 0, bucket: 1 });
+    const lines = tableTsv(result).split("\n");
+
+    expect(periodOf(answer)).toBe(labels.join("; "));
+    expect(point).toMatchObject({ value: 15, period: labels[1] });
+    expect(point?.text).toContain("celkem 360 vozidel");
+    expect(point?.text).toContain("rozdíl oproti prvnímu období");
+    expect(lines[0]).toContain("průměr (voz/h)");
+    expect(lines[1]).toContain("240\t10\t0\t0\t24/24");
+  });
 });
 
 describe("písma do PNG", () => {
@@ -125,6 +192,47 @@ describe("odkud je číslo v grafu", () => {
     expect(point).toMatchObject({ place: "Kafkova", value: 3607, period: "21. 11. 2026, 8:00–11:00" });
     expect(point?.text).toContain("Součet 3 hodinových hodnot senzorů Kafkova - levá a Kafkova - pravá (oba směry)");
     expect(point?.sources.map((s) => s.date)).toEqual(["2026-11-21"]);
+  });
+
+  it("součet sloupce za nesouvislé dny vysvětlí jen vybrané dny a hodiny", async () => {
+    const { explainPoint } = await import("../lib/ui/answer");
+    const { pickAt } = await import("../lib/ui/chart");
+    const original = FIXTURES.bar.result;
+    if (!original?.ok || original.meta.tool !== "traffic_series") throw new Error("bar fixture nemá dopravní výsledek");
+    const selected: (typeof FIXTURES)["bar"] = {
+      ...FIXTURES.bar,
+      result: {
+        ...original,
+        data: {
+          ...original.data,
+          series: original.data.series.map((series) => ({
+            ...series,
+            total: 48,
+            coverage: { hours: 48, of: 48 },
+          })),
+        },
+        meta: {
+          ...original.meta,
+          params: { ...original.meta.params, dates: ["2026-11-17", "2026-11-19"] },
+          period: { start: "2026-11-16T23:00:00.000Z", end: "2026-11-19T23:00:00.000Z", clipped: false },
+          sources: [
+            ...original.meta.sources,
+            { date: "2026-11-17", url: "https://example.test/17", fetched_at: "2026-11-21T10:00:00.000Z" },
+            { date: "2026-11-19", url: "https://example.test/19", fetched_at: "2026-11-21T10:00:00.000Z" },
+          ],
+        },
+      },
+    };
+    const result = selected.result;
+    if (!result?.ok || result.meta.tool !== "traffic_series") throw new Error("selected result should be successful");
+    const point = explainPoint(selected, pickAt(result, 0, 0));
+
+    expect(point).toMatchObject({
+      value: 48,
+      period: "úterý 17. 11. 2026 a čtvrtek 19. 11. 2026",
+    });
+    expect(point?.text).toContain("Součet 48 hodinových hodnot");
+    expect(point?.sources.map((source) => source.date)).toEqual(["2026-11-17", "2026-11-19"]);
   });
 
   it("chybějící hodina: vysvětlí, že ji nedoplňujeme nulou", async () => {

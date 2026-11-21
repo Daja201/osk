@@ -1,8 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
 import type { WeatherSeriesOk, WeatherSeriesParams, WeatherSeriesResult } from "../citiq/weatherSeries";
+import { compareTrafficPeriods, compareWeatherPeriods } from "../citiq/comparePeriods";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
-import { formatPeriod } from "./dates";
+import { formatSelectedPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
 import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool, weatherSeriesTool, WeatherSeriesInput } from "./tools";
@@ -66,7 +67,11 @@ export function defaultTitle(result: SeriesOk): string {
   const places = result.data.series.map((s) => placeName(s.gate));
   const placeText = places.length > 3 ? `${places.slice(0, 3).join(", ")} a další` : places.join(", ");
   const what = direction === "in" ? "Vjezdy" : direction === "out" ? "Výjezdy" : "Počet vozidel";
-  return `${what} · ${placeText} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+  if (result.data.comparison) {
+    const basis = result.data.comparison.basis === "traffic_per_hour" ? " · průměr vozidel/h" : "";
+    return `${what} · ${placeText} · srovnání ${result.data.comparison.periods.length} období${basis}`;
+  }
+  return `${what} · ${placeText} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates)}`;
 }
 
 type AskSeriesOk = SeriesOk | WeatherSeriesOk;
@@ -79,7 +84,8 @@ function titleFor(result: AskSeriesOk): string {
   if (!isWeatherResult(result)) return defaultTitle(result);
   const stations = [...new Set(result.data.series.map((series) => stationName(series.station)))];
   const metrics = [...new Set(result.data.series.map((series) => resolveWeatherMetric(series.metric)?.label ?? series.metric))];
-  return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+  if (result.data.comparison) return `Srovnání · ${stations.join(", ")} · ${metrics.join(", ")} · ${result.data.comparison.periods.length} období`;
+  return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates)}`;
 }
 
 // Nejvyšší a nejnižší bucket řady (počítá kód, Claude dostane jen výsledek).
@@ -96,11 +102,51 @@ function extremes(labels: string[], values: (number | null)[]) {
 
 // Co uvidí Claude u formátu text: hotová čísla s popisky, nic k dopočítání.
 function summaryForClaude(result: AskSeriesOk) {
+  if (result.data.comparison) {
+    const comparison = result.data.comparison;
+    const periods = comparison.periods.map(({ label }) => label);
+    if (isWeatherResult(result)) {
+      return {
+        dataset: "počasí",
+        comparison: { baseline: comparison.baseline, basis: comparison.basis, periods },
+        stations: result.data.series.map((series, index) => ({
+          station: stationName(series.station),
+          metric: resolveWeatherMetric(series.metric)?.label ?? series.metric,
+          unit: series.unit,
+          periods: comparison.series[index].points.map((point, period) => ({
+            label: periods[period],
+            mean: point.value,
+            difference_from_first: point.delta,
+            coverage: point.coverage,
+          })),
+        })),
+        notes: result.meta.notes,
+      };
+    }
+    return {
+      dataset: "doprava",
+      comparison: { baseline: comparison.baseline, basis: comparison.basis, periods },
+      places: result.data.series.map((series, index) => ({
+        place: placeName(series.gate),
+        sensors: series.sensors,
+        periods: comparison.series[index].points.map((point, period) => ({
+          label: periods[period],
+          total_vehicles: point.total,
+          vehicles_per_available_hour: point.perHour,
+          compared_value: point.value,
+          difference_from_first: point.delta,
+          percent_from_first: point.percent,
+          coverage: point.coverage,
+        })),
+      })),
+      notes: result.meta.notes,
+    };
+  }
   if (isWeatherResult(result)) {
     const labels = result.data.buckets.map((bucket) => bucket.label);
     const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
     return {
-      period: formatPeriod(result.meta.period.start, result.meta.period.end),
+      period: formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates),
       granularity: result.data.granularity,
       dataset: "počasí",
       stations: result.data.series.map((series) => ({
@@ -118,7 +164,7 @@ function summaryForClaude(result: AskSeriesOk) {
   const labels = result.data.buckets.map((b) => b.label);
   const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
   return {
-    period: formatPeriod(result.meta.period.start, result.meta.period.end),
+    period: formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates),
     granularity: result.data.granularity,
     direction: result.meta.params.direction,
     places: result.data.series.map((s) => ({
@@ -149,7 +195,33 @@ function allowedNumbers(summary: unknown): Set<number> {
 }
 
 function fallbackSentence(result: AskSeriesOk): string {
-  const period = formatPeriod(result.meta.period.start, result.meta.period.end);
+  if (result.data.comparison) {
+    const comparison = result.data.comparison;
+    const first = comparison.periods[0].label;
+    const last = comparison.periods.at(-1)!.label;
+    if (isWeatherResult(result)) {
+      const series = result.data.series[0];
+      const points = comparison.series[0].points;
+      const start = points[0];
+      const end = points.at(-1)!;
+      const metric = resolveWeatherMetric(series.metric)?.label ?? series.metric;
+      const describe = (point: (typeof points)[number]) => point.value === null ? "bez dat" : `${cz.format(point.value)} ${series.unit}`;
+      const difference = end.delta === null ? "rozdíl nelze určit" : `${end.delta > 0 ? "+" : ""}${cz.format(end.delta)} ${series.unit}`;
+      return `${stationName(series.station)}, ${metric}: ${first} ${describe(start)}, ${last} ${describe(end)} (${difference} vůči prvnímu období). Podrobnosti všech období jsou v důkazu pod odpovědí.`;
+    }
+    const series = result.data.series[0];
+    const points = comparison.series[0].points;
+    const start = points[0];
+    const end = points.at(-1)!;
+    const basisValue = (point: (typeof points)[number]) => comparison.basis === "traffic_per_hour"
+      ? point.perHour === null ? "bez dat" : `${cz.format(point.perHour)} voz/h`
+      : point.total === null ? "bez dat" : `${cz.format(point.total)} vozidel`;
+    const difference = end.delta === null
+      ? "rozdíl nelze určit"
+      : `${end.delta > 0 ? "+" : ""}${cz.format(end.delta)} ${comparison.basis === "traffic_per_hour" ? "voz/h" : "vozidel"}${end.percent === null ? "" : ` (${end.percent > 0 ? "+" : ""}${cz.format(end.percent)} %)`}`;
+    return `${placeName(series.gate)}: ${first} ${basisValue(start)}, ${last} ${basisValue(end)} (${difference} vůči prvnímu období). Podrobnosti všech období jsou v důkazu pod odpovědí.`;
+  }
+  const period = formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates);
   if (isWeatherResult(result)) {
     const parts = result.data.series.map((series) =>
       `${stationName(series.station)}, ${resolveWeatherMetric(series.metric)?.label ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
@@ -183,6 +255,10 @@ function isDatasetHelpQuestion(question: string): boolean {
 
 // Úprava zadání, kterou dělá kód, ne Claude. Vrací výsledný formát a poznámky pro uživatele.
 function finalFormat(format: Format, result: AskSeriesOk, notes: string[]): Format {
+  if (result.data.comparison && format === "pie") {
+    notes.push("Koláčový graf neukazuje změny mezi obdobími, proto používáme sloupcový graf.");
+    return "bar";
+  }
   if (isWeatherResult(result) && format !== "text" && format !== "table" && format !== "source") {
     const metrics = new Set(result.data.series.map((series) => series.metric));
     if (metrics.size > 1) {
@@ -311,17 +387,33 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
 
     try {
       if (isWeatherTool && "stations" in spec) {
-        result = await deps.weatherSeries({
+        const params: WeatherSeriesParams = {
           stations: spec.stations,
           metrics: spec.metrics,
           from: spec.from,
           to: spec.to,
+          ...(spec.dates?.length ? { dates: spec.dates } : {}),
+          ...(spec.periods?.length ? { periods: spec.periods } : {}),
           granularity: spec.granularity,
-        });
+        };
+        result = spec.periods?.length || spec.granularity === "period"
+          ? await compareWeatherPeriods(params, deps.weatherSeries)
+          : await deps.weatherSeries(params);
       } else if ("gates" in spec) {
         // Koláč porovnává místa: s víc místy vždy jedno číslo za místo.
-        const granularity = spec.format === "pie" && spec.gates.length > 1 ? "total" : spec.granularity;
-        result = await deps.trafficSeries({ gates: spec.gates, direction: spec.direction, from: spec.from, to: spec.to, granularity });
+        const granularity = spec.format === "pie" && spec.gates.length > 1 && !spec.periods?.length ? "total" : spec.granularity;
+        const params: SeriesParams = {
+          gates: spec.gates,
+          direction: spec.direction,
+          from: spec.from,
+          to: spec.to,
+          ...(spec.dates?.length ? { dates: spec.dates } : {}),
+          ...(spec.periods?.length ? { periods: spec.periods } : {}),
+          granularity,
+        };
+        result = spec.periods?.length || spec.granularity === "period"
+          ? await compareTrafficPeriods(params, deps.trafficSeries)
+          : await deps.trafficSeries(params);
       } else {
         return aiError("Zadání nástroje neodpovídá jeho typu.");
       }
