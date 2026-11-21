@@ -35,8 +35,9 @@ export default function DetailsScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-surface">
-      <TopBar tone="light" info="details" onBack={onBack} onNew={onNew} />
+      {/* Lišta je uvnitř posouvané oblasti: při posouvání odjede nahoru s obsahem. */}
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
+        <TopBar tone="light" info="details" onBack={onBack} onNew={onNew} />
         <div className="mx-auto flex max-w-[960px] flex-col gap-12 px-4 pt-2 pb-6 sm:px-8">
           <h1 ref={heading} tabIndex={-1} className="sr-only">
             Podrobnosti odpovědi

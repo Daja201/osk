@@ -117,8 +117,9 @@ export default function AnswerScreen({
   // aby na malém displeji nezabírala místo tlačítkům.
   return (
     <div className="flex h-dvh flex-col bg-tabule text-white">
-      <TopBar tone="blue" info="answer" onNew={onNew} />
+      {/* Lišta je uvnitř posouvané oblasti: při posouvání odjede nahoru s obsahem. */}
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <TopBar tone="blue" info="answer" onNew={onNew} />
         <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen ? "max-w-[1240px]" : "max-w-[900px]"}`}>
           {/* Předchozí otázky konverzace: otázka, odpověď a odkaz na podrobnosti. */}
           {history.map((previous) => (
@@ -153,7 +154,7 @@ export default function AnswerScreen({
                     />
                   </div>
                 </div>
-                {editor && <div className="animate-rise sticky top-0">{editor}</div>}
+                {editor && <div className="animate-rise sticky top-4">{editor}</div>}
               </div>
             )}
           </section>

@@ -17,17 +17,19 @@ export default function Suggestions({
   onPick,
   id,
   className = "",
+  compact = false,
 }: {
   questions: string[];
   onPick: (question: string) => void;
   id?: string;
   className?: string;
+  compact?: boolean; // nižší položky (nápověda „?“, ať se vejde bez posouvání)
 }) {
   return (
-    <ul id={id} className={`m-0 flex w-full list-none flex-col gap-2.5 p-0 ${className}`}>
+    <ul id={id} className={`m-0 flex w-full list-none flex-col p-0 ${compact ? "gap-1.5" : "gap-2.5"} ${className}`}>
       {questions.map((question) => (
         <li key={question}>
-          <button type="button" onClick={() => onPick(question)} className={ITEM}>
+          <button type="button" onClick={() => onPick(question)} className={compact ? `${ITEM} min-h-11 py-2! text-[15px]!` : ITEM}>
             <span>{question}</span>
             <svg
               aria-hidden="true"
