@@ -13,7 +13,13 @@ export function viewOf(answer: AskAnswer): View {
   if (answer.kind === "answer" && answer.result?.ok) return "answer";
   const code = answer.reason?.code;
   if (code === "OUT_OF_SCOPE") return "out_of_scope";
-  if (code === "SOURCE_ERROR" || code === "AI_ERROR" || code === "NETWORK_ERROR" || code === "BAD_RESPONSE") return "error";
+  if (
+    code === "SOURCE_ERROR" ||
+    code === "AI_ERROR" ||
+    code === "NETWORK_ERROR" ||
+    code === "RATE_LIMIT_ERROR" ||
+    code === "BAD_RESPONSE"
+  ) return "error";
   return "unknown";
 }
 

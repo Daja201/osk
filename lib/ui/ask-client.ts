@@ -18,7 +18,12 @@ const AskResponse = z.looseObject({
 
 export const NETWORK_ERROR_TEXT = "Data se teď nepodařilo stáhnout.";
 
-function networkError(question: string, message: string): AskAnswer {
+function requestError(
+  question: string,
+  code: "NETWORK_ERROR" | "RATE_LIMIT_ERROR",
+  sentence: string,
+  message: string,
+): AskAnswer {
   return {
     id: null,
     expires_at: null,
@@ -28,15 +33,28 @@ function networkError(question: string, message: string): AskAnswer {
     format: null,
     title: null,
     background: null,
-    sentence: NETWORK_ERROR_TEXT,
+    sentence,
     sentence_source: "fixed",
-    reason: { code: "NETWORK_ERROR", message },
+    reason: { code, message },
     spec: null,
     result: null,
     notes: [],
     view: null,
     trace: { model: "", now: new Date().toISOString(), steps: [], total_ms: 0 },
   };
+}
+
+function networkError(question: string, message: string): AskAnswer {
+  return requestError(question, "NETWORK_ERROR", NETWORK_ERROR_TEXT, message);
+}
+
+function rateLimitError(question: string, response: Response): AskAnswer {
+  const retryAfter = Number(response.headers.get("Retry-After"));
+  const message =
+    Number.isFinite(retryAfter) && retryAfter > 0
+      ? `Počkejte prosím ${retryAfter} s a zkuste to znovu.`
+      : "Počkejte prosím chvíli a zkuste to znovu.";
+  return requestError(question, "RATE_LIMIT_ERROR", "Příliš mnoho dotazů.", message);
 }
 
 export async function getAnswer(question: string): Promise<AskAnswer> {
@@ -46,6 +64,7 @@ export async function getAnswer(question: string): Promise<AskAnswer> {
 
   try {
     const response = await fetch(`/api/ask?q=${encodeURIComponent(question)}`);
+    if (response.status === 429) return rateLimitError(question, response);
     const body: unknown = await response.json();
     if (!AskResponse.safeParse(body).success) {
       return networkError(question, `Server vrátil neočekávanou odpověď (HTTP ${response.status}).`);
