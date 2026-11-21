@@ -196,7 +196,7 @@ export default function AnswerCard({
   }
 
   // Věta: velké číslo jen u jediného místa (jeho součet).
-  const main = result.data.series.length === 1 ? aggregateValue(result.data.series[0]) : null;
+  const main = !result.data.comparison && result.data.series.length === 1 ? aggregateValue(result.data.series[0]) : null;
   return (
     <div className={plain}>
       <Sentence sentence={answer.sentence ?? ""} main={main} />

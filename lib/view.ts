@@ -75,7 +75,9 @@ export function formatOptions(result: SeriesDisplayOk): { format: ViewFormat; la
     {
       format: "pie",
       label: "Koláčový",
-      disabled: mixedUnits
+      disabled: result.data.comparison
+        ? "Koláčový graf neukazuje změny mezi obdobími; použijte sloupcový graf nebo tabulku."
+        : mixedUnits
         ? "Veličiny mají různé jednotky; zobrazte je v tabulce."
         : slices < 2
           ? "Koláč s jedinou položkou nic neukáže."

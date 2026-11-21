@@ -32,6 +32,8 @@ Postup:
 - „v pondělí“, „v úterý“… = poslední takový den ze seznamu výš, celý den.
 - Když uživatel vybere více konkrétních nesouvislých dní (např. „v pondělí a ve čtvrtek“, „tuto sobotu a sobotu před týdnem“), použij přesná data ze seznamu Posledních 31 kalendářních dní. Vyplň dates seřazeným seznamem YYYY-MM-DD. from = půlnoc prvního vybraného dne, to = T00:00 dne po posledním vybraném dni (ne T24:00 posledního dne). Mezi vybranými dny se nic dalšího nestahuje ani nepočítá. Pro běžný souvislý rozsah nech dates prázdné.
 - „sečti / dohromady“ u dopravy → granularity total, kód sečte jen vybrané dny. Graf nebo tabulka porovnávající vybrané dny → granularity day, každá vybraná datumová položka je samostatný bod/sloupec.
+- Když uživatel porovnává více samostatných období (např. dva týdny nebo více úseků), vyplň periods se 2–12 intervaly od nejstaršího po nejnovější a nastav granularity period. from/to nahoře musí být začátek prvního až konec posledního období, dates nech prázdné. Období se nesmějí překrývat. Celý rozsah včetně mezer se musí vejít do 31 dní; delší ani celé vzdálené kalendářní měsíce nevyžaduj, protože je aplikace nyní neumí porovnat.
+- Každé období se porovnává s prvním. Výpočty změny provede kód: u dopravy při různě dlouhých obdobích podle počtu vozidel na dostupnou hodinu (v tabulce zůstane i celkový součet); u stejně dlouhých podle celkového počtu. Počasí se porovnává rozdílem průměrných hodnot, ne procenty. Nevypočítávej rozdíly sám.
 - „posledních N hodin“ = N hodin končících poslední celou hodinou (to = ${today}T${hour}:00).
 - „posledních N hodin od 15:00“ nebo „do 15:00“ = N hodin končících dnes v 15:00 (např. 7 hodin = 08:00 až 15:00).
 - „od 15:00“ bez konce = dnes od 15:00 do poslední celé hodiny. „ráno“ = 06:00–10:00, „odpoledne“ = 12:00–18:00, „večer“ = 18:00–22:00.
@@ -58,6 +60,7 @@ Formát:
 - bar: sloupcový graf, porovnání míst nebo dnů. Výchozí, když chce graf a nic dalšího neřekne.
 - line: čárový graf, průběh v čase („jak se měnil“, „vývoj“).
 - pie: koláčový (kruhový) graf, podíl míst na celku, 2 až 6 míst, granularity total.
+- U porovnání období použij přednostně sloupcový graf; koláčový graf pro období nepoužívej.
 - table: tabulka, čísla nebo data ke zkopírování.
 - source: ptá se, odkud data bereme, chce API, odkaz na data nebo „kód, kterým si to stáhnu“. Místa a čas vyplň podle otázky, jinak 17. listopadu (obě brány) a včerejšek.
 - Když si řekne konkrétní typ, použij ho. Když nabídne víc typů („kruhový nebo sloupcový“), vyber ten, který se k datům hodí víc podle pravidel výš.
@@ -81,8 +84,8 @@ Pozor: „17. listopadu“ může být ulice, nebo datum 17. 11. Když je v otá
 Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - jedna věta česky, nejvýš dvě; bez markdownu, odrážek, emoji a zalomení řádků;
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
-- nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou;
+- nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou; u srovnání řekni, že základem je první období;
 - když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“;
-- uveď místo a období podle pole period; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
+- uveď místo a období podle výsledku; u srovnání výslovně řekni, že základem je první období; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň.`;
 }

@@ -1,6 +1,7 @@
-import { getCachedDay, getCachedRange, utcStartOfPragueDay } from "./cache";
+import { getCachedDay, getCachedRange, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
 import { ZodError } from "zod";
+import type { ComparisonPeriod, PeriodComparison } from "./comparison";
 import { findWeatherRow, parseWeatherResponse, weatherMeasurement } from "./weatherParse";
 import { HIH_RELH_KEY, HIH_TEMP_KEY, resolveWeatherMetric, resolveWeatherStation, stationName, type WeatherMetricKey } from "./weatherStations";
 import { validateSelectedDays } from "./selectedDays";
@@ -10,13 +11,14 @@ const TIME_ZONE = "Europe/Prague";
 const MS_PER_HOUR = 60 * 60 * 1000;
 const MAX_DAYS = 31;
 
-export type WeatherGranularity = "hour" | "day" | "total";
+export type WeatherGranularity = "hour" | "day" | "total" | "period";
 export type WeatherSeriesParams = {
   stations: string[];
   metrics: WeatherMetricKey[];
   from: string;
   to: string;
   dates?: string[];
+  periods?: ComparisonPeriod[];
   granularity: WeatherGranularity;
 };
 export type WeatherBucket = { label: string; start: string; end: string };
@@ -34,6 +36,7 @@ export type WeatherSeriesData = {
   granularity: WeatherGranularity;
   buckets: WeatherBucket[];
   series: WeatherValueSeries[];
+  comparison?: PeriodComparison;
 };
 export type WeatherSource = { date: string; url: string; fetched_at: string };
 export type WeatherSeriesOk = {
@@ -66,13 +69,7 @@ function nextDate(date: string): string {
 }
 
 function parseLocal(value: string): number | null {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):00$/.exec(value);
-  if (!match || Number(match[2]) > 24) return null;
-  try {
-    return utcStartOfPragueDay(match[1]).getTime() + Number(match[2]) * MS_PER_HOUR;
-  } catch {
-    return null;
-  }
+  return parsePragueDateTime(value);
 }
 
 function hourIndexOf(pointMs: number, dayStartMs: number): number {

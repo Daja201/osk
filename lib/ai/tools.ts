@@ -13,12 +13,12 @@ export type Format = (typeof FORMATS)[number];
 
 const TRAFFIC_DATASET_BRIEF =
   "Lze se ptát na počty vozidel na dopravních senzorech v Olomouci: jednotlivá místa nebo porovnání míst, " +
-  "vjely/vyjely/oba směry, souvislá období i vybrané jednotlivé dny, celkové počty a špičky; odpověď může být věta, " +
+  "vjely/vyjely/oba směry, souvislá období i vybrané jednotlivé dny, porovnání 2–12 období v rozsahu nejvýše 31 dní, celkové počty a špičky; odpověď může být věta, " +
   "sloupcový nebo čárový graf, koláčový graf, tabulka nebo odkaz na zdroj.";
 
 export const DATASET_BRIEF =
   `${TRAFFIC_DATASET_BRIEF} Také lze zjišťovat počasí z 10 olomouckých meteorologických stanic: ` +
-  "teplotu, vlhkost, tlak, rychlost a směr větru; pro obě skupiny dat lze vybrat i jednotlivé nesouvislé dny.";
+  "teplotu, vlhkost, tlak, rychlost a směr větru; pro obě skupiny dat lze vybrat i jednotlivé nesouvislé dny a porovnat 2–12 období v rozsahu nejvýše 31 dní.";
 
 // Dopravní nástroj: Claude z otázky vyplní ZADÁNÍ odpovědi (co spočítat a jak to ukázat).
 // Čísla spočítá náš kód (lib/citiq/series.ts), Claude je nevidí, dokud nejsou spočítaná.
@@ -26,7 +26,7 @@ export const buildAnswerTool: Anthropic.Tool = {
   name: "build_answer",
   description:
     "Připraví odpověď z dat dopravních senzorů v Olomouci: počty vozidel, které projely branami " +
-    "v zadaném čase, a způsob zobrazení (věta, graf, tabulka, nebo odkaz na zdroj dat). " +
+    "v zadaném čase nebo ve více srovnávaných obdobích, a způsob zobrazení (věta, graf, tabulka, nebo odkaz na zdroj dat). " +
     `Brány (název a v závorce přezdívky): ${gateList}. ${TRAFFIC_DATASET_BRIEF}`,
   strict: true,
   input_schema: {
@@ -58,10 +58,23 @@ export const buildAnswerTool: Anthropic.Tool = {
         items: { type: "string" },
         description: "Volitelné přesné dny YYYY-MM-DD, jen pokud se ptá na vybrané nesouvislé dny. Jinak prázdné pole. Pro vybrané dny from/to vymezují celé dny od prvního do posledního.",
       },
-      granularity: { type: "string", enum: ["hour", "day", "total"], description: "hour = po hodinách, day = po dnech, total = jedno číslo za místo." },
+      periods: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            from: { type: "string" },
+            to: { type: "string" },
+          },
+          required: ["from", "to"],
+          additionalProperties: false,
+        },
+        description: "Prázdné, pokud se období neporovnávají. Jinak 2–12 po sobě jdoucích, nepřekrývajících se intervalů od nejstaršího; from/to nahoře vymezují celý rozsah.",
+      },
+      granularity: { type: "string", enum: ["hour", "day", "total", "period"], description: "hour = po hodinách, day = po dnech, total = součet/průměr za rozsah, period = jedno srovnatelné číslo za každé zadané období." },
       date_assumed: { type: "boolean", description: "true, když v otázce nebyl žádný čas a použil jsi výchozí (včerejšek)." },
     },
-    required: ["format", "title", "background", "gates", "direction", "from", "to", "dates", "granularity", "date_assumed"],
+    required: ["format", "title", "background", "gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"],
     additionalProperties: false,
   },
 };
@@ -75,7 +88,7 @@ export const weatherSeriesTool: Anthropic.Tool = {
   description:
     "Připraví zadání výpočtu meteorologických dat z CITIQ v Olomouci. " +
     `Stanice: ${weatherStationList}. Měřené veličiny a jednotky: ${weatherMetricDescriptions}. ` +
-    "Hodinová data jsou průměry; více veličin lze požadovat najednou a lze vybrat i jednotlivé nesouvislé dny.",
+  "Hodinová data jsou průměry; více veličin lze požadovat najednou, vybrat jednotlivé nesouvislé dny nebo porovnat 2–12 období v rozsahu nejvýše 31 dní.",
   strict: true,
   input_schema: {
     type: "object",
@@ -108,10 +121,23 @@ export const weatherSeriesTool: Anthropic.Tool = {
         items: { type: "string" },
         description: "Volitelné přesné dny YYYY-MM-DD pro výběr nesouvislých dní. Jinak prázdné pole. Pro vybrané dny from/to vymezují celé dny od prvního do posledního.",
       },
-      granularity: { type: "string", enum: ["hour", "day", "total"], description: "hour = po hodinách; day = po dnech; total = průměr za období." },
+      periods: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            from: { type: "string" },
+            to: { type: "string" },
+          },
+          required: ["from", "to"],
+          additionalProperties: false,
+        },
+        description: "Prázdné, pokud se období neporovnávají. Jinak 2–12 po sobě jdoucích, nepřekrývajících se intervalů od nejstaršího; from/to nahoře vymezují celý rozsah.",
+      },
+      granularity: { type: "string", enum: ["hour", "day", "total", "period"], description: "hour = po hodinách; day = po dnech; total = průměr za rozsah; period = průměr za každé srovnávané období." },
       date_assumed: { type: "boolean", description: "true, když v otázce nebyl žádný čas a použil jsi výchozí (včerejšek)." },
     },
-    required: ["format", "title", "background", "stations", "metrics", "from", "to", "dates", "granularity", "date_assumed"],
+    required: ["format", "title", "background", "stations", "metrics", "from", "to", "dates", "periods", "granularity", "date_assumed"],
     additionalProperties: false,
   },
 };
@@ -129,7 +155,8 @@ export const BuildAnswerInput = z
     from: z.string().regex(LOCAL_TIME),
     to: z.string().regex(LOCAL_TIME),
     dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(31).optional(),
-    granularity: z.enum(["hour", "day", "total"]),
+    periods: z.array(z.object({ from: z.string().regex(LOCAL_TIME), to: z.string().regex(LOCAL_TIME) }).strict()).max(12).optional(),
+    granularity: z.enum(["hour", "day", "total", "period"]),
     date_assumed: z.boolean(),
   })
   .strict();
@@ -151,7 +178,8 @@ export const WeatherSeriesInput = z
     from: z.string().regex(LOCAL_TIME),
     to: z.string().regex(LOCAL_TIME),
     dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(31).optional(),
-    granularity: z.enum(["hour", "day", "total"]),
+    periods: z.array(z.object({ from: z.string().regex(LOCAL_TIME), to: z.string().regex(LOCAL_TIME) }).strict()).max(12).optional(),
+    granularity: z.enum(["hour", "day", "total", "period"]),
     date_assumed: z.boolean(),
   })
   .strict();
