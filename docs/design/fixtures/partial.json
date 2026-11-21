@@ -1,0 +1,275 @@
+{
+  "question": "Kolik aut projelo v pondělí ulicí 17. listopadu?",
+  "kind": "answer",
+  "sentence": "V pondělí projelo ulicí 17. listopadu nejméně 15 137 aut, nejvíc jich jelo mezi 7. a 8. hodinou ráno (1 297).",
+  "sentence_by": "ai",
+  "main_number": {
+    "value": 15137,
+    "text": "15 137"
+  },
+  "number_checks": [
+    {
+      "text": "17",
+      "value": 17,
+      "start": 24,
+      "end": 26,
+      "status": "allowed",
+      "explanation": "název ulice „17. listopadu“"
+    },
+    {
+      "text": "15 137",
+      "value": 15137,
+      "start": 46,
+      "end": 52,
+      "status": "verified",
+      "explanation": "součet za den, chybí 2 hodiny"
+    },
+    {
+      "text": "7",
+      "value": 7,
+      "start": 80,
+      "end": 81,
+      "status": "verified",
+      "explanation": "začátek hodiny s nejvíce auty"
+    },
+    {
+      "text": "8",
+      "value": 8,
+      "start": 85,
+      "end": 86,
+      "status": "verified",
+      "explanation": "konec té hodiny"
+    },
+    {
+      "text": "1 297",
+      "value": 1297,
+      "start": 102,
+      "end": 107,
+      "status": "verified",
+      "explanation": "počet aut v té hodině"
+    }
+  ],
+  "labels": {
+    "place": "17. listopadu",
+    "scope": "oba směry dohromady",
+    "sensors": [
+      "17. listopadu Jih",
+      "17. listopadu Sever"
+    ]
+  },
+  "tool_call": {
+    "name": "traffic_count",
+    "input": {
+      "gate": "17-listopadu",
+      "date_from": "2026-11-16",
+      "date_to": "2026-11-16",
+      "hour_from": 0,
+      "hour_to": 24,
+      "date_assumed": true
+    }
+  },
+  "envelope": {
+    "ok": true,
+    "data": {
+      "gate": "17-listopadu",
+      "granularity": "hour",
+      "series": [
+        {
+          "hour": 0,
+          "start_utc": "2026-11-15T23:00:00Z",
+          "value": 71,
+          "status": "ok"
+        },
+        {
+          "hour": 1,
+          "start_utc": "2026-11-16T00:00:00Z",
+          "value": 42,
+          "status": "ok"
+        },
+        {
+          "hour": 2,
+          "start_utc": "2026-11-16T01:00:00Z",
+          "value": 30,
+          "status": "ok"
+        },
+        {
+          "hour": 3,
+          "start_utc": "2026-11-16T02:00:00Z",
+          "value": null,
+          "status": "missing"
+        },
+        {
+          "hour": 4,
+          "start_utc": "2026-11-16T03:00:00Z",
+          "value": null,
+          "status": "missing"
+        },
+        {
+          "hour": 5,
+          "start_utc": "2026-11-16T04:00:00Z",
+          "value": 236,
+          "status": "suspect"
+        },
+        {
+          "hour": 6,
+          "start_utc": "2026-11-16T05:00:00Z",
+          "value": 561,
+          "status": "ok"
+        },
+        {
+          "hour": 7,
+          "start_utc": "2026-11-16T06:00:00Z",
+          "value": 1297,
+          "status": "ok"
+        },
+        {
+          "hour": 8,
+          "start_utc": "2026-11-16T07:00:00Z",
+          "value": 1188,
+          "status": "ok"
+        },
+        {
+          "hour": 9,
+          "start_utc": "2026-11-16T08:00:00Z",
+          "value": 931,
+          "status": "ok"
+        },
+        {
+          "hour": 10,
+          "start_utc": "2026-11-16T09:00:00Z",
+          "value": 850,
+          "status": "ok"
+        },
+        {
+          "hour": 11,
+          "start_utc": "2026-11-16T10:00:00Z",
+          "value": 889,
+          "status": "ok"
+        },
+        {
+          "hour": 12,
+          "start_utc": "2026-11-16T11:00:00Z",
+          "value": 947,
+          "status": "ok"
+        },
+        {
+          "hour": 13,
+          "start_utc": "2026-11-16T12:00:00Z",
+          "value": 981,
+          "status": "ok"
+        },
+        {
+          "hour": 14,
+          "start_utc": "2026-11-16T13:00:00Z",
+          "value": 1090,
+          "status": "ok"
+        },
+        {
+          "hour": 15,
+          "start_utc": "2026-11-16T14:00:00Z",
+          "value": 1262,
+          "status": "ok"
+        },
+        {
+          "hour": 16,
+          "start_utc": "2026-11-16T15:00:00Z",
+          "value": 1239,
+          "status": "ok"
+        },
+        {
+          "hour": 17,
+          "start_utc": "2026-11-16T16:00:00Z",
+          "value": 1071,
+          "status": "ok"
+        },
+        {
+          "hour": 18,
+          "start_utc": "2026-11-16T17:00:00Z",
+          "value": 822,
+          "status": "ok"
+        },
+        {
+          "hour": 19,
+          "start_utc": "2026-11-16T18:00:00Z",
+          "value": 585,
+          "status": "ok"
+        },
+        {
+          "hour": 20,
+          "start_utc": "2026-11-16T19:00:00Z",
+          "value": 418,
+          "status": "ok"
+        },
+        {
+          "hour": 21,
+          "start_utc": "2026-11-16T20:00:00Z",
+          "value": 309,
+          "status": "ok"
+        },
+        {
+          "hour": 22,
+          "start_utc": "2026-11-16T21:00:00Z",
+          "value": 203,
+          "status": "ok"
+        },
+        {
+          "hour": 23,
+          "start_utc": "2026-11-16T22:00:00Z",
+          "value": 115,
+          "status": "ok"
+        }
+      ],
+      "total": 15137,
+      "peak": {
+        "hour": 7,
+        "value": 1297
+      },
+      "low": {
+        "hour": 2,
+        "value": 30
+      },
+      "by_direction": null,
+      "ranking": null
+    },
+    "meta": {
+      "tool": "traffic_count",
+      "params": {
+        "gate": "17-listopadu",
+        "date_from": "2026-11-16",
+        "date_to": "2026-11-16",
+        "hour_from": 0,
+        "hour_to": 24
+      },
+      "timezone": "Europe/Prague",
+      "period": {
+        "local_from": "2026-11-16T00:00:00+01:00",
+        "local_to": "2026-11-17T00:00:00+01:00",
+        "utc_from": "2026-11-15T23:00:00Z",
+        "utc_to": "2026-11-16T23:00:00Z"
+      },
+      "coverage": {
+        "hours": 22,
+        "of": 24
+      },
+      "source": {
+        "name": "Senzorová síť Olomouc (CITIQ)",
+        "url": "https://iot.citiq.cloud/portal/api/v2/view/olomouc-traffic-gates/"
+      },
+      "fetched_at": "2026-11-20T21:14:00Z",
+      "mode": "live",
+      "notes": [
+        "Mezi 3:00 a 5:00 senzory nevysílaly.",
+        "Hodnota v 5:00 je neobvykle vysoká. Počítáme ji do součtu, ne do špičky."
+      ]
+    }
+  },
+  "timings_ms": {
+    "choose": 720,
+    "compute": 310,
+    "write": 640,
+    "check": 20,
+    "total": 1690
+  },
+  "model": "claude-haiku-5-5",
+  "model_calls": 2
+}
