@@ -3,14 +3,23 @@ import { ask } from "@/lib/ai/ask";
 import { saveAnswer } from "@/lib/answers";
 import { appNow } from "@/lib/ai/dates";
 import { trafficSeries } from "@/lib/citiq/series";
+import { checkAskRateLimit, clientIp } from "@/lib/askRateLimit";
 
 const MAX_QUESTION_LENGTH = 300;
 
-async function handle(question: unknown): Promise<Response> {
+async function handle(question: unknown, request: Request): Promise<Response> {
   if (typeof question !== "string" || question.trim() === "" || question.length > MAX_QUESTION_LENGTH) {
     return Response.json(
       { ok: false, error: `Otázka musí být text o délce 1–${MAX_QUESTION_LENGTH} znaků.` },
       { status: 400 },
+    );
+  }
+
+  const limit = checkAskRateLimit(clientIp(request));
+  if (!limit.allowed) {
+    return Response.json(
+      { ok: false, error: "Příliš mnoho požadavků. Zkuste to prosím později." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
   }
 
@@ -30,12 +39,12 @@ async function handle(question: unknown): Promise<Response> {
 
 // GET /api/ask?q=… pro rychlé zkoušení v prohlížeči
 export async function GET(request: Request) {
-  return handle(new URL(request.url).searchParams.get("q"));
+  return handle(new URL(request.url).searchParams.get("q"), request);
 }
 
 // POST /api/ask s tělem { "question": "…" } pro stránku
 export async function POST(request: Request) {
   const body: unknown = await request.json().catch(() => null);
   const question = body && typeof body === "object" && "question" in body ? body.question : undefined;
-  return handle(question);
+  return handle(question, request);
 }
