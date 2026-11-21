@@ -5,14 +5,12 @@ import { useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
 import type { SeriesOk } from "@/lib/citiq/series";
 import { viewOf } from "@/lib/ui/answer";
-import { chartColors } from "@/lib/ui/chart";
 import { copyText } from "@/lib/ui/export";
 import { splitSentence } from "@/lib/ui/sentence";
-import { useTheme } from "@/lib/ui/theme";
-import Chart from "./charts/Chart";
-import DataTable from "./DataTable";
+import type { ChartView } from "@/lib/view";
 import { PRESS } from "./styles";
 import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
+import ViewChart, { effectiveView } from "./ViewChart";
 
 const OUT_OF_SCOPE_TEXT =
   "Odpovídám jen na otázky o dopravě v Olomouci z dat dopravních senzorů: kolik vozidel projelo branami v libovolném čase, porovnání míst a dnů, grafy a tabulky.";
@@ -132,17 +130,19 @@ function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: bo
 }
 
 // Odpověď podle formátu: věta, graf, tabulka, zdroj dat, nebo „nevím“.
-// svgRef dostane <svg> grafu (pro stažení PNG). interactive = ukázat „Zkusit znovu“ a návrhy otázek.
+// view = vzhled z editoru (null = jak vybrala AI, nebo uložený vzhled). svgRef dostane <svg> grafu (pro stažení).
+// interactive = ukázat „Zkusit znovu“ a návrhy otázek.
 export default function AnswerCard({
   answer,
+  view = null,
   svgRef,
   interactive = true,
 }: {
   answer: AskAnswer;
+  view?: ChartView | null;
   svgRef?: Ref<SVGSVGElement>;
   interactive?: boolean;
 }) {
-  const theme = useTheme();
   const result = answer.result?.ok ? answer.result : null;
   const plain = "rounded-3xl bg-surface p-6 text-ink sm:p-10";
 
@@ -154,27 +154,12 @@ export default function AnswerCard({
     );
   }
 
-  const title = answer.title ?? "";
-  if (answer.format === "bar" || answer.format === "line" || answer.format === "pie") {
-    const colors = chartColors(answer.background, theme);
+  const shown = effectiveView(answer, view);
+  if (shown) {
     return (
       <div className="flex flex-col gap-3">
-        {/* Graf má vlastní pozadí z palety; tenký okraj, aby byl vidět i na modré stránce. */}
-        <div className="overflow-hidden rounded-3xl ring-1 ring-white/25">
-          <Chart kind={answer.format} result={result} title={title} colors={colors} svgRef={svgRef} />
-        </div>
+        <ViewChart answer={answer} result={result} view={shown} svgRef={svgRef} />
         <Notes notes={answer.notes} className="text-white" />
-      </div>
-    );
-  }
-
-  if (answer.format === "table") {
-    const colors = chartColors(answer.background, theme);
-    return (
-      <div className="flex flex-col gap-4 rounded-3xl p-5 ring-1 ring-white/25 sm:p-8" style={{ background: colors.bg, color: colors.text }}>
-        <h2 className="m-0 font-sign text-[24px] leading-tight font-bold sm:text-[28px]">{title}</h2>
-        <DataTable result={result} />
-        <Notes notes={answer.notes} />
       </div>
     );
   }
@@ -192,7 +177,7 @@ export default function AnswerCard({
   return (
     <div className={plain}>
       <Sentence sentence={answer.sentence ?? ""} main={main} />
-      <p className="m-0 mt-5 text-[16px] text-muted">{title}</p>
+      <p className="m-0 mt-5 text-[16px] text-muted">{answer.title}</p>
       <Notes notes={answer.notes} className="mt-2 text-ink" />
     </div>
   );

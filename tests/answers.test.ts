@@ -48,6 +48,7 @@ const answer: AskAnswer = {
   spec: null,
   result,
   notes: [],
+  view: null,
   trace: { model: "test", now: "2026-11-20T10:00:00.000Z", steps: [], total_ms: 1 },
 };
 
@@ -80,5 +81,31 @@ describe("CSV", () => {
     expect(lines[0]).toBe("﻿Období;Začátek (UTC);17. listopadu (obě brány);Parkoviště Flora");
     expect(lines[1]).toBe("8:00;2026-11-19T07:00:00.000Z;1200;12");
     expect(lines[2]).toBe("9:00;2026-11-19T08:00:00.000Z;;9");
+  });
+});
+
+describe("uložení vzhledu (POST /api/answers/<id>/variant)", () => {
+  const post = async (id: string, body: unknown) => {
+    const { POST } = await import("../app/api/answers/[id]/variant/route");
+    const request = new Request("http://test/api", { method: "POST", body: JSON.stringify(body) });
+    return POST(request, { params: Promise.resolve({ id }) } as never);
+  };
+  const view = { format: "pie", title: "Můj graf", background: "modra", colors: ["#FF0000"], axis: { mode: "auto" }, qr: false };
+
+  it("vytvoří novou kopii s vlastním id; čísla vezme ze serveru, původní odpověď zůstane", async () => {
+    const original = await saveAnswer(answer);
+    const response = await post(original.id ?? "", { view, result: { ok: true, data: "podvržená data" } });
+    const copy = await response.json();
+    expect(response.status).toBe(200);
+    expect(copy.id).not.toBe(original.id);
+    expect(copy.view).toEqual(view);
+    expect(copy.result).toEqual(original.result);
+    expect((await loadAnswer(original.id ?? ""))?.view).toBeNull();
+  });
+
+  it("neplatný vzhled → 400, neexistující odpověď → 404", async () => {
+    const original = await saveAnswer(answer);
+    expect((await post(original.id ?? "", { view: { ...view, colors: ["javascript:alert(1)"] } })).status).toBe(400);
+    expect((await post("Neexistuje", { view })).status).toBe(404);
   });
 });

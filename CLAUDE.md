@@ -24,7 +24,8 @@ Webová aplikace, kde člověk napíše česky, co chce vědět nebo vidět o do
 2. Náš kód (`lib/citiq/series.ts`) stáhne data z CITIQ a spočítá je.
 3. Graf / tabulku vykreslí náš kód přímo z čísel (bez druhého volání modelu). Jen u formátu `text` napíše Claude větu a kód v ní zkontroluje každé číslo.
 4. Odpověď se uloží na 7 dní. Odkaz `/a/<id>` ukáže stejnou grafiku a pod ní důkaz: zadání od AI, všechna čísla, přesné dotazy na API CITIQ.
-5. Graf jde stáhnout jako PNG, data jako CSV, tabulka do schránky.
+5. Vzhled jde upravit v editoru (typ, nadpis, barvy, osa, QR) a uložit jako nový odkaz. Graf jde stáhnout jako PNG / SVG, data jako CSV nebo zkopírovat do tabulky.
+6. Úprava vzhledu nikdy nemění čísla: kopie s vlastním vzhledem bere data ze souboru na serveru, osa nesmí uříznout sloupce a když nezačíná nulou, graf to označí.
 
 Když data chybí nebo otázka nejde zodpovědět, aplikace řekne „nevím“ a proč. Nepotřebný text (sekce pro vývojáře apod.) se neukazuje; kdo chce data sám, zeptá se na zdroj a dostane odkaz na API.
 
@@ -35,7 +36,7 @@ Návod k použití pro lidi: `docs/usage.md`.
 ## Technologie (neměnit bez dotazu)
 - Next.js 16 (App Router), **TypeScript** (strict), Tailwind 4, ESLint, npm.
 - V `package.json` je `"type": "module"`.
-- Balíčky: `@anthropic-ai/sdk` 1.x, `zod` 4, `luxon` (časové zóny), `vitest`, `tsx` (spouštění `.ts` skriptů). Další balíčky nepřidávej bez mého souhlasu.
+- Balíčky: `@anthropic-ai/sdk` 1.x, `zod` 4, `vitest`, `tsx` (spouštění `.ts` skriptů), `@fontsource/barlow` a `@fontsource/barlow-semi-condensed` (písma hostujeme sami), `qrcode-generator` (MIT, QR kód na odkaz). Další balíčky nepřidávej bez mého souhlasu.
 - Žádné `any`, žádné `ignoreBuildErrors`. Typy odvozuj ze Zod schémat v `lib/contract.ts` (`z.infer`). Pro data z Claude API používej typy z SDK (`Anthropic.MessageParam`, `Anthropic.Tool`…).
 - Model je `claude-haiku-5-5` (bere se z env `CLAUDE_MODEL`). Toto ID je správné, ověřené 20. 11. přes `scripts/check-claude.ts`. Neměň ho na starší model, i když ho neznáš. Pro srovnání v evalu `claude-sonnet-5-5`.
 - Next.js 16 se liší od toho, co znáš z tréninku. Před psaním route handlerů a stránek se podívej do `node_modules/next/dist/docs/` (viz AGENTS.md).
@@ -47,12 +48,13 @@ Návod k použití pro lidi: `docs/usage.md`.
 app/layout.tsx, app/page.tsx      Jáchym (úvod → odpověď → podrobnosti na jedné adrese)
 app/a/[id]/page.tsx               Jáchym: uložená odpověď (7 dní) i s důkazem
 app/api/ask/route.ts              Jáchym: otázka → odpověď (a uložení)
-app/api/answers/[id]/…            Jáchym: uložená odpověď jako JSON, /csv jako CSV
-components/                       Jáchym (charts/Chart.tsx = SVG grafy bez knihovny)
+app/api/answers/[id]/…            Jáchym: uložená odpověď jako JSON, /csv jako CSV, POST /variant = kopie s upraveným vzhledem
+components/                       Jáchym (charts/Chart.tsx = SVG grafy bez knihovny, ChartEditor = editor vzhledu)
 lib/ai/                           Jáchym  (tools = build_answer, systemPrompt, ask, checkNumbers, palette, dates)
 lib/citiq/                        David + Jáchym (client, cache, parse, gates, series)
 lib/answers.ts                    ukládání odpovědí do data/answers/ (gitignored, 7 dní)
 lib/csv.ts                        CSV z výsledku (sdílí server i prohlížeč)
+lib/view.ts                       vzhled grafu z editoru (ChartView + Zod schéma, kontrola vlastní osy)
 lib/ui/                           čisté funkce pro stránku (chart, answer, format, sentence, export, theme, fixtures)
 data/cache/                       cache odpovědí CITIQ (gitignored, 30 dní)
 scripts/ask.ts                    `npm run ask -- "otázka"`: stejná cesta jako /api/ask, vypíše zadání a data
@@ -103,6 +105,7 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 | `ANTHROPIC_API_KEY` | klíč k Claude API |
 | `CLAUDE_MODEL` | výchozí `claude-haiku-5-5` |
 | `DATA_SOURCE` | zatím se nepoužívá (aplikace jede vždy na reálných datech) |
+| `NEXT_PUBLIC_SITE_URL` | veřejná adresa aplikace pro QR kódy a odkazy, např. `http://192.168.1.20:3000`; bez ní se použije adresa, ze které je stránka otevřená (na `localhost` QR z telefonu nefunguje) |
 | `APP_NOW` | pevné „teď“ pro eval a demo, např. `2026-11-20T18:00:00+01:00` |
 | `CITIQ_BASE_URL` | výchozí `https://iot.citiq.cloud/portal/api/v2/view` |
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAsk } from "@/app/ask-context";
+import type { ChartView } from "@/lib/view";
 import AnswerScreen from "./AnswerScreen";
 import DetailsScreen from "./DetailsScreen";
 import IntroScreen from "./IntroScreen";
@@ -15,6 +16,11 @@ type Phase = "intro" | "answer" | "details";
 export default function HomeView() {
   const { answer, reset } = useAsk();
   const [phase, setPhase] = useState<Phase>("intro");
+  // Vzhled upravený v editoru patří k jedné odpovědi; u nové odpovědi začíná znovu od uloženého / výchozího.
+  const answerKey = answer ? (answer.id ?? answer.question) : "";
+  const [edit, setEdit] = useState<{ key: string; view: ChartView | null }>({ key: "", view: null });
+  const view = edit.key === answerKey ? edit.view : null;
+  const setView = (next: ChartView | null) => setEdit({ key: answerKey, view: next });
 
   const newQuestion = () => {
     reset();
@@ -32,10 +38,10 @@ export default function HomeView() {
       >
         {/* inert: obrazovka mimo pohled se nedá ovládat klávesnicí ani ji nečte čtečka. */}
         <div inert={details}>
-          <AnswerScreen active={!details} onDetails={() => setPhase("details")} onNew={newQuestion} />
+          <AnswerScreen active={!details} onDetails={() => setPhase("details")} onNew={newQuestion} view={view} onViewChange={setView} />
         </div>
         <div inert={!details}>
-          {answer && <DetailsScreen answer={answer} active={details} onBack={() => setPhase("answer")} onNew={newQuestion} />}
+          {answer && <DetailsScreen answer={answer} view={view} active={details} onBack={() => setPhase("answer")} onNew={newQuestion} />}
         </div>
       </div>
     </div>

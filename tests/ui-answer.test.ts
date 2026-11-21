@@ -53,10 +53,9 @@ describe("data pro grafy", () => {
     expect(labelStep(168, 12)).toBe(14);
   });
 
-  it("barvy: zvolená paleta, jinak podle režimu; čitelný text na barvě", () => {
-    expect(chartColors("cervena", "light").bg).toBe("#B3261E");
-    expect(chartColors(null, "light").bg).toBe("#FFFFFF");
-    expect(chartColors(null, "dark").bg).toBe("#14243A");
+  it("barvy: vždy podle zvoleného pozadí (bez volby bílé), ne podle režimu stránky; čitelný text na barvě", () => {
+    expect(chartColors("cervena").bg).toBe("#B3261E");
+    expect(chartColors(null).bg).toBe("#FFFFFF");
     expect(textOn("#FFFFFF")).toBe("#14243A");
     expect(textOn("#0B4F96")).toBe("#FFFFFF");
     expect(textOn("#FFC21A")).toBe("#14243A");

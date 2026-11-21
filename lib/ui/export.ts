@@ -65,28 +65,79 @@ function embeddedFontCss(): Promise<string> {
   return fontCss;
 }
 
-// Graf (SVG) → PNG ve dvojnásobném rozlišení, aby byl ostrý i v prezentaci na projektoru.
-export async function downloadPng(svg: SVGSVGElement, filename: string): Promise<void> {
-  const width = svg.width.baseVal.value;
-  const height = svg.height.baseVal.value;
+// Graf jako samostatné SVG i s vloženými písmy (stejné jako na stránce).
+export async function standaloneSvg(svg: SVGSVGElement): Promise<string> {
   const copy = svg.cloneNode(true) as SVGSVGElement;
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
   style.textContent = await embeddedFontCss();
   copy.insertBefore(style, copy.firstChild);
-  const source = new XMLSerializer().serializeToString(copy);
+  return new XMLSerializer().serializeToString(copy);
+}
+
+// SVG: v PowerPointu jde převést na upravitelné tvary (Převést na obrazec), v Google Prezentacích vložit jako obrázek.
+export async function downloadSvg(svg: SVGSVGElement, filename: string): Promise<void> {
+  download(new Blob([await standaloneSvg(svg)], { type: "image/svg+xml" }), filename);
+}
+
+// Graf (SVG) → PNG ve dvojnásobném rozlišení, aby byl ostrý i v prezentaci na projektoru.
+export async function downloadPng(svg: SVGSVGElement, filename: string): Promise<void> {
+  download(await renderPng(svg), filename);
+}
+
+// Samotné vykreslení PNG (zvlášť, aby šlo vyzkoušet v prohlížeči bez stahování).
+//
+// Proč ne jen „SVG → obrázek → canvas“: Safari v takovém obrázku vynechá text, jehož písmo ještě nestihlo
+// načíst (typicky velký nadpis), a PNG pak nemá nadpis. Proto:
+//   1. na canvas nakreslíme SVG BEZ textů (sloupce, čáry, QR…),
+//   2. texty dokreslíme přímo na canvas písmy, která má stránka už načtená (počkáme na document.fonts.load).
+// Každý text dostane stejnou polohu, velikost, barvu i zarovnání jako v SVG (matice z getScreenCTM).
+export async function renderPng(svg: SVGSVGElement): Promise<Blob> {
+  const width = svg.width.baseVal.value;
+  const height = svg.height.baseVal.value;
+  const scale = 2;
+
+  const shapes = svg.cloneNode(true) as SVGSVGElement;
+  shapes.querySelectorAll("text").forEach((text) => text.remove());
   const image = new Image();
-  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(shapes))}`;
   await image.decode();
+
   const canvas = document.createElement("canvas");
-  canvas.width = width * 2;
-  canvas.height = height * 2;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Prohlížeč neumí kreslit do canvasu.");
-  context.scale(2, 2);
+  context.scale(scale, scale);
   context.drawImage(image, 0, 0, width, height);
+
+  // Souřadnice textu v SVG: matice textu vůči <svg> (bez CSS zmenšení grafu na stránce).
+  const root = svg.getScreenCTM();
+  const texts = Array.from(svg.querySelectorAll("text"));
+  for (const text of texts) {
+    // Jen přímý text, ne <title> uvnitř (to je bublina při najetí myší).
+    const content = Array.from(text.childNodes)
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent ?? "")
+      .join("")
+      .trim();
+    const own = text.getScreenCTM();
+    if (!content || !root || !own) continue;
+    const m = root.inverse().multiply(own);
+    const style = getComputedStyle(text);
+    const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    await document.fonts.load(font, content).catch(() => undefined);
+    const anchor = style.getPropertyValue("text-anchor");
+    context.setTransform(scale * m.a, scale * m.b, scale * m.c, scale * m.d, scale * m.e, scale * m.f);
+    context.font = font;
+    context.fillStyle = style.getPropertyValue("fill") || "#000";
+    context.textAlign = anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
+    context.textBaseline = "alphabetic"; // jako SVG: y je účaří
+    context.fillText(content, text.x.baseVal[0]?.value ?? 0, text.y.baseVal[0]?.value ?? 0);
+  }
+
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("PNG se nepodařilo vytvořit.");
-  download(blob, filename);
+  return blob;
 }
 
 export function downloadCsv(result: SeriesOk, filename: string) {

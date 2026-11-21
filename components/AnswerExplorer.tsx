@@ -3,12 +3,11 @@
 import { type Ref, useState } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
 import { explainPoint } from "@/lib/ui/answer";
-import { type DataPick, chartColors } from "@/lib/ui/chart";
+import type { DataPick } from "@/lib/ui/chart";
 import { formatNumber } from "@/lib/ui/format";
-import { useTheme } from "@/lib/ui/theme";
+import type { ChartView } from "@/lib/view";
 import AnswerStrip from "./AnswerStrip";
-import Chart from "./charts/Chart";
-import DataTable from "./DataTable";
+import ViewChart, { effectiveView } from "./ViewChart";
 
 const czDate = (date: string) => date.split("-").reverse().map(Number).join(". ");
 
@@ -43,43 +42,33 @@ function PointPanel({ answer, picked, hint }: { answer: AskAnswer; picked: DataP
   );
 }
 
-// Odpověď v podrobnostech a na /a/<id>: graf nebo tabulka, na jejichž čísla jde kliknout,
+// Odpověď v podrobnostech a na /a/<id>: graf nebo tabulka (ve vzhledu z editoru), na jejichž čísla jde kliknout,
 // a pod nimi vysvětlení, odkud číslo je. U věty a zdroje dat pruh s klikacími čísly ve větě.
-export default function AnswerExplorer({ answer, height = 360, svgRef }: { answer: AskAnswer; height?: number; svgRef?: Ref<SVGSVGElement> }) {
-  const theme = useTheme();
+export default function AnswerExplorer({
+  answer,
+  view = null,
+  height = 360,
+  svgRef,
+}: {
+  answer: AskAnswer;
+  view?: ChartView | null;
+  height?: number;
+  svgRef?: Ref<SVGSVGElement>;
+}) {
   const [picked, setPicked] = useState<DataPick | null>(null);
   const result = answer.result?.ok ? answer.result : null;
+  const shown = effectiveView(answer, view);
   const toggle = (pick: DataPick) => setPicked(picked?.gate === pick.gate && picked?.bucket === pick.bucket ? null : pick);
 
-  if (result && (answer.format === "bar" || answer.format === "line" || answer.format === "pie")) {
+  if (result && shown) {
     return (
       <div className="flex flex-col gap-3">
-        <div className="overflow-hidden rounded-3xl ring-1 ring-line">
-          <Chart
-            kind={answer.format}
-            result={result}
-            title={answer.title ?? ""}
-            colors={chartColors(answer.background, theme)}
-            height={height}
-            svgRef={svgRef}
-            onPick={toggle}
-            picked={picked}
-          />
-        </div>
-        <PointPanel answer={answer} picked={picked} hint="Klikněte na sloupec, bod nebo výseč a uvidíte, odkud to číslo je." />
-      </div>
-    );
-  }
-
-  if (result && answer.format === "table") {
-    const colors = chartColors(answer.background, theme);
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-4 rounded-3xl p-5 ring-1 ring-line sm:p-7" style={{ background: colors.bg, color: colors.text }}>
-          <h2 className="m-0 font-sign text-[22px] leading-tight font-bold sm:text-[26px]">{answer.title}</h2>
-          <DataTable result={result} onPick={toggle} picked={picked} />
-        </div>
-        <PointPanel answer={answer} picked={picked} hint="Klikněte na číslo v tabulce a uvidíte, odkud je." />
+        <ViewChart answer={answer} result={result} view={shown} svgRef={svgRef} height={height} onPick={toggle} picked={picked} ring="ring-line" />
+        <PointPanel
+          answer={answer}
+          picked={picked}
+          hint={shown.format === "table" ? "Klikněte na číslo v tabulce a uvidíte, odkud je." : "Klikněte na sloupec, bod nebo výseč a uvidíte, odkud to číslo je."}
+        />
       </div>
     );
   }
