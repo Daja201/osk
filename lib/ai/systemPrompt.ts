@@ -28,5 +28,6 @@ Po výsledku nástroje napiš odpověď:
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou;
 - vždy uveď bránu a datum; den v týdnu ber jen z pole day ve výsledku; nejrušnější hodinu piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň;
-- když nástroj vrátí ok: false, jednou větou vysvětli proč (podle error.message) a nic nedopočítávej.`;
+- když nástroj vrátí ok: false, jednou větou vysvětli proč (podle error.message) a nic nedopočítávej.
+- !!!DEJ SI POZOR AŤ OPRAVDU VRÁTÍŠ CO NEJKRATŠÍ MOŽNOOU ODPOVĚĎ SE VŠEMI POTŘEBNÝMI DATY V ODPOVĚDI, ŽÁDNÉ OBKECÁVÁNÍ`;
 }
