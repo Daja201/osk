@@ -14,7 +14,7 @@ const chip = (active: boolean) => `${CHIP} ${active ? "border-ink bg-ink text-su
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="m-0 flex min-w-0 flex-col gap-2.5 border-0 p-0">
-      <legend className={`${LABEL} mb-2.5 p-0`}>{title}</legend>
+      <legend className={`${LABEL} mb-2 p-0`}>{title}</legend>
       {children}
     </fieldset>
   );
@@ -129,7 +129,10 @@ function AxisControls({ axis, values, onChange }: { axis: AxisSetting; values: n
   );
 }
 
+type Tab = "typ" | "nadpis" | "barvy" | "osa";
+
 // Editor vzhledu grafu: typ, nadpis, pozadí, barvy, osa, QR. Změny se hned ukazují v grafu.
+// Sekce jsou v záložkách: editor je tak zhruba stejně vysoký jako graf vedle něj a nevzniká prázdné místo.
 export default function ChartEditor({
   result,
   view,
@@ -156,112 +159,144 @@ export default function ChartEditor({
   const slots = view.format === "table" ? [] : colorSlots(result, view.format);
   const values = result.data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
   const isChart = view.format !== "table";
+  const id = useId();
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "typ", label: "Typ" },
+    { id: "nadpis", label: "Nadpis" },
+    { id: "barvy", label: "Barvy" },
+    ...(isChart && view.format !== "pie" ? [{ id: "osa" as const, label: "Osa" }] : []),
+  ];
+  const [chosen, setChosen] = useState<Tab>("typ");
+  // Když záložka zmizí (např. Osa po přepnutí na koláč), ukáže se Typ.
+  const tab = tabs.some((t) => t.id === chosen) ? chosen : "typ";
 
   return (
-    <section aria-label="Úprava vzhledu" className="flex flex-col gap-6 rounded-3xl bg-surface p-5 text-ink sm:p-6">
+    <section aria-label="Úprava vzhledu" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 text-ink">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="m-0 font-sign text-[24px] leading-tight font-bold">Úprava vzhledu</h2>
-        <button type="button" onClick={onClose} className={`${PRESS} min-h-11 rounded-full border border-line px-4 py-1.5 text-[15px] font-semibold hover:border-ink sm:min-h-9`}>
+        <h2 className="m-0 font-sign text-[22px] leading-tight font-bold">Úprava vzhledu</h2>
+        <button type="button" onClick={onClose} className={`${PRESS} min-h-9 rounded-full border border-line px-4 py-1.5 text-[15px] font-semibold hover:border-ink`}>
           Hotovo
         </button>
       </div>
 
-      <Section title="Typ">
-        <div className="flex flex-wrap gap-2">
-          {formatOptions(result).map((option) => (
-            <button
-              key={option.format}
-              type="button"
-              disabled={option.disabled !== null}
-              title={option.disabled ?? undefined}
-              aria-pressed={view.format === option.format}
-              onClick={() => set({ format: option.format })}
-              className={chip(view.format === option.format)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      {isChart && (
-        <Section title="QR kód v grafu">
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={chip(view.qr)} aria-pressed={view.qr} onClick={() => set({ qr: true })}>
-              Zapnutý
-            </button>
-            <button type="button" className={chip(!view.qr)} aria-pressed={!view.qr} onClick={() => set({ qr: false })}>
-              Vypnutý
-            </button>
-          </div>
-          <p className="m-0 text-[14px] text-muted">
-            {hasLink
-              ? "QR vede na odkaz s důkazem, odkud jsou data. Je i ve staženém obrázku."
-              : "Tahle odpověď nemá odkaz (testovací data), proto QR v grafu není. U skutečné odpovědi se ukáže."}
-          </p>
-        </Section>
-      )}
-
-      <Section title="Nadpis">
-        <input
-          aria-label="Nadpis"
-          value={view.title}
-          maxLength={120}
-          onChange={(event) => set({ title: event.target.value })}
-          className="h-12 w-full rounded-lg border border-line bg-surface px-3 text-[16px] text-ink sm:h-11"
-        />
-      </Section>
-
-      <Section title="Pozadí">
-        <div className="flex flex-wrap gap-2">
-          {PALETTE_NAMES.map((name: PaletteName) => (
-            <button
-              key={name}
-              type="button"
-              aria-label={`Pozadí ${PALETTE[name].label}`}
-              aria-pressed={background === name}
-              title={PALETTE[name].label}
-              onClick={() => set({ background: name })}
-              className={`size-11 cursor-pointer rounded-lg ring-1 ring-line transition-transform hover:scale-110 sm:size-9 ${background === name ? "outline-2 outline-offset-2 outline-ink" : ""}`}
-              style={{ background: PALETTE[name].bg }}
-            />
-          ))}
-        </div>
-      </Section>
-
-      {slots.length > 0 && (
-        <DataColors
-          key={view.format}
-          slots={slots}
-          colorOf={(i) => slotColor(view, i, uniformColors(result, view.format))}
-          onChange={(i, color) => {
-            const colors = [...view.colors];
-            while (colors.length < slots.length) colors.push(null);
-            colors[i] = color;
-            set({ colors });
-          }}
-        />
-      )}
-
-      {isChart && view.format !== "pie" && <AxisControls key={view.axis.mode} axis={view.axis} values={values} onChange={(axis) => set({ axis })} />}
-
-
-      <div className="flex flex-wrap gap-2 border-t border-line pt-5">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className={`${PRESS} min-h-11 rounded-full bg-tabule px-4 py-2 text-[15px] font-semibold text-white disabled:opacity-60`}
-        >
-          {saving ? "Ukládám…" : saved ? "Uloženo do odkazu" : "Uložit vzhled do odkazu"}
-        </button>
-        <button type="button" onClick={onReset} className={`${PRESS} min-h-11 rounded-full border border-line px-4 py-2 text-[15px] font-semibold hover:border-ink`}>
-          Obnovit původní
-        </button>
+      <div role="tablist" aria-label="Části vzhledu" className="grid auto-cols-fr grid-flow-col gap-1 rounded-full bg-band p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`${id}-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`${id}-panel`}
+            onClick={() => setChosen(t.id)}
+            className={`${PRESS} min-h-9 rounded-full px-2 text-[14px] font-semibold ${tab === t.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
-      <p className="-mt-3 m-0 text-[13px] text-muted">
-        Uložení vytvoří nový odkaz (a QR) s tímhle vzhledem. Čísla zůstávají stejná, původní odkaz se nemění.
-      </p>
+
+      <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${tab}`} className="flex min-h-[180px] flex-col gap-5">
+        {tab === "typ" && (
+          <>
+            <Section title="Typ grafu">
+              <div className="flex flex-wrap gap-2">
+                {formatOptions(result).map((option) => (
+                  <button
+                    key={option.format}
+                    type="button"
+                    disabled={option.disabled !== null}
+                    title={option.disabled ?? undefined}
+                    aria-pressed={view.format === option.format}
+                    onClick={() => set({ format: option.format })}
+                    className={chip(view.format === option.format)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </Section>
+            {isChart && (
+              <Section title="QR kód v grafu">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={chip(view.qr)} aria-pressed={view.qr} onClick={() => set({ qr: true })}>
+                    Zapnutý
+                  </button>
+                  <button type="button" className={chip(!view.qr)} aria-pressed={!view.qr} onClick={() => set({ qr: false })}>
+                    Vypnutý
+                  </button>
+                </div>
+                {!hasLink && <p className="m-0 text-[14px] text-muted">Testovací odpověď nemá odkaz, proto QR v grafu není.</p>}
+              </Section>
+            )}
+          </>
+        )}
+
+        {tab === "nadpis" && (
+          <Section title="Nadpis">
+            <input
+              aria-label="Nadpis"
+              value={view.title}
+              maxLength={120}
+              onChange={(event) => set({ title: event.target.value })}
+              className="h-11 w-full rounded-lg border border-line bg-surface px-3 text-[16px] text-ink"
+            />
+          </Section>
+        )}
+
+        {tab === "barvy" && (
+          <>
+            <Section title="Pozadí">
+              <div className="flex flex-wrap gap-1.5">
+                {PALETTE_NAMES.map((name: PaletteName) => (
+                  <button
+                    key={name}
+                    type="button"
+                    aria-label={`Pozadí ${PALETTE[name].label}`}
+                    aria-pressed={background === name}
+                    title={PALETTE[name].label}
+                    onClick={() => set({ background: name })}
+                    className={`size-8 cursor-pointer rounded-md ring-1 ring-line transition-transform hover:scale-110 ${background === name ? "outline-2 outline-offset-2 outline-ink" : ""}`}
+                    style={{ background: PALETTE[name].bg }}
+                  />
+                ))}
+              </div>
+            </Section>
+            {slots.length > 0 && (
+              <DataColors
+                key={view.format}
+                slots={slots}
+                colorOf={(i) => slotColor(view, i, uniformColors(result, view.format))}
+                onChange={(i, color) => {
+                  const colors = [...view.colors];
+                  while (colors.length < slots.length) colors.push(null);
+                  colors[i] = color;
+                  set({ colors });
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {tab === "osa" && <AxisControls key={view.axis.mode} axis={view.axis} values={values} onChange={(axis) => set({ axis })} />}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-line pt-4">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className={`${PRESS} min-h-10 flex-1 rounded-full bg-tabule px-3 py-2 text-[15px] font-semibold text-white disabled:opacity-60`}
+          >
+            {saving ? "Ukládám…" : saved ? "Uloženo" : "Uložit do odkazu"}
+          </button>
+          <button type="button" onClick={onReset} className={`${PRESS} min-h-10 rounded-full border border-line px-3 py-2 text-[15px] font-semibold hover:border-ink`}>
+            Původní
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

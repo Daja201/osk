@@ -3,7 +3,7 @@
 import { type Ref, useEffect, useRef, useState } from "react";
 import type { PALETTE } from "@/lib/ai/palette";
 import type { SeriesDisplayOk } from "@/lib/citiq/display";
-import { type DataPick, type ValueAxis, axisFor, chartData, extremes, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
+import { type DataPick, type ValueAxis, axisFor, chartData, extremes, labelStep, percentShares, pickAt, pieSlices } from "@/lib/ui/chart";
 import type { AxisSetting } from "@/lib/view";
 import { formatNumber } from "@/lib/ui/format";
 import QrCode from "../QrCode";
@@ -98,27 +98,30 @@ function xLabels(kind: Kind, data: ReturnType<typeof chartData>, plotW: number) 
 type Legend = { label: string; color: string }[];
 
 // Legenda do jednoho nebo víc řádků; vrací prvky a výšku, kterou zabrala.
-function legendRows(items: Legend, width: number, colors: Colors, top: number) {
+// fontSize: u koláče větší (14 → 17), protože čísla a procenta jsou jen v legendě.
+function legendRows(items: Legend, width: number, colors: Colors, top: number, fontSize = 14) {
   const nodes: React.ReactNode[] = [];
+  const rowHeight = Math.round(fontSize * 1.7);
+  const box = fontSize;
   let x = 0;
   let row = 0;
   items.forEach((item, i) => {
-    const w = 26 + item.label.length * 8.2;
+    const w = box + 12 + item.label.length * fontSize * 0.59;
     if (x > 0 && x + w > width) {
       x = 0;
       row += 1;
     }
     nodes.push(
-      <g key={i} transform={`translate(${x}, ${top + row * 24})`}>
-        <rect width="14" height="14" y="-11" rx="3" fill={item.color} stroke={colors.grid} />
-        <text x="20" fontSize="14" fill={colors.text}>
+      <g key={i} transform={`translate(${x}, ${top + row * rowHeight})`}>
+        <rect width={box} height={box} y={-box * 0.8} rx="3" fill={item.color} stroke={colors.grid} />
+        <text x={box + 6} fontSize={fontSize} fontWeight={fontSize > 14 ? 600 : undefined} fill={colors.text}>
           {item.label}
         </text>
       </g>,
     );
     x += w + 14;
   });
-  return { nodes, height: items.length > 0 ? (row + 1) * 24 : 0 };
+  return { nodes, height: items.length > 0 ? (row + 1) * rowHeight : 0 };
 }
 
 // Klikací prvek grafu (sloupec, bod, výseč): myší i klávesnicí (Tab + Enter/mezerník).
@@ -183,7 +186,8 @@ export default function Chart({
   // Nadpis: na telefonu menší písmem a až na 3 řádky, ať se z něj neztratí období.
   const titleSize = width < 500 ? 22 : 28;
   const titleLineHeight = titleSize + 6;
-  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), width < 500 ? 3 : 2);
+  // Až 3 řádky: dlouhý nadpis (víc míst + datum) se jinak na počítači uřízne a ztratí se datum.
+  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), 3);
   const top = Math.max(pad + titleLines.length * titleLineHeight + 12, qrSize ? pad + qrSize + 22 : 0);
   const data = chartData(result);
   const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
@@ -208,7 +212,7 @@ export default function Chart({
       : data.series.length > 1
         ? data.series.map((s, i) => ({ label: s.name, color: seriesColor(i, 0) }))
         : [];
-  const legend = legendRows(legendItems, width - 2 * pad, colors, 0);
+  const legend = legendRows(legendItems, width - 2 * pad, colors, 0, kind === "pie" ? (width < 500 ? 15 : 17) : 14);
   // Popis pro čtečky obrazovky: hodnoty grafu slovy (u dlouhých řad jen prvních 12).
   const summary =
     kind === "pie"
@@ -458,18 +462,17 @@ function Pie({
   // Úhel začátku každé výseče (od 12 hodin po směru hodinových ručiček), spočítaný předem.
   const starts = slices.map((_, i) => -Math.PI / 2 + (slices.slice(0, i).reduce((sum, s) => sum + s.value, 0) / total) * Math.PI * 2);
   const point = (a: number, radius: number) => `${cx + radius * Math.cos(a)},${cy + radius * Math.sin(a)}`;
+  // Čísla a procenta jsou v legendě pod grafem, ne ve výsečích: u malé výseče (2 %) by se překrývala s grafem.
   return (
     <g>
       {slices.map((slice, i) => {
         const sweep = (slice.value / total) * Math.PI * 2;
         const start = starts[i];
         const end = start + sweep;
-        const mid = start + sweep / 2;
         const path =
           slices.length === 1
             ? `M${cx - r},${cy}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`
             : `M${cx},${cy}L${point(start, r)}A${r},${r} 0 ${sweep > Math.PI ? 1 : 0},1 ${point(end, r)}Z`;
-        const [lx, ly] = point(mid, r * 0.62).split(",").map(Number);
         return (
           <g key={i} {...interactive(slice.pick, `${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %). Ukázat odkud je.`, interaction, colors.text)}>
             <path
@@ -480,11 +483,6 @@ function Pie({
             >
               <title>{`${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %)`}</title>
             </path>
-            {shares[i] >= 6 && (
-              <text x={lx} y={ly + 6} fontSize="17" fontWeight="700" textAnchor="middle" fill={textOn(sliceColor(i))}>
-                {shares[i]} %
-              </text>
-            )}
           </g>
         );
       })}
