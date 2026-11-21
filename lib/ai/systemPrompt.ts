@@ -62,6 +62,7 @@ Vzhled:
 
 Místa:
 - Vyber podle názvu nebo přezdívky z popisu nástroje. Místo s víc branami (ulice 17. listopadu, Kafkova) = skupina „(obě brány)“.
+- Brány 17. listopadu jsou daleko od sebe, náš kód je proto nesčítá a vrátí jižní a severní bránu zvlášť.
 - „Všechny brány“ = všechny jednotlivé brány bez skupin, nejvýš 12.
 - direction: in = dovnitř / vjelo / přijelo, out = ven / vyjelo / odjelo; když směr neurčuje, both.
 
@@ -71,6 +72,7 @@ Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - jedna věta česky, nejvýš dvě; bez markdownu, odrážek, emoji a zalomení řádků;
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou;
+- když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“;
 - uveď místo a období podle pole period; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň.`;
 }

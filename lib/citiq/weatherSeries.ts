@@ -2,7 +2,7 @@ import { getCachedDay, getCachedRange, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
 import { ZodError } from "zod";
 import { findWeatherRow, parseWeatherResponse, weatherMeasurement } from "./weatherParse";
-import { resolveWeatherMetric, resolveWeatherStation, type WeatherMetricKey } from "./weatherStations";
+import { HIH_RELH_KEY, HIH_TEMP_KEY, resolveWeatherMetric, resolveWeatherStation, stationName, type WeatherMetricKey } from "./weatherStations";
 
 const VIEW = "meteorological-data-olomouc";
 const TIME_ZONE = "Europe/Prague";
@@ -49,7 +49,7 @@ export type WeatherSeriesError = { ok: false; code: string; message: string };
 export type WeatherSeriesResult = WeatherSeriesOk | WeatherSeriesError;
 
 type WeatherStation = NonNullable<ReturnType<typeof resolveWeatherStation>>;
-type Slot = { start: number; date: string; values: (number | null)[] };
+type Slot = { start: number; date: string; values: (number | null)[]; invalid: boolean[] };
 
 const fail = (code: string, message: string): WeatherSeriesError => ({ ok: false, code, message });
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -77,25 +77,42 @@ function hourIndexOf(pointMs: number, dayStartMs: number): number {
   return Math.ceil((pointMs - dayStartMs) / MS_PER_HOUR) - 1;
 }
 
+// Hodinové hodnoty jedné veličiny. Hodnota mimo fyzikální rozsah je chyba čidla: místo ní null
+// a invalid = true (počítáme ji do poznámky, ne do průměru).
 function metricHours(
   row: ReturnType<typeof findWeatherRow>,
   metric: WeatherMetricKey,
   dayStart: number,
   hours: number,
-): (number | null)[] {
+): { values: (number | null)[]; invalid: boolean[] } {
   const values: (number | null)[] = new Array(hours).fill(null);
+  const invalid: boolean[] = new Array(hours).fill(false);
   const measurement = weatherMeasurement(row, metric);
-  if (!measurement) return values;
+  const range = resolveWeatherMetric(metric);
+  if (!measurement || !range) return { values, invalid };
   for (const { point } of measurement.values) {
     const index = hourIndexOf(Date.parse(point.time), dayStart);
-    if (index >= 0 && index < hours) values[index] = point.value;
+    if (index < 0 || index >= hours) continue;
+    if (point.value < range.min || point.value > range.max) invalid[index] = true;
+    else values[index] = point.value;
   }
-  return values;
+  // Vlhkost: hodina s chybnou teplotou téhož čidla je chybná i u vlhkosti.
+  if (metric === HIH_RELH_KEY) {
+    const temperature = metricHours(row, HIH_TEMP_KEY, dayStart, hours);
+    temperature.invalid.forEach((bad, index) => {
+      if (bad) {
+        values[index] = null;
+        invalid[index] = true;
+      }
+    });
+  }
+  return { values, invalid };
 }
 
+// Průměr zaokrouhlený na jedno desetinné místo (čidla víc přesnosti nedávají; 9,460219… °C nikomu nepomůže).
 function mean(values: (number | null)[]): number | null {
   const present = values.filter((value): value is number => value !== null);
-  return present.length === 0 ? null : present.reduce((sum, value) => sum + value, 0) / present.length;
+  return present.length === 0 ? null : Math.round((present.reduce((sum, value) => sum + value, 0) / present.length) * 10) / 10;
 }
 
 const timeFormat = new Intl.DateTimeFormat("cs-CZ", { timeZone: TIME_ZONE, hour: "numeric", minute: "2-digit" });
@@ -133,7 +150,8 @@ export async function weatherSeries(
   const today = pragueDate(now);
   const slots: Slot[] = [];
   const sources: WeatherSource[] = [];
-  const requestedKeys = metrics.map((key) => key);
+  // U vlhkosti stahujeme i teplotu téhož čidla (podle ní poznáme poruchu, viz metricHours).
+  const requestedKeys: WeatherMetricKey[] = metrics.includes(HIH_RELH_KEY) && !metrics.includes(HIH_TEMP_KEY) ? [...metrics, HIH_TEMP_KEY] : metrics;
 
   for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) {
     const dayStart = utcStartOfPragueDay(date).getTime();
@@ -179,7 +197,9 @@ export async function weatherSeries(
     });
     for (let index = 0; index < hours; index++) {
       const start = dayStart + index * MS_PER_HOUR;
-      if (start >= fromMs && start < endMs) slots.push({ start, date, values: perSelection.map((values) => values[index]) });
+      if (start >= fromMs && start < endMs) {
+        slots.push({ start, date, values: perSelection.map((item) => item.values[index]), invalid: perSelection.map((item) => item.invalid[index]) });
+      }
     }
   }
 
@@ -197,13 +217,15 @@ export async function weatherSeries(
     }
   }
 
+  const invalidHours = new Map<number, number>(); // index řady → kolik hodin čidlo poslalo chybnou hodnotu
   const series: WeatherValueSeries[] = stations.flatMap((station, stationIndex) =>
     metrics.map((metric, metricIndex) => {
       const index = stationIndex * metrics.length + metricIndex;
       const descriptor = resolveWeatherMetric(metric)!;
       const hourly = slots.map((slot) => slot.values[index]);
+      invalidHours.set(index, slots.filter((slot) => slot.invalid[index]).length);
       return {
-        gate: `${station.nick} · ${descriptor.name} (${descriptor.unit})`,
+        gate: `${stationName(station.nick)} · ${descriptor.label} (${descriptor.unit})`,
         sensors: [station.uuid],
         station: station.nick,
         metric,
@@ -215,15 +237,24 @@ export async function weatherSeries(
     }),
   );
   if (series.every((item) => item.coverage.hours === 0)) {
+    if ([...invalidHours.values()].some((count) => count > 0)) {
+      return fail("NO_DATA", "Čidla vybraných stanic v tomto čase posílala jen chybné hodnoty (např. 125 °C), proto je neukazujeme.");
+    }
     return fail("NO_DATA", "Vybrané meteorologické stanice v tomto čase neposlaly žádná data.");
   }
 
   const notes: string[] = [];
   if (clipped) notes.push(`Rozsah sahal do budoucnosti, data jsou do ${timeFormat.format(endMs)} (poslední celá hodina).`);
-  for (const item of series) {
-    if (item.coverage.hours === 0) notes.push(`${item.gate}: stanice v tomto čase nevysílala.`);
-    else if (item.coverage.hours < item.coverage.of) notes.push(`${item.gate}: chybí data za ${item.coverage.of - item.coverage.hours} h, průměr je neúplný.`);
-  }
+  series.forEach((item, index) => {
+    const invalid = invalidHours.get(index) ?? 0;
+    const missing = item.coverage.of - item.coverage.hours - invalid;
+    if (item.coverage.hours === 0 && invalid > 0) notes.push(`${item.gate}: čidlo v tomto čase posílalo jen chybné hodnoty.`);
+    else if (item.coverage.hours === 0) notes.push(`${item.gate}: stanice v tomto čase nevysílala.`);
+    else {
+      if (invalid > 0) notes.push(`${item.gate}: ${invalid} h vyřazeno (chybná hodnota čidla), průměr je neúplný.`);
+      if (missing > 0) notes.push(`${item.gate}: chybí data za ${missing} h, průměr je neúplný.`);
+    }
+  });
 
   return {
     ok: true,

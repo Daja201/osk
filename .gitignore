@@ -2,6 +2,7 @@
 
 data/cache/
 data/answers/
+data/conversations/
 .env.local
 
 # dependencies

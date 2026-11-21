@@ -4,7 +4,7 @@ import { valueAxis } from "../lib/ui/chart";
 
 describe("QR kód", () => {
   it("odkaz na uloženou odpověď se vejde do malého QR (verze 3–4, 29–33 čtverečků)", () => {
-    const modules = qrModules(shareUrl("QkfDiTzpk7", "https://osk.example.cz"));
+    const modules = qrModules(shareUrl({ id: "QkfDiTzpk7", conversation_id: "Hx7pQ2mN9a" }, "https://osk.example.cz") ?? "");
     expect(modules.length).toBeGreaterThanOrEqual(25);
     expect(modules.length).toBeLessThanOrEqual(33);
     // Tři rohové čtverce (vyhledávací vzory) jsou vždy tmavé v rohu.
@@ -16,7 +16,10 @@ describe("QR kód", () => {
   });
 
   it("adresa a localhost", () => {
-    expect(shareUrl("abc", "https://osk.cz/")).toBe("https://osk.cz/a/abc");
+    // Odkaz vede na celou konverzaci; starší odpověď bez konverzace na samotnou odpověď.
+    expect(shareUrl({ id: "abc", conversation_id: "conv" }, "https://osk.cz/")).toBe("https://osk.cz/c/conv");
+    expect(shareUrl({ id: "abc" }, "https://osk.cz/")).toBe("https://osk.cz/a/abc");
+    expect(shareUrl({ id: null }, "https://osk.cz")).toBeNull();
     expect(isLocalhost("http://localhost:3000/a/x")).toBe(true);
     expect(isLocalhost("http://192.168.1.20:3000/a/x")).toBe(false);
   });

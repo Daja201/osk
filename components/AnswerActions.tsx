@@ -33,7 +33,7 @@ function QrButton({ url, name, className }: { url: string; name: string; classNa
       >
         <div className="flex flex-col items-center gap-3 p-5 text-center sm:gap-4 sm:p-8">
           <h2 id="qr-nadpis" className="m-0 font-sign text-[22px] leading-tight font-bold sm:text-[26px]">
-            Odkaz na tuhle odpověď
+            {url.includes("/c/") ? "Odkaz na celou konverzaci" : "Odkaz na tuhle odpověď"}
           </h2>
           <div ref={box} className="rounded-2xl bg-white p-2">
             <QrCode text={url} size={240} className="block h-auto w-[min(240px,58vw)]" />
@@ -99,7 +99,7 @@ export default function AnswerActions({
   const [status, setStatus] = useState<string | null>(null);
   // U „nevím“ a chyb není co sdílet ani stahovat: zůstane jen „Jak to víme“.
   const shareable = viewOf(answer) === "answer";
-  const shareUrl = useShareUrl(answer.id);
+  const shareUrl = useShareUrl(answer);
   const url = shareable ? shareUrl : null;
   const result = answer.result?.ok ? answer.result : null;
   const shown = effectiveView(answer, view);

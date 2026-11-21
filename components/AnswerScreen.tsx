@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAsk } from "@/app/ask-context";
+import { MAX_TURNS, useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
 import { useIsWide } from "@/lib/ui/media";
 import { type ChartView, defaultView } from "@/lib/view";
 import AnswerActions from "./AnswerActions";
 import AnswerCard from "./AnswerCard";
 import ChartEditor from "./ChartEditor";
+import FollowUp from "./FollowUp";
 import Footer from "./Footer";
+import { PRESS } from "./styles";
 import TopBar from "./TopBar";
 import { effectiveView } from "./ViewChart";
 
@@ -20,7 +22,7 @@ async function saveVariant(answer: AskAnswer, view: ChartView): Promise<AskAnswe
     const response = await fetch(`/api/answers/${answer.id}/variant`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ view }),
+      body: JSON.stringify({ view, conversation_id: answer.conversation_id ?? null }),
     });
     if (!response.ok) return null;
     return (await response.json()) as AskAnswer;
@@ -29,8 +31,9 @@ async function saveVariant(answer: AskAnswer, view: ChartView): Promise<AskAnswe
   }
 }
 
-// Modrá obrazovka: uprostřed odpověď (věta, graf, tabulka…), pod ní tlačítka a vpravo malé tlačítko na podrobnosti.
-// „Upravit vzhled“ otevře editor vedle grafu (na mobilu pod ním); view = vzhled z editoru (drží ho HomeView).
+// Modrá obrazovka s konverzací: předchozí otázky a odpovědi nahoře, poslední odpověď s tlačítky,
+// pod ní pole pro navazující otázku. „Upravit vzhled“ (jen na počítači) otevře editor vedle poslední odpovědi;
+// view = vzhled z editoru (drží ho HomeView).
 export default function AnswerScreen({
   active,
   onDetails,
@@ -39,12 +42,12 @@ export default function AnswerScreen({
   onViewChange,
 }: {
   active: boolean;
-  onDetails: () => void;
+  onDetails: (answer: AskAnswer) => void;
   onNew: () => void;
   view: ChartView | null;
   onViewChange: (view: ChartView | null) => void;
 }) {
-  const { answer, status, replace } = useAsk();
+  const { answer, history, question, status, turns, ask, replace } = useAsk();
   const wide = useIsWide();
   const region = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -57,9 +60,14 @@ export default function AnswerScreen({
 
   // Po příchodu odpovědi (a po návratu z podrobností) přesuneme focus na odpověď,
   // aby ji čtečka obrazovky přečetla a klávesnice pokračovala odtud.
+  // U navazující otázky poslední odpověď posuneme nahoru do pohledu.
+  const latest = useRef<HTMLElement>(null);
   useEffect(() => {
     if (active && shown) region.current?.focus({ preventScroll: true });
   }, [active, shown]);
+  useEffect(() => {
+    if (history.length > 0) latest.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [history.length, shown]);
 
   const canOpenDetails = shown !== null && shown.trace.steps.length > 0;
   // Editor vzhledu je jen na široké obrazovce (počítač). Na telefonu by byl nepřehledný, proto tam není vůbec.
@@ -112,33 +120,52 @@ export default function AnswerScreen({
       <TopBar tone="blue" info="answer" onNew={onNew} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen ? "max-w-[1240px]" : "max-w-[900px]"}`}>
-          {shown === null ? (
-            <p aria-live="polite" className="m-0 text-center font-sign text-[24px] font-semibold text-on-sign-muted">
-              Počítám z dat senzorů…
-            </p>
-          ) : (
-            <div className={editorOpen ? "grid items-start gap-5 grid-cols-[minmax(0,1fr)_360px]" : ""}>
-              <div className="min-w-0">
-                <div ref={region} tabIndex={-1} role="region" aria-label="Odpověď" className="animate-rise rounded-3xl">
-                  <AnswerCard answer={shown} view={view} svgRef={svg} />
+          {/* Předchozí otázky konverzace: otázka, odpověď a odkaz na podrobnosti. */}
+          {history.map((previous) => (
+            <section key={previous.id ?? previous.created_at} className="mb-8 flex flex-col gap-3">
+              <Question text={previous.question} />
+              <AnswerCard answer={previous} interactive={false} />
+              <button type="button" onClick={() => onDetails(previous)} className={`${PRESS} min-h-11 self-start rounded-full bg-white/15 px-4 py-2 text-[15px] font-semibold text-white hover:bg-white/25`}>
+                Jak to víme
+              </button>
+            </section>
+          ))}
+          <section ref={latest} className="flex scroll-mt-4 flex-col gap-3">
+            {history.length > 0 && <Question text={shown?.question ?? question} />}
+            {shown === null ? (
+              <p aria-live="polite" className="m-0 py-8 text-center font-sign text-[24px] font-semibold text-on-sign-muted">
+                Počítám z dat senzorů…
+              </p>
+            ) : (
+              <div className={editorOpen ? "grid items-start gap-5 grid-cols-[minmax(0,1fr)_360px]" : ""}>
+                <div className="min-w-0">
+                  <div ref={region} tabIndex={-1} role="region" aria-label="Odpověď" className="animate-rise rounded-3xl">
+                    <AnswerCard answer={shown} view={view} svgRef={svg} />
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <AnswerActions
+                      answer={shown}
+                      view={view}
+                      svg={svg}
+                      onDetails={canOpenDetails ? () => onDetails(shown) : undefined}
+                      onEdit={result && wide ? toggleEditor : undefined}
+                      editing={editing}
+                    />
+                  </div>
                 </div>
-                <div className="mt-3 sm:mt-4">
-                  <AnswerActions
-                    answer={shown}
-                    view={view}
-                    svg={svg}
-                    onDetails={canOpenDetails ? onDetails : undefined}
-                    onEdit={result && wide ? toggleEditor : undefined}
-                    editing={editing}
-                  />
-                </div>
+                {editor && <div className="animate-rise sticky top-0">{editor}</div>}
               </div>
-              {editor && <div className="animate-rise sticky top-0">{editor}</div>}
-            </div>
-          )}
+            )}
+          </section>
+          {shown !== null && turns > 0 && <FollowUp turns={turns} max={MAX_TURNS} onAsk={(next) => void ask(next)} />}
         </div>
         <Footer tone="blue" />
       </main>
     </div>
   );
+}
+
+// Otázka nad odpovědí v konverzaci.
+function Question({ text }: { text: string }) {
+  return <p className="m-0 text-[17px] leading-snug font-medium text-pretty text-on-sign-muted sm:text-[19px]">„{text}“</p>;
 }

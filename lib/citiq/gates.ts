@@ -6,6 +6,8 @@ export type Gate = {
   objectName: string;
   aliases: string[];
   members?: string[];
+  location?: { lat: number; lon: number }; // z metadat CITIQ (olomouc-traffic-gates/metadata), jen u bran ve skupinách
+  label?: string; // název pro lidi, když se liší od objectName
 };
 
 export const GATES: Gate[] = [
@@ -14,15 +16,15 @@ export const GATES: Gate[] = [
     aliases: ["17. listopadu", "ulice 17. listopadu"],
     members: ["17.listopadu JIH", "17.listopadu Sever"],
   },
-  { objectName: "17.listopadu JIH", aliases: ["17. listopadu, jižní brána"] },
-  { objectName: "17.listopadu Sever", aliases: ["17. listopadu, severní brána"] },
+  { objectName: "17.listopadu JIH", aliases: ["17. listopadu, jižní brána"], label: "17. listopadu (jih)", location: { lat: 49.589588, lon: 17.26064 } },
+  { objectName: "17.listopadu Sever", aliases: ["17. listopadu, severní brána"], label: "17. listopadu (sever)", location: { lat: 49.595013, lon: 17.265114 } },
   {
     objectName: "Kafkova (obě brány)",
     aliases: ["Kafkova"],
     members: ["Kafkova - levá", "Kafkova - pravá"],
   },
-  { objectName: "Kafkova - levá", aliases: [] },
-  { objectName: "Kafkova - pravá", aliases: [] },
+  { objectName: "Kafkova - levá", aliases: [], location: { lat: 49.573565, lon: 17.228505 } },
+  { objectName: "Kafkova - pravá", aliases: [], location: { lat: 49.573774, lon: 17.228933 } },
   { objectName: "Aksamitova/Vídeňská", aliases: ["Aksamitova", "Vídeňská"] },
   { objectName: "Billa (Hynaisova)", aliases: ["u Billy", "Hynaisova"] },
   { objectName: "Fisherova", aliases: [] },
@@ -71,3 +73,41 @@ export function resolveGate(name: string): Gate | null {
 export function sensorsOf(gate: Gate): string[] {
   return gate.members ?? [gate.objectName];
 }
+
+// Brány skupiny dál od sebe než tohle neměří stejné auta jednou: auto, které projede celou ulicí,
+// by se v součtu počítalo dvakrát. Takové skupiny proto nesčítáme a vracíme každou bránu zvlášť.
+// 17. listopadu: jižní a severní brána jsou 684 m od sebe → zvlášť. Kafkova: 39 m (dva pruhy vedle sebe) → součet.
+export const MAX_GROUP_SPREAD_M = 50;
+
+// Vzdálenost dvou bodů v metrech (haversine, na pár set metrů je přesná dost).
+export function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+// Místa, za která se počítá samostatné číslo: brána, skupina blízkých bran (součet), nebo u vzdálené
+// skupiny její jednotlivé brány. Směry IN a OUT jedné brány se sčítají vždy (to jsou jen směry).
+export function placesOf(gate: Gate): Gate[] {
+  if (!gate.members) return [gate];
+  const members = gate.members.map((name) => GATES.find((g) => g.objectName === name)).filter((g): g is Gate => g !== undefined);
+  const spread = members.some((a) => members.some((b) => a.location && b.location && distanceM(a.location, b.location) > MAX_GROUP_SPREAD_M));
+  return spread ? members : [gate];
+}
+
+// Název místa pro lidi: skupina „17. listopadu (obě brány)“ → „17. listopadu“, brána „17.listopadu JIH“ → „17. listopadu (jih)“.
+export function placeName(gate: string): string {
+  return GATES.find((g) => g.objectName === gate)?.label ?? gate.replace(/\s*\(obě brány\)$/, "");
+}
+
+// Popis datasetu pro lidi (panel „Co za data mám“ pod polem pro otázku). Zdroj: metadata CITIQ olomouc-traffic-gates.
+export const TRAFFIC_DATASET = {
+  title: "Doprava",
+  description: "Počty vozidel, která projela dopravními branami, po hodinách, za posledních 30 dní. Vjezdy i výjezdy.",
+  // Místa tak, jak je počítáme: brány mimo skupiny a skupiny (vzdálená skupina rozdělená na brány).
+  places: GATES.filter((gate) => !GATES.some((group) => group.members?.includes(gate.objectName)))
+    .flatMap(placesOf)
+    .map((gate) => placeName(gate.objectName)),
+};

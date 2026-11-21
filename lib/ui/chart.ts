@@ -4,8 +4,9 @@ import type { SeriesOk } from "../citiq/series";
 import { PALETTE, type PaletteName } from "../ai/palette";
 import { type AxisSetting, customAxisError } from "../view";
 import { formatNumber, niceAxis } from "./format";
+import { placeName } from "../citiq/gates";
+export { placeName };
 
-export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
 
 // Kategorie na ose x a řady. S jediným bucketem (celkem za období) jsou kategorie místa
 // a řada jen jedna; jinak jsou kategorie období (hodiny / dny) a řada = místo.

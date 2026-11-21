@@ -25,7 +25,7 @@ function Item({ term, children }: { term: React.ReactNode; children: React.React
 function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
   return (
     <>
-      <p className="m-0 text-[17px] leading-relaxed text-ink/80">Odpovídám z dat dopravních senzorů (bran) v Olomouci. AI pochopí otázku a napíše větu. Čísla počítá a kontroluje náš kód.</p>
+      <p className="m-0 text-[17px] leading-relaxed text-ink/80">Odpovídám z dat dopravních senzorů (bran) a meteostanic v Olomouci. Na odpověď můžete navázat další otázkou (až 10 v jedné konverzaci). AI pochopí otázku a napíše větu. Čísla počítá a kontroluje náš kód.</p>
       <dl className="m-0 flex flex-col gap-3">
         <Item term="Co">Kolik vozidel projelo jedním nebo víc místy (až 12), porovnání míst a dní, špičky, vjezdy a výjezdy.</Item>
         <Item term="Kdy">Libovolný čas za posledních 30 dní, najednou až 31 dní: „včera“, „v pondělí“, „posledních 7 hodin“, „minulý týden“, „mezi 6 a 10“.</Item>
@@ -45,10 +45,10 @@ function AnswerHelp() {
     <dl className="m-0 flex flex-col gap-3">
       <Item term="Graf nebo tabulka">Nakreslil je náš kód přímo z dat senzorů. AI do nich nic nepíše, jen vybrala, co ukázat.</Item>
       <Item term="Věta">U otázky „kolik…“ ji napsala AI z hotových čísel a náš kód v ní zkontroloval každé číslo.</Item>
-      <Item term="Kopírovat odkaz">Odkaz na tuhle odpověď i s důkazem, odkud čísla jsou. Platí 7 dní, dá se vložit do prezentace nebo e-mailu.</Item>
+      <Item term="Kopírovat odkaz">Odkaz na celou konverzaci (až 10 otázek) i s důkazem, odkud čísla jsou. Platí 7 dní, dá se vložit do prezentace nebo e-mailu.</Item>
       <Item term="Stáhnout PNG / CSV">Obrázek grafu (i s nadpisem a zdrojem) a data pro Excel.</Item>
       <Item term="Trojúhelník">Upozornění, že senzory část doby nevysílaly a součet není úplný.</Item>
-      <Item term="Tlačítko vpravo">Podrobnosti: jak odpověď vznikla, všechna čísla a přesné dotazy na zdrojové API.</Item>
+      <Item term="Jak to víme">Jak odpověď vznikla, všechna čísla a přesné dotazy na zdrojové API.</Item>
     </dl>
   );
 }
@@ -146,7 +146,10 @@ export default function InfoButton({
           {topic === "answer" && <AnswerHelp />}
           {topic === "details" && <DetailsHelp />}
           <p className="m-0 border-t border-line pt-4 text-[14px] leading-relaxed text-muted sm:hidden">
-            © 2026 SleepNotFound · Data: senzorová síť Olomouc (CITIQ) · Nejde o oficiální službu města
+            © 2026 SleepNotFound ·{" "}
+            <a href="https://github.com/Daja201/osk" target="_blank" rel="noreferrer" className="text-inherit underline underline-offset-2">
+              GitHub
+            </a>
           </p>
         </div>
       </dialog>

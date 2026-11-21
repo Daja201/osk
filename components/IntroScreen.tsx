@@ -5,7 +5,8 @@ import { useAsk } from "@/app/ask-context";
 import { useIsWide } from "@/lib/ui/media";
 import Footer from "./Footer";
 import { PRESS } from "./styles";
-import { TOP_EXAMPLES } from "./Suggestions";
+import { TRAFFIC_DATASET } from "@/lib/citiq/gates";
+import { WEATHER_DATASET } from "@/lib/citiq/weatherStations";
 import TopBar from "./TopBar";
 
 // Kroky animace: tlačítko se roztočí, „roztéká“ (mění tvar) a zvětší přes celou obrazovku.
@@ -26,6 +27,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const wide = useIsWide(); // na úzkém displeji kratší ukázkový text, dlouhý by se uřízl
   const [value, setValue] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const blob = useRef<HTMLDivElement>(null);
@@ -101,34 +103,40 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
     </form>
   );
 
-  // Ukázkové otázky jako klikací tlačítka: hned vidět, klik otázku rovnou položí (i s animací).
-  const examples = (
-    <div className={`flex flex-col gap-2.5 ${fade}`}>
-      <p className="m-0 text-center text-[15px] font-medium text-muted">Zkuste třeba</p>
-      <ul className="m-0 flex list-none flex-wrap justify-center gap-2 p-0">
-        {TOP_EXAMPLES.map((question) => (
-          <li key={question} className="max-w-full">
-            <button
-              type="button"
-              disabled={leaving}
-              onClick={() => {
-                setValue(question);
-                start(question);
-              }}
-              className={`${PRESS} min-h-11 max-w-full rounded-full border border-line bg-surface px-4 py-2 text-left text-[15px] leading-snug font-medium text-ink hover:border-ink hover:bg-band disabled:hover:scale-100`}
-            >
-              {question}
-            </button>
-          </li>
-        ))}
-      </ul>
+  // Pod polem tlačítko „Na co se můžu zeptat?“: rozbalí, jaká data máme (popis je v souboru každého datasetu).
+  // Ukázkové otázky jsou v nápovědě „?“.
+  const datasets = (
+    <div className={`flex flex-col items-center gap-3 ${fade}`}>
+      <button
+        type="button"
+        aria-expanded={hintOpen}
+        aria-controls="datasety"
+        onClick={() => setHintOpen(!hintOpen)}
+        className={`${PRESS} flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
+      >
+        Na co se můžu zeptat?
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${hintOpen ? "rotate-180" : ""}`}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {hintOpen && (
+        <div id="datasety" className="animate-rise grid w-full gap-3 sm:grid-cols-2">
+          {[TRAFFIC_DATASET, WEATHER_DATASET].map((dataset) => (
+            <section key={dataset.title} className="rounded-2xl border border-line bg-surface p-4 text-left">
+              <h2 className="m-0 text-[17px] font-bold text-ink">{dataset.title}</h2>
+              <p className="m-0 mt-1 text-[15px] leading-snug text-muted">{dataset.description}</p>
+              <p className="m-0 mt-2 text-[14px] leading-snug text-ink">{dataset.places.join(", ")}</p>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 
   // Rozložení:
-  // - telefon: nahoře nadpis a podtitul, pole pro otázku dole u palce, ukázkové otázky nad ním,
+  // - telefon: nahoře nadpis a podtitul, pole pro otázku dole u palce, panel s daty nad ním,
   //   patička je v nápovědě „?“,
-  // - počítač: nadpis, podtitul, pole a ukázkové otázky pod sebou uprostřed, patička dole.
+  // - počítač: nadpis, podtitul a pole uprostřed, panel s daty pod polem, patička dole.
   return (
     <div className="flex h-dvh flex-col bg-surface">
       <div className={fade}>
@@ -142,17 +150,18 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         />
       </div>
       {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice), dá se posunout, místo aby se texty překryly. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:px-8 sm:pb-[8vh]">
-        <div className={`flex flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex-none sm:pt-0 sm:pb-8 ${fade}`}>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center-safe sm:px-8 sm:pb-[8vh]">
+        <div className={`flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex sm:flex-none sm:pt-0 sm:pb-8 ${hintOpen ? "hidden" : "flex"} ${fade}`}>
           <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">Na co se chcete zeptat?</h1>
           <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted sm:max-w-none sm:text-[19px]">
-            Grafy, tabulky a čísla z dopravních senzorů v Olomouci.
+            Grafy, tabulky a čísla z dopravních senzorů a meteostanic v Olomouci.
           </p>
         </div>
         {/* Na mobilu ukázkové otázky nad polem (order), na počítači pod ním. */}
-        <div className="flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6">
+        {/* Na mobilu panel nad polem (order), na počítači pod ním. Pole se posune jen po kliknutí, ne samo. */}
+        <div className={`flex w-full max-w-[760px] shrink-0 flex-col gap-4 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
           <div className="order-2 sm:order-1">{composer}</div>
-          <div className="order-1 sm:order-2">{examples}</div>
+          <div className="order-1 sm:order-2">{datasets}</div>
         </div>
       </main>
       <div className={`max-sm:hidden ${fade}`}>

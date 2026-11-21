@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
+import type { AskAnswer } from "@/lib/ai/types";
 import type { ChartView } from "@/lib/view";
 import AnswerScreen from "./AnswerScreen";
 import DetailsScreen from "./DetailsScreen";
@@ -16,6 +17,8 @@ type Phase = "intro" | "answer" | "details";
 export default function HomeView() {
   const { answer, reset } = useAsk();
   const [phase, setPhase] = useState<Phase>("intro");
+  // Podrobnosti se otevírají k jedné odpovědi konverzace (null = k poslední).
+  const [detailsFor, setDetailsFor] = useState<AskAnswer | null>(null);
   const frame = useRef<HTMLDivElement>(null);
   // Vzhled upravený v editoru patří k jedné odpovědi; u nové odpovědi začíná znovu od uloženého / výchozího.
   const answerKey = answer ? (answer.id ?? answer.question) : "";
@@ -23,8 +26,11 @@ export default function HomeView() {
   const view = edit.key === answerKey ? edit.view : null;
   const setView = (next: ChartView | null) => setEdit({ key: answerKey, view: next });
 
+  const detailsAnswer = detailsFor ?? answer;
+
   const newQuestion = () => {
     reset();
+    setDetailsFor(null);
     setPhase("intro");
   };
 
@@ -46,10 +52,27 @@ export default function HomeView() {
       >
         {/* inert: obrazovka mimo pohled se nedá ovládat klávesnicí ani ji nečte čtečka. */}
         <div inert={details}>
-          <AnswerScreen active={!details} onDetails={() => setPhase("details")} onNew={newQuestion} view={view} onViewChange={setView} />
+          <AnswerScreen
+            active={!details}
+            onDetails={(which) => {
+              setDetailsFor(which === answer ? null : which);
+              setPhase("details");
+            }}
+            onNew={newQuestion}
+            view={view}
+            onViewChange={setView}
+          />
         </div>
         <div inert={!details}>
-          {answer && <DetailsScreen answer={answer} view={view} active={details} onBack={() => setPhase("answer")} onNew={newQuestion} />}
+          {detailsAnswer && (
+            <DetailsScreen
+              answer={detailsAnswer}
+              view={detailsFor ? null : view}
+              active={details}
+              onBack={() => setPhase("answer")}
+              onNew={newQuestion}
+            />
+          )}
         </div>
       </div>
     </div>

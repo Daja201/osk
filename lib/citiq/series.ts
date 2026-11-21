@@ -2,7 +2,7 @@
 // Tohle je jediný výpočet, ze kterého AI vrstva bere čísla. Claude tu nic nepočítá.
 import { getCachedDay, getCachedRange, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
-import { GATE_NAMES, type Gate, MAX_GATES, resolveGate, sensorsOf } from "./gates";
+import { GATE_NAMES, type Gate, MAX_GATES, placesOf, resolveGate, sensorsOf } from "./gates";
 import { type CitiqGateRow, MS_PER_HOUR, TRAFFIC_CITIQ_PARAMS, VIEW, findGateRow, hourlyOf, isCitiqGateRows } from "./parse";
 
 const TIME_ZONE = "Europe/Prague";
@@ -112,8 +112,10 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
   for (const name of params.gates) {
     const gate = resolveGate(name);
     if (!gate) return fail("UNKNOWN_GATE", `Místo „${name}“ neznám.`, GATE_NAMES);
-    if (!gates.includes(gate)) gates.push(gate);
+    // Vzdálená skupina (17. listopadu) se rozdělí na jednotlivé brány, viz placesOf.
+    for (const place of placesOf(gate)) if (!gates.includes(place)) gates.push(place);
   }
+  if (gates.length > MAX_GATES) return fail("BAD_PARAMS", `Zadejte 1 až ${MAX_GATES} míst.`);
   const fromMs = parseLocal(params.from);
   const toMs = parseLocal(params.to);
   if (fromMs === null || toMs === null) return fail("BAD_PARAMS", "Čas musí být ve tvaru YYYY-MM-DDTHH:00 (pražský čas).");

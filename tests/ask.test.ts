@@ -208,8 +208,9 @@ describe("ask: meteorologická data", () => {
     expect(answer).toMatchObject({ kind: "answer", format: "text", sentence_source: "ai" });
     const result = client.calls[1].messages[2].content as Anthropic.ToolResultBlockParam[];
     expect(JSON.parse(String(result[0].content)).stations[0]).toMatchObject({
-      station: "Tržnice.meteostanice",
-      metric: "temperature",
+      // Claude dostane názvy pro lidi, ne interní „Tržnice.meteostanice“ / „temperature“.
+      station: "Tržnice",
+      metric: "teplota",
       unit: "°C",
       mean: 10,
     });
@@ -277,6 +278,25 @@ describe("ask: grafy a tabulky", () => {
   it("date_assumed → poznámka pro uživatele", async () => {
     const answer = await ask("graf Flory", deps(fakeClient([toolUse({ ...spec, date_assumed: true })])));
     expect(answer.notes).toContain("V otázce nebyl čas, ukazujeme celý včerejšek.");
+  });
+});
+
+describe("ask: konverzace", () => {
+  it("Claude dostane otázku, zadání a odpověď předchozích otázek a novou otázku", async () => {
+    const previous = await ask("Kolik aut projelo včera na Floře?", deps(fakeClient([toolUse({ ...spec, gates: ["Parkoviště Flora"] })])));
+    const client = fakeClient([toolUse({ ...spec, gates: ["Parkoviště Flora"], from: "2026-11-18T08:00", to: "2026-11-18T11:00" })]);
+    await ask("a předevčírem?", { ...deps(client), context: [previous] });
+    const content = String(client.calls[0].messages[0].content);
+    expect(content).toContain("1) Otázka: Kolik aut projelo včera na Floře?");
+    expect(content).toContain('"gates":["Parkoviště Flora"]');
+    expect(content).toContain(`Odpověď: ${previous.title}`);
+    expect(content.endsWith("Nová otázka: a předevčírem?")).toBe(true);
+  });
+
+  it("bez kontextu dostane Claude jen otázku", async () => {
+    const client = fakeClient([toolUse(spec)]);
+    await ask("graf", deps(client));
+    expect(client.calls[0].messages[0].content).toBe("graf");
   });
 });
 

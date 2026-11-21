@@ -32,17 +32,21 @@ export function qrPath(modules: boolean[][]): string {
 
 // Adresa uložené odpovědi. NEXT_PUBLIC_SITE_URL = veřejná adresa (na demu adresa notebooku v síti),
 // jinak adresa, ze které se stránka právě otevřela. Na „localhost“ by QR z telefonu nefungoval.
-export function shareUrl(id: string, origin: string): string {
-  return `${origin.replace(/\/$/, "")}/a/${id}`;
+// Odkaz ke sdílení: na celou konverzaci (/c/<id>), u starších odpovědí bez konverzace na odpověď (/a/<id>).
+export function shareUrl(answer: { id: string | null; conversation_id?: string | null }, origin: string): string | null {
+  const base = origin.replace(/\/$/, "");
+  if (answer.conversation_id) return `${base}/c/${answer.conversation_id}`;
+  return answer.id ? `${base}/a/${answer.id}` : null;
 }
 
 const noSubscribe = () => () => {};
 
 // Odkaz ke sdílení v prohlížeči. Na serveru adresu neznáme, proto null (QR se ukáže až v prohlížeči).
-export function useShareUrl(id: string | null): string | null {
+export function useShareUrl(answer: { id: string | null; conversation_id?: string | null }): string | null {
+  const { id, conversation_id: conversationId = null } = answer;
   return useSyncExternalStore(
     noSubscribe,
-    () => (id ? shareUrl(id, process.env.NEXT_PUBLIC_SITE_URL || window.location.origin) : null),
+    () => shareUrl({ id, conversation_id: conversationId }, process.env.NEXT_PUBLIC_SITE_URL || window.location.origin),
     () => null,
   );
 }

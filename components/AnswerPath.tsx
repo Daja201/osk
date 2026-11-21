@@ -146,7 +146,7 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
 
 function modelCallsText(answer: AskAnswer, count: number): string {
   if (count === 0) return "Model jsme nevolali.";
-  if (count === 1) return answer.format && answer.format !== "text" ? "Model jsme volali jednou, jen na zadání. Graf ani tabulka další volání nepotřebují." : "Model jsme volali jednou.";
+  if (count === 1) return "Model jsme volali jednou.";
   if (count === 2 && answer.format === "text") return "Model jsme volali dvakrát: jednou pro zadání, jednou pro větu.";
   return `Model jsme volali ${count}krát (AI jednou opravovala neplatné zadání).`;
 }
@@ -163,7 +163,7 @@ function stopsOf(answer: AskAnswer): StopData[] {
     spec && "stations" in spec
       ? [
           ["Stanice", spec.stations.join(", ")],
-          ["Veličiny", spec.metrics.map((metric) => `${resolveWeatherMetric(metric)?.name ?? metric} (${resolveWeatherMetric(metric)?.unit ?? ""})`).join(", ")],
+          ["Veličiny", spec.metrics.map((metric) => `${resolveWeatherMetric(metric)?.label ?? metric} (${resolveWeatherMetric(metric)?.unit ?? ""})`).join(", ")],
         ]
       : spec
         ? [
@@ -206,7 +206,6 @@ function stopsOf(answer: AskAnswer): StopData[] {
       time: time(timings.choose),
       body: (
         <>
-          <p className="m-0 text-muted">AI jen přeložila otázku na zadání. Žádná čísla nepočítala ani nevymýšlela.</p>
           <Details
             rows={[
               ["Ukázat jako", FORMAT_LABEL[spec.format]],
@@ -303,11 +302,9 @@ function stopsOf(answer: AskAnswer): StopData[] {
       body: (
         <>
           {rows.length > 0 ? <CheckTable rows={rows} /> : <p className="m-0">Ve větě nebylo žádné číslo ke kontrole.</p>}
-          <p className="m-0">
-            {check.passed
-              ? "Všechna čísla sedí, proto ukazujeme větu od AI."
-              : `Číslo ${check.not_allowed.map(formatNumber).join(", ")} v datech není, proto větu od AI nezobrazujeme.`}
-          </p>
+          {!check.passed && (
+            <p className="m-0">Číslo {check.not_allowed.map(formatNumber).join(", ")} v datech není, proto větu od AI nezobrazujeme.</p>
+          )}
         </>
       ),
     });

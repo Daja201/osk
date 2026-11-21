@@ -6,8 +6,10 @@ import { formatPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
 import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool, weatherSeriesTool, WeatherSeriesInput } from "./tools";
-import { resolveWeatherMetric, WEATHER_STATIONS } from "../citiq/weatherStations";
+import { resolveWeatherMetric, stationName, WEATHER_STATIONS } from "../citiq/weatherStations";
 import type { AskAnswer, TraceStep } from "./types";
+import { placeName } from "../citiq/gates";
+export { placeName };
 
 // Jen část klienta, kterou potřebujeme. V testech se podstrčí falešný klient.
 export type MessagesClient = {
@@ -24,7 +26,23 @@ export type AskDeps = {
   now: Date;
   trafficSeries: SeriesFn;
   weatherSeries: WeatherSeriesFn;
+  // Předchozí odpovědi v konverzaci (nejvýš 2 poslední), aby šlo navázat: „a co předevčírem?“, „ukaž to grafem“.
+  context?: AskAnswer[];
 };
+
+// Kontext pro Claude: jen otázka, zadání a nadpis / věta předchozích odpovědí. Čísla z nich nepočítá
+// (kontrola čísel povolí jen čísla z nového výsledku).
+export function contextText(context: AskAnswer[]): string | null {
+  if (context.length === 0) return null;
+  const turns = context.map((previous, i) => {
+    const lines = [`${i + 1}) Otázka: ${previous.question}`];
+    if (previous.spec) lines.push(`Zadání: ${JSON.stringify(previous.spec)}`);
+    const shown = previous.sentence ?? previous.title;
+    if (shown) lines.push(`Odpověď: ${shown}`);
+    return lines.join("\n");
+  });
+  return `Předchozí otázky v této konverzaci (navazuj na ně, když nová otázka něco vynechá, např. místo, čas nebo formát):\n${turns.join("\n\n")}`;
+}
 
 // 1. volání = zadání, případně 2. = oprava neplatného zadání, poslední = věta (jen u formátu text).
 const MAX_STEPS = 3;
@@ -41,8 +59,6 @@ const WEATHER_SOURCE_TEXT =
   "Data bereme z otevřeného API senzorové sítě Olomouc (CITIQ, view meteorological-data-olomouc): hodinové průměry z meteorologických stanic. Přesné dotazy pro tuto odpověď jsou v odkazech.";
 const cz = new Intl.NumberFormat("cs-CZ");
 
-// Název místa pro lidi: skupina „17. listopadu (obě brány)“ → „17. listopadu“.
-export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
 
 // Nadpis, když si ho uživatel neřekl. Složí ho kód z toho, co se opravdu spočítalo.
 export function defaultTitle(result: SeriesOk): string {
@@ -61,8 +77,8 @@ function isWeatherResult(result: AskSeriesOk): result is WeatherSeriesOk {
 
 function titleFor(result: AskSeriesOk): string {
   if (!isWeatherResult(result)) return defaultTitle(result);
-  const stations = [...new Set(result.data.series.map((series) => series.station))];
-  const metrics = [...new Set(result.data.series.map((series) => resolveWeatherMetric(series.metric)?.name ?? series.metric))];
+  const stations = [...new Set(result.data.series.map((series) => stationName(series.station)))];
+  const metrics = [...new Set(result.data.series.map((series) => resolveWeatherMetric(series.metric)?.label ?? series.metric))];
   return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
 }
 
@@ -88,8 +104,8 @@ function summaryForClaude(result: AskSeriesOk) {
       granularity: result.data.granularity,
       dataset: "počasí",
       stations: result.data.series.map((series) => ({
-        station: series.station,
-        metric: resolveWeatherMetric(series.metric)?.name ?? series.metric,
+        station: stationName(series.station),
+        metric: resolveWeatherMetric(series.metric)?.label ?? series.metric,
         unit: series.unit,
         mean: series.mean,
         coverage: series.coverage,
@@ -136,7 +152,7 @@ function fallbackSentence(result: AskSeriesOk): string {
   const period = formatPeriod(result.meta.period.start, result.meta.period.end);
   if (isWeatherResult(result)) {
     const parts = result.data.series.map((series) =>
-      `${series.station}, ${resolveWeatherMetric(series.metric)?.name ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
+      `${stationName(series.station)}, ${resolveWeatherMetric(series.metric)?.label ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
     );
     return `${period}: průměr ${parts.join("; ")}.`;
   }
@@ -202,7 +218,8 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
   const steps: TraceStep[] = [];
   const notes: string[] = [];
   const system = buildSystemPrompt(deps.now);
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
+  const context = contextText(deps.context ?? []);
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: context ? `${context}\n\nNová otázka: ${question}` : question }];
   let spec: BuildAnswerInput | WeatherSeriesInput | null = null;
   let result: SeriesResult | WeatherSeriesResult | null = null;
   let finalText: string | null = null;

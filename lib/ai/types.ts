@@ -16,6 +16,7 @@ export type TraceStep =
 export type AskAnswer = {
   id: string | null; // id uložené odpovědi (odkaz /a/<id>), null když se uložit nepodařilo
   expires_at: string | null; // do kdy odkaz platí (7 dní od uložení)
+  conversation_id?: string | null; // konverzace, do které odpověď patří (odkaz /c/<id>); starší odpovědi ho nemají
   question: string;
   created_at: string;
   kind: "answer" | "unknown";

@@ -1,4 +1,4 @@
-// Patička na jeden řádek: autoři, zdroj dat a upozornění, že nejde o službu města.
+// Patička na jeden řádek: copyright, tým a odkaz na repozitář.
 export default function Footer({ tone }: { tone: "light" | "blue" }) {
   return (
     <footer
@@ -6,7 +6,10 @@ export default function Footer({ tone }: { tone: "light" | "blue" }) {
         tone === "blue" ? "text-on-sign-muted" : "text-muted"
       }`}
     >
-      © 2026 SleepNotFound · Data: senzorová síť Olomouc (CITIQ) · Nejde o oficiální službu města
+      © 2026 SleepNotFound ·{" "}
+      <a href="https://github.com/Daja201/osk" target="_blank" rel="noreferrer" className="text-inherit underline underline-offset-2">
+        GitHub
+      </a>
     </footer>
   );
 }

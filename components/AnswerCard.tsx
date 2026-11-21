@@ -4,7 +4,7 @@ import { type Ref, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
 import { aggregateValue, type SeriesDisplayOk } from "@/lib/citiq/display";
-import { checkOf, viewOf } from "@/lib/ui/answer";
+import { viewOf } from "@/lib/ui/answer";
 import { copyText } from "@/lib/ui/export";
 import { formatNumber } from "@/lib/ui/format";
 import { splitSentence } from "@/lib/ui/sentence";
@@ -12,7 +12,6 @@ import type { ChartView } from "@/lib/view";
 import HourSummary from "./HourSummary";
 import { PRESS } from "./styles";
 import TitleParts from "./TitleParts";
-import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
 import ViewChart, { effectiveView } from "./ViewChart";
 
 const OUT_OF_SCOPE_TEXT =
@@ -108,20 +107,15 @@ function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: bo
       <>
         <p className="m-0 font-sign text-[34px] leading-[1.05] font-bold sm:text-[44px]">Na co se můžete zeptat?</p>
         <p className="m-0 mt-3 text-[19px] leading-[1.45] text-pretty sm:text-[21px]">{answer.sentence}</p>
-        {interactive && (
-          <div className="mt-6 flex flex-col gap-2.5">
-            <p className="m-0 text-[16px] font-semibold">Zkuste se zeptat třeba</p>
-            <Suggestions questions={TOP_EXAMPLES} onPick={(question) => void ask(question)} />
-          </div>
-        )}
       </>
     );
   }
   if (view === "error") {
     const aiFailed = answer.reason?.code === "AI_ERROR";
     const rateLimited = answer.reason?.code === "RATE_LIMIT_ERROR";
+    const full = answer.reason?.code === "CONVERSATION_FULL";
     const detail =
-      rateLimited
+      rateLimited || full
         ? (answer.reason?.message ?? "Počkejte prosím chvíli a zkuste to znovu.")
         : answer.reason?.code === "NETWORK_ERROR"
           ? "Zkontrolujte připojení k internetu a zkuste to znovu."
@@ -129,14 +123,16 @@ function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: bo
     return (
       <>
         <p className="m-0 font-sign text-[30px] leading-[1.1] font-bold sm:text-[38px]">
-          {rateLimited
+          {full
+            ? "Konverzace je plná."
+            : rateLimited
             ? "Příliš mnoho dotazů."
             : aiFailed
               ? "Odpověď se teď nepodařilo připravit."
               : "Data se teď nepodařilo stáhnout."}
         </p>
         <p className="m-0 mt-2 text-muted">{detail}</p>
-        {interactive && (
+        {interactive && !full && (
           <button type="button" onClick={() => void ask(answer.question)} className={`${PRESS} mt-6 h-14 rounded-2xl bg-tabule px-7 text-[19px] font-semibold text-white`}>
             Zkusit znovu
           </button>
@@ -148,19 +144,13 @@ function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: bo
     <>
       <p className="m-0 font-sign text-[34px] leading-[1.05] font-bold sm:text-[44px]">{view === "out_of_scope" ? "Na tohle odpověď nemám." : "Tohle nevím."}</p>
       <p className="m-0 mt-3 text-[19px] leading-[1.45] text-pretty sm:text-[21px]">{view === "out_of_scope" ? OUT_OF_SCOPE_TEXT : answer.sentence}</p>
-      {interactive && (
-        <div className="mt-6 flex flex-col gap-2.5">
-          <p className="m-0 text-[16px] font-semibold">Zkuste se zeptat třeba</p>
-          <Suggestions questions={TOP_EXAMPLES} onPick={(question) => void ask(question)} />
-        </div>
-      )}
     </>
   );
 }
 
 // Odpověď podle formátu: věta, graf, tabulka, zdroj dat, nebo „nevím“.
 // view = vzhled z editoru (null = jak vybrala AI, nebo uložený vzhled). svgRef dostane <svg> grafu (pro stažení).
-// interactive = ukázat „Zkusit znovu“ a návrhy otázek.
+// interactive = ukázat „Zkusit znovu“.
 export default function AnswerCard({
   answer,
   view = null,
@@ -210,15 +200,6 @@ export default function AnswerCard({
   return (
     <div className={plain}>
       <Sentence sentence={answer.sentence ?? ""} main={main} />
-      {/* Jen když kontrola čísel prošla (stejná data jako tabulka kontroly v Cestě odpovědi). */}
-      {answer.sentence_source === "ai" && checkOf(answer)?.passed && (
-        <p className="m-0 mt-4 flex items-center gap-1.5 text-[15px] font-semibold text-ok">
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12.5l4.5 4.5L19 7.5" />
-          </svg>
-          Čísla ve větě ověřil náš kód
-        </p>
-      )}
       {answer.title && (
         <p className="m-0 mt-5 text-[16px] text-muted">
           <TitleParts title={answer.title} />

@@ -19,6 +19,7 @@ export function viewOf(answer: AskAnswer): View {
     code === "AI_ERROR" ||
     code === "NETWORK_ERROR" ||
     code === "RATE_LIMIT_ERROR" ||
+    code === "CONVERSATION_FULL" ||
     code === "BAD_RESPONSE"
   ) return "error";
   return "unknown";

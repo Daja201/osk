@@ -20,7 +20,7 @@ export const NETWORK_ERROR_TEXT = "Data se teď nepodařilo stáhnout.";
 
 function requestError(
   question: string,
-  code: "NETWORK_ERROR" | "RATE_LIMIT_ERROR",
+  code: "NETWORK_ERROR" | "RATE_LIMIT_ERROR" | "CONVERSATION_FULL",
   sentence: string,
   message: string,
 ): AskAnswer {
@@ -57,14 +57,18 @@ function rateLimitError(question: string, response: Response): AskAnswer {
   return requestError(question, "RATE_LIMIT_ERROR", "Příliš mnoho dotazů.", message);
 }
 
-export async function getAnswer(question: string): Promise<AskAnswer> {
+// conversationId = navazující otázka v konverzaci (server přidá kontext z posledních 2 odpovědí).
+export async function getAnswer(question: string, conversationId: string | null = null): Promise<AskAnswer> {
   // ?fixture=bar apod. → testovací odpověď bez volání serveru. Čte se až teď, při odeslání.
   const fixture = new URLSearchParams(window.location.search).get("fixture");
   if (fixture && fixture in FIXTURES) return FIXTURES[fixture];
 
   try {
-    const response = await fetch(`/api/ask?q=${encodeURIComponent(question)}`);
+    const response = await fetch(`/api/ask?q=${encodeURIComponent(question)}${conversationId ? `&c=${conversationId}` : ""}`);
     if (response.status === 429) return rateLimitError(question, response);
+    if (response.status === 409) {
+      return requestError(question, "CONVERSATION_FULL", "Konverzace je plná.", "Konverzace má nejvýš 10 otázek. Začněte novou.");
+    }
     const body: unknown = await response.json();
     if (!AskResponse.safeParse(body).success) {
       return networkError(question, `Server vrátil neočekávanou odpověď (HTTP ${response.status}).`);

@@ -12,7 +12,7 @@ let silent = new Set<string>();
 let cacheError: unknown = null;
 const calls: { kind: "day" | "range"; date?: string; stop?: string }[] = [];
 
-const GATES = ["17.listopadu JIH", "17.listopadu Sever", "Parkoviště Flora", "Billa (Hynaisova)", "Zikova"];
+const GATES = ["17.listopadu JIH", "17.listopadu Sever", "Kafkova - levá", "Kafkova - pravá", "Parkoviště Flora", "Billa (Hynaisova)", "Zikova"];
 
 vi.mock("../lib/citiq/cache", async (importOriginal) => {
   const original = await importOriginal<typeof import("../lib/citiq/cache")>();
@@ -78,20 +78,30 @@ beforeEach(() => {
 });
 
 describe("trafficSeries: po hodinách", () => {
-  it("skupina bran a oba směry se sečtou, hodiny sedí na pražský čas", async () => {
-    rule = (gate, _date, hour, direction) => (gate === "17.listopadu JIH" ? 100 : 10) + hour + (direction === "out" ? 1000 : 0);
-    const result = await run({ gates: ["17. listopadu"], direction: "both", from: "2026-11-19T00:00", to: "2026-11-19T24:00", granularity: "hour" });
+  it("skupina blízkých bran (Kafkova, 39 m) a oba směry se sečtou, hodiny sedí na pražský čas", async () => {
+    rule = (gate, _date, hour, direction) => (gate === "Kafkova - levá" ? 100 : 10) + hour + (direction === "out" ? 1000 : 0);
+    const result = await run({ gates: ["Kafkova"], direction: "both", from: "2026-11-19T00:00", to: "2026-11-19T24:00", granularity: "hour" });
     if (!result.ok) throw new Error(result.error.message);
 
     const { buckets, series } = result.data;
     expect(buckets).toHaveLength(24);
     expect(buckets[0]).toEqual({ label: "0:00", start: "2026-11-18T23:00:00.000Z", end: "2026-11-19T00:00:00.000Z" });
     expect(buckets[23].label).toBe("23:00");
-    // hodina h: JIH (100+h) + (1100+h), Sever (10+h) + (1010+h)
+    // hodina h: levá (100+h) + (1100+h), pravá (10+h) + (1010+h)
     expect(series[0].values[0]).toBe(100 + 1100 + 10 + 1010);
     expect(series[0].values[23]).toBe(100 + 1100 + 10 + 1010 + 4 * 23);
-    expect(series[0]).toMatchObject({ gate: "17. listopadu (obě brány)", sensors: ["17.listopadu JIH", "17.listopadu Sever"] });
+    expect(series[0]).toMatchObject({ gate: "Kafkova (obě brány)", sensors: ["Kafkova - levá", "Kafkova - pravá"] });
     expect(series[0].coverage).toEqual({ hours: 24, of: 24 });
+  });
+
+  it("vzdálené brány (17. listopadu, 684 m) se nesčítají: každá brána zvlášť, směry sečtené", async () => {
+    rule = (gate, _date, _hour, direction) => (gate === "17.listopadu JIH" ? 100 : 10) + (direction === "out" ? 1 : 0);
+    const result = await run({ gates: ["17. listopadu"], direction: "both", from: "2026-11-19T08:00", to: "2026-11-19T10:00", granularity: "hour" });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.data.series.map((s) => [s.gate, s.values])).toEqual([
+      ["17.listopadu JIH", [201, 201]],
+      ["17.listopadu Sever", [21, 21]],
+    ]);
   });
 
   it("jen jeden směr", async () => {
@@ -133,6 +143,7 @@ describe("trafficSeries: po dnech a celkem", () => {
   });
 
   it("celkem: jeden bucket, součet = total", async () => {
+    silent = new Set(["Kafkova - levá", "Kafkova - pravá"]);
     const result = await run({ gates: ["Flora", "Hynaisova", "Kafkova"], direction: "both", from: "2026-11-19T07:00", to: "2026-11-19T10:00", granularity: "total" });
     if (!result.ok) throw new Error(result.error.message);
     expect(result.data.buckets).toEqual([{ label: "Celkem", start: "2026-11-19T06:00:00.000Z", end: "2026-11-19T09:00:00.000Z" }]);

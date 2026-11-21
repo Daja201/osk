@@ -30,11 +30,12 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
       </a>
       <div className="flex items-center gap-2">
         {onBack && (
-          <button type="button" onClick={onBack} className={`${PILL[tone]} whitespace-nowrap max-sm:rounded-xl`}>
-            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+          <button type="button" onClick={onBack} aria-label="Zpět na odpověď" className={`${PILL[tone]} whitespace-nowrap max-sm:rounded-xl max-[359px]:w-11 max-[359px]:justify-center max-[359px]:px-0`}>
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 max-[359px]:mr-0">
               <path d="M6 15l6-6 6 6" />
             </svg>
-            Odpověď
+            {/* Na nejužších telefonech (pod 360 px) jen šipka, jinak by se lišta nevešla. */}
+            <span className="max-[359px]:sr-only">Odpověď</span>
           </button>
         )}
         {onNew && (

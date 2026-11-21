@@ -19,7 +19,6 @@ import { effectiveView } from "./ViewChart";
 // Odkaz jde poslat dál nebo vložit do prezentace; platí 7 dní.
 export default function SavedView({ answer }: { answer: AskAnswer }) {
   const router = useRouter();
-  const svg = useRef<SVGSVGElement>(null);
   const until = answer.expires_at
     ? new Date(answer.expires_at).toLocaleDateString("cs-CZ", { timeZone: "Europe/Prague", day: "numeric", month: "numeric", year: "numeric" })
     : null;
@@ -31,16 +30,7 @@ export default function SavedView({ answer }: { answer: AskAnswer }) {
           <p className="m-0 text-[15px] text-on-sign-muted">Uložená odpověď{until ? ` · odkaz platí do ${until}` : ""}</p>
           <h1 className="m-0 text-[19px] leading-snug font-medium text-pretty sm:text-[21px]">„{answer.question}“</h1>
         </div>
-        {/* Graf a tabulka jsou klikací (odkud je číslo); věta, zdroj a „nevím“ jako v aplikaci. */}
-        {["bar", "line", "pie", "table"].includes(answer.format ?? "") && answer.result?.ok ? (
-          <>
-            <AnswerExplorer answer={answer} svgRef={svg} />
-            {answer.result?.ok && <HourSummary result={answer.result} view={effectiveView(answer, null) ?? defaultView(answer)} />}
-          </>
-        ) : (
-          <AnswerCard answer={answer} svgRef={svg} interactive={false} />
-        )}
-        <AnswerActions answer={answer} svg={svg} />
+        <SavedBody answer={answer} />
       </main>
       <section aria-label="Jak to víme" className="rounded-t-[32px] bg-surface text-ink">
         <div className="mx-auto max-w-[960px] px-4 pt-12 pb-6 sm:px-8">
@@ -49,6 +39,25 @@ export default function SavedView({ answer }: { answer: AskAnswer }) {
         <Footer tone="light" />
       </section>
     </div>
+  );
+}
+
+// Uložená odpověď bez důkazu: graf / tabulka (klikací), nebo věta, a pod ní tlačítka. Sdílí ji /a/<id> i /c/<id>.
+export function SavedBody({ answer }: { answer: AskAnswer }) {
+  const svg = useRef<SVGSVGElement>(null);
+  return (
+    <>
+      {/* Graf a tabulka jsou klikací (odkud je číslo); věta, zdroj a „nevím“ jako v aplikaci. */}
+      {["bar", "line", "pie", "table"].includes(answer.format ?? "") && answer.result?.ok ? (
+        <>
+          <AnswerExplorer answer={answer} svgRef={svg} />
+          <HourSummary result={answer.result} view={effectiveView(answer, null) ?? defaultView(answer)} />
+        </>
+      ) : (
+        <AnswerCard answer={answer} svgRef={svg} interactive={false} />
+      )}
+      <AnswerActions answer={answer} svg={svg} />
+    </>
   );
 }
 

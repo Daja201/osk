@@ -73,6 +73,34 @@ describe("weatherSeries", () => {
     expect(getCachedRange).not.toHaveBeenCalled();
   });
 
+  it("chybná hodnota čidla (125,01 °C) je chybějící hodina s poznámkou, ne číslo v průměru", async () => {
+    vi.mocked(getCachedDay).mockResolvedValue(entry([10, 125.01, 20]));
+    const result = await weatherSeries(params, { now: NOW });
+    if (!result.ok) throw new Error(result.message);
+    expect(result.data.series[0]).toMatchObject({ gate: "Tržnice · teplota (°C)", values: [10, null, 20], mean: 15, coverage: { hours: 2, of: 3 } });
+    expect(result.meta.notes).toEqual(["Tržnice · teplota (°C): 1 h vyřazeno (chybná hodnota čidla), průměr je neúplný."]);
+  });
+
+  it("vlhkost: hodina s chybnou teplotou téhož čidla se vyřadí taky, teplota se kvůli tomu stahuje", async () => {
+    const both = entry([10, 125.01, 20]);
+    const rows = (both.data as { results: { measurements: object[] }[] }).results;
+    rows[0].measurements.push({
+      key: "device_device_frmpayload_data_hih_relh_mean",
+      name: "humidity",
+      unit: "%",
+      values: [80, 95, 100.01].map((value, index) => ({ point: { time: `2026-11-19T${String(index + 8).padStart(2, "0")}:00:00Z`, value } })),
+    });
+    vi.mocked(getCachedDay).mockResolvedValue(both);
+    const result = await weatherSeries({ ...params, metrics: ["device_device_frmpayload_data_hih_relh"] }, { now: NOW });
+    if (!result.ok) throw new Error(result.message);
+    expect(result.data.series[0].values).toEqual([80, null, null]);
+    expect(getCachedDay).toHaveBeenCalledWith(
+      "meteorological-data-olomouc",
+      "2026-11-19",
+      expect.objectContaining({ measurement_keys: ["device_device_frmpayload_data_hih_relh", "device_device_frmpayload_data_hih_temp"] }),
+    );
+  });
+
   it("averages by day and over the full interval, preserving real zeroes", async () => {
     vi.mocked(getCachedDay).mockResolvedValue(entry([10, 0, 20]));
     const daily = await weatherSeries({ ...params, granularity: "day" }, { now: NOW });

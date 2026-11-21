@@ -12,7 +12,9 @@ stáhnout, nebo poslat odkazem. Ke každé odpovědi je důkaz, odkud čísla js
 3. Náš kód stáhne hodinová data ze senzorové sítě CITIQ a spočítá je.
 4. Graf nebo tabulku nakreslí náš kód přímo z čísel. Jen u odpovědi větou napíše větu AI a náš kód
    v ní zkontroluje každé číslo. Když nesedí, větu složí sám.
-5. Odpověď se uloží na 7 dní a dostane odkaz `/a/<id>`.
+5. Odpověď se uloží na 7 dní do konverzace s odkazem `/c/<id>`.
+6. Pod odpovědí jde navázat další otázkou („a předevčírem?“, „ukaž to grafem“). AI dostane kontext
+   z posledních 2 otázek (otázku, zadání a odpověď, ne čísla k počítání). Jedna konverzace má nejvýš 10 otázek.
 
 ## Na co se ptát
 
@@ -56,15 +58,16 @@ Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba
   - osa: automaticky, od nuly, nebo vlastní „od–do“. Vlastní rozsah musí obsáhnout všechny hodnoty
     (žádný sloupec se neuřízne); když nezačíná nulou, graf to označí,
   - QR kód zapnout / vypnout (výchozí: zapnutý).
-  - „Uložit vzhled do odkazu“ vytvoří nový odkaz (a QR) s tímhle vzhledem. Čísla se zkopírují na serveru
-    z původní odpovědi, takže úpravou vzhledu nejde změnit data; původní odkaz zůstane, jak byl.
+  - „Uložit vzhled do odkazu“ uloží kopii odpovědi s tímhle vzhledem a v konverzaci jí nahradí původní.
+    Čísla se zkopírují na serveru z původní odpovědi, takže úpravou vzhledu nejde změnit data.
   - Stahuje se přesně to, co vidíte, i bez uložení.
 
 ## Co s odpovědí
 - **QR kód**: je přímo v grafu vpravo nahoře (i ve staženém PNG), takže kdo vyfotí slajd, dostane se k důkazu.
-  Tlačítko „QR kód“ ho ukáže velký (i u tabulky a věty) a dá se stáhnout. Vede na stejný odkaz `/a/<id>`.
+  Tlačítko „QR kód“ ho ukáže velký (i u tabulky a věty) a dá se stáhnout. Vede na stejný odkaz `/c/<id>`.
   Učitel tak může zpětně (7 dní) ověřit, jak student k číslům došel.
-- **Kopírovat odkaz**: odkaz `/a/<id>` platí 7 dní. Ukáže stejný graf a pod ním důkaz:
+- **Kopírovat odkaz**: odkaz `/c/<id>` na celou konverzaci platí 7 dní od poslední otázky. Ukáže všechny
+  otázky s odpověďmi a u každé rozbalitelné „Jak to víme“:
   zadání, které AI vyplnila, všechna čísla a přesné dotazy na API CITIQ (dají se otevřít v prohlížeči).
 - **Stáhnout ▾**:
   - **Obrázek PNG**: graf i s nadpisem, QR a zdrojem, ve dvojnásobném rozlišení (do prezentace, dokumentu).
@@ -73,11 +76,12 @@ Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba
   - **Kopírovat do tabulky**: vloží se do Excelu nebo Google Tabulek (Ctrl+V) rovnou do buněk.
   - Graf jako upravitelný graf Excelu export neumí. Do Excelu vložte PNG, nebo z vložených dat
     vytvořte graf (Vložit → Graf).
-- **Podrobnosti** (tlačítko vpravo pod odpovědí): totéž co důkaz na odkazu. Čísla ve větě jdou
+- **Jak to víme** (první tlačítko pod odpovědí, u starších otázek konverzace pod každou): totéž co důkaz na odkazu. Čísla ve větě jdou
   rozkliknout: plné žluté podtržení = spočítal náš kód, čárkované = z vaší otázky (vybrala AI).
 
 ## Pro ty, kdo chtějí data sami
-- `GET /api/ask?q=<otázka>`: odpověď jako JSON (stejná jako na stránce, včetně `id`).
+- `GET /api/ask?q=<otázka>&c=<konverzace>`: odpověď jako JSON (stejná jako na stránce, včetně `id`
+  a `conversation_id`). `c` je nepovinné; s ním otázka navazuje na konverzaci. Plná konverzace vrátí `409`.
 - Požadavky na Haiku mají limit 1 za minutu a 10 za klouzavých 24 hodin na IP. Při překročení API vrátí `429`
   a hlavičku `Retry-After`. IP a časy požadavků držíme jen dočasně v RAM procesu; po restartu se limit vynuluje
   a při více instancích se počítá zvlášť. Proxy před aplikací musí předat správné `X-Real-IP` nebo `X-Forwarded-For`.

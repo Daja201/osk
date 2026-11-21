@@ -45,7 +45,7 @@ export default function ViewChart({
   onPick?: (pick: DataPick) => void;
   picked?: DataPick | null;
 }) {
-  const shareUrl = useShareUrl(answer.id);
+  const shareUrl = useShareUrl(answer);
   const colors = chartColors(view.background);
 
   if (view.format === "table") {
