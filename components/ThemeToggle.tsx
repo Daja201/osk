@@ -5,7 +5,7 @@ import { PRESS } from "./styles";
 
 // Přepínač světlý / tmavý. Logika je v lib/ui/theme.ts (sdílí ji i grafy).
 
-const ICON = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const ICON = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 function Sun() {
   return (
@@ -36,7 +36,7 @@ export default function ThemeToggle({ tone }: { tone: "light" | "blue" }) {
       onClick={() => setTheme(next)}
       aria-label={label}
       title={label}
-      className={`${PRESS} flex size-11 shrink-0 items-center justify-center rounded-[10px] ${
+      className={`${PRESS} flex size-11 shrink-0 items-center justify-center rounded-xl ${
         tone === "blue" ? "bg-white/15 text-white hover:bg-white/25" : "border border-line bg-surface text-ink hover:border-ink"
       }`}
     >

@@ -48,6 +48,19 @@
   color-scheme: dark;
 }
 
+/* Pole pro otázku (components/IntroScreen.tsx): po kliknutí nebo Tabu je kolem celého zaobleného pole
+   jen žlutý rámeček (žádný bílý / tmavý obrys). Samotný input uvnitř obrys nemá.
+   :focus i :focus-visible (každý prohlížeč ukazuje po kliknutí jiný z nich), :focus-within místo :has (starší Safari). */
+.composer-input:focus,
+.composer-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.composer:focus-within {
+  border-color: var(--color-marking);
+  box-shadow: 0 0 0 1px var(--color-marking);
+}
+
 /* Klikací sloupec / bod / výseč v grafu (components/charts/Chart.tsx): SVG obrys focusu spolehlivě nevykreslí,
    proto při focusu z klávesnice dostane tvar silný obrys v barvě textu grafu. */
 .chart-item:focus-visible {

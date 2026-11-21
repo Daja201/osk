@@ -16,7 +16,7 @@ type Kind = "bar" | "line" | "pie";
 
 export const FONT = "Barlow, system-ui, sans-serif";
 export const TITLE_FONT = "'Barlow Semi Condensed', Barlow, system-ui, sans-serif";
-const FOOTNOTE = "Zdroj: senzorová síť Olomouc (CITIQ) · Osk";
+const FOOTNOTE = "Zdroj: senzorová síť Olomouc (CITIQ) · OKS";
 
 // Šířka rodiče, aby SVG mělo skutečné rozměry a písmo nebylo na mobilu zmenšené.
 function useWidth(): [Ref<HTMLDivElement>, number] {

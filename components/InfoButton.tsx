@@ -15,9 +15,9 @@ const PLACES = ["17. listopadu", "Kafkova", "Hynaisova (u Billy)", "Tržnice", "
 
 function Item({ term, children }: { term: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="font-semibold">{term}</dt>
-      <dd className="m-0 text-muted">{children}</dd>
+    <div className="flex flex-col gap-1">
+      <dt className="text-[18px] font-semibold">{term}</dt>
+      <dd className="m-0 text-[17px] leading-relaxed text-ink/80">{children}</dd>
     </div>
   );
 }
@@ -25,7 +25,7 @@ function Item({ term, children }: { term: React.ReactNode; children: React.React
 function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
   return (
     <>
-      <p className="m-0 text-muted">Odpovídám z dat dopravních senzorů (bran) v Olomouci. Čísla počítá náš kód, AI jen pochopí otázku.</p>
+      <p className="m-0 text-[17px] leading-relaxed text-ink/80">Odpovídám z dat dopravních senzorů (bran) v Olomouci. Čísla počítá náš kód, AI jen pochopí otázku.</p>
       <dl className="m-0 flex flex-col gap-3">
         <Item term="Co">Kolik vozidel projelo jedním nebo víc místy (až 12), porovnání míst a dní, špičky, vjezdy a výjezdy.</Item>
         <Item term="Kdy">Libovolný čas za posledních 30 dní, najednou až 31 dní: „včera“, „v pondělí“, „posledních 7 hodin“, „minulý týden“, „mezi 6 a 10“.</Item>
@@ -99,11 +99,11 @@ export default function InfoButton({
         aria-label={TITLES[topic]}
         title={TITLES[topic]}
         onClick={() => dialog.current?.showModal()}
-        className={`${PRESS} flex size-11 shrink-0 rounded-[10px] p-[3px] ${tone === "blue" ? "bg-surface" : "bg-tabule"}`}
+        className={`${PRESS} flex size-11 shrink-0 rounded-xl p-[3px] ${tone === "blue" ? "bg-surface" : "bg-tabule"}`}
       >
         <span
           aria-hidden="true"
-          className={`flex flex-1 items-center justify-center rounded-[7px] border-2 font-sign text-[22px] leading-none font-bold ${
+          className={`flex flex-1 items-center justify-center rounded-[7px] border-2 font-sign text-[24px] leading-none font-bold ${
             tone === "blue" ? "border-accent text-accent" : "border-white text-white"
           }`}
         >
@@ -116,9 +116,10 @@ export default function InfoButton({
         onClick={(event) => {
           if (event.target === dialog.current) close();
         }}
-        className="m-auto w-[min(560px,calc(100vw-32px))] rounded-3xl bg-surface p-0 text-ink backdrop:bg-black/50"
+        // Na telefonu panel přes celou šířku zespodu (jako v mobilních aplikacích), na počítači okno uprostřed.
+        className="m-auto max-h-[88dvh] w-[min(560px,calc(100vw-32px))] overflow-y-auto overscroll-contain rounded-3xl bg-surface p-0 text-ink backdrop:bg-black/50 max-sm:mb-0 max-sm:w-full max-sm:max-w-full max-sm:rounded-b-none"
       >
-        <div className="flex flex-col gap-5 p-6 sm:p-8">
+        <div className="flex flex-col gap-6 p-6 pb-[max(24px,env(safe-area-inset-bottom))] sm:p-8">
           <div className="flex items-start justify-between gap-4">
             <h2 id={`info-${topic}`} className="m-0 font-sign text-[28px] leading-[1.15] font-bold">
               {TITLES[topic]}
@@ -144,6 +145,9 @@ export default function InfoButton({
           )}
           {topic === "answer" && <AnswerHelp />}
           {topic === "details" && <DetailsHelp />}
+          <p className="m-0 border-t border-line pt-4 text-[14px] leading-relaxed text-muted sm:hidden">
+            © 2026 SleepNotFound · Data: senzorová síť Olomouc (CITIQ) · Nejde o oficiální službu města
+          </p>
         </div>
       </dialog>
     </>

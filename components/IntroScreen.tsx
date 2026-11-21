@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
+import { useIsWide } from "@/lib/ui/media";
 import Footer from "./Footer";
 import { PRESS } from "./styles";
 import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
@@ -24,6 +25,7 @@ const HINT_DELAY_MS = 5000;
 // a zavolá se onCovered (rodič přepne na modrou obrazovku s odpovědí). Odpověď se mezitím počítá.
 export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const { ask } = useAsk();
+  const wide = useIsWide(); // na úzkém displeji kratší ukázkový text, dlouhý by se uřízl
   const [value, setValue] = useState("");
   const [leaving, setLeaving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -70,6 +72,91 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
 
   const fade = `transition-opacity duration-300 ${leaving ? "opacity-0" : ""}`;
 
+  // Pole pro otázku: zaoblené pole s tlačítkem uvnitř (na mobilu kulatá šipka, na počítači „Zeptat se“).
+  const composer = (
+    <form
+      role="search"
+      onSubmit={submit}
+      className="composer flex w-full items-center gap-2 rounded-[30px] border-2 border-line bg-surface p-1.5 pl-5 transition-colors hover:border-muted sm:rounded-[34px] sm:p-2 sm:pl-6"
+    >
+      <label htmlFor="otazka" className="sr-only">
+        Vaše otázka
+      </label>
+      <input
+        ref={input}
+        id="otazka"
+        type="text"
+        value={value}
+        maxLength={300}
+        required
+        autoComplete="off"
+        enterKeyHint="send"
+        autoFocus
+        disabled={leaving}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={wide ? "Kolik aut včera projelo ulicí 17. listopadu?" : "Napište otázku o dopravě…"}
+        className={`composer-input h-12 min-w-0 flex-1 bg-transparent font-sans text-[17px] font-medium text-ink placeholder:text-muted sm:h-14 sm:text-[20px] ${fade}`}
+      />
+      <button
+        ref={button}
+        type="submit"
+        disabled={leaving}
+        aria-label="Zeptat se"
+        className={`${PRESS} flex size-12 shrink-0 items-center justify-center rounded-full bg-tabule font-sans text-[19px] font-semibold whitespace-nowrap text-white hover:bg-[#0A4482] disabled:hover:scale-100 sm:h-14 sm:w-auto sm:px-7`}
+      >
+        <span className={`max-sm:hidden ${leaving ? "invisible" : ""}`}>Zeptat se</span>
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`sm:hidden ${leaving ? "invisible" : ""}`}>
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </button>
+    </form>
+  );
+
+  const hint = (
+    <div className={`flex flex-col items-center gap-3 ${fade}`}>
+      {hintVisible && !leaving && (
+        <button
+          type="button"
+          aria-expanded={hintOpen}
+          aria-controls="navrhy"
+          onClick={() => setHintOpen(!hintOpen)}
+          className={`${PRESS} animate-rise flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
+        >
+          Na co se můžu zeptat?
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`transition-transform duration-200 ${hintOpen ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      )}
+      {hintOpen && !leaving && (
+        <Suggestions
+          id="navrhy"
+          questions={TOP_EXAMPLES}
+          className="animate-rise max-w-[560px]"
+          onPick={(question) => {
+            setValue(question);
+            start(question);
+          }}
+        />
+      )}
+    </div>
+  );
+
+  // Rozložení:
+  // - telefon: nahoře krátké přivítání, pole pro otázku dole u palce (jako v mobilních aplikacích), návrhy nad ním,
+  //   patička je v nápovědě „?“ (úvod zůstane čistý),
+  // - počítač: pole uprostřed obrazovky, návrhy pod ním, patička dole.
   return (
     <div className="flex h-dvh flex-col bg-surface">
       <div className={fade}>
@@ -82,77 +169,25 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
           }}
         />
       </div>
-      <main className="flex min-h-0 flex-1 items-center justify-center px-4 pb-[8vh] sm:px-8">
-        {/* relative: nápověda visí pod formulářem (absolute), takže se pole při jejím objevení neposune. */}
-        <div className="relative w-full max-w-[760px]">
-          <form role="search" onSubmit={submit} className="flex w-full flex-col gap-3 sm:flex-row">
-            <label htmlFor="otazka" className="sr-only">
-              Vaše otázka
-            </label>
-            <input
-              ref={input}
-              id="otazka"
-              type="text"
-              value={value}
-              maxLength={300}
-              required
-              autoComplete="off"
-              autoFocus
-              disabled={leaving}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder="Kolik aut včera projelo ulicí 17. listopadu?"
-              className={`h-16 w-full min-w-0 rounded-2xl border-2 border-line bg-surface px-5 font-sans text-[19px] font-medium text-ink transition-colors hover:border-muted focus:border-ink sm:flex-1 sm:text-[21px] ${fade}`}
-            />
-            <button
-              ref={button}
-              type="submit"
-              disabled={leaving}
-              className={`${PRESS} h-16 shrink-0 rounded-2xl bg-tabule px-8 font-sans text-[21px] font-semibold whitespace-nowrap text-white hover:bg-[#0A4482] disabled:hover:scale-100`}
-            >
-              <span className={leaving ? "invisible" : undefined}>Zeptat se</span>
-            </button>
-          </form>
-          <div className={`absolute inset-x-0 top-full mt-5 flex flex-col items-center gap-3 ${fade}`}>
-            {hintVisible && !leaving && (
-              <button
-                type="button"
-                aria-expanded={hintOpen}
-                aria-controls="navrhy"
-                onClick={() => setHintOpen(!hintOpen)}
-                className={`${PRESS} animate-rise flex items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
-              >
-                Na co se můžu zeptat?
-                <svg
-                  aria-hidden="true"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={`transition-transform duration-200 ${hintOpen ? "rotate-180" : ""}`}
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-            )}
-            {hintOpen && !leaving && (
-              <Suggestions
-                id="navrhy"
-                questions={TOP_EXAMPLES}
-                className="animate-rise max-w-[560px]"
-                onPick={(question) => {
-                  setValue(question);
-                  start(question);
-                }}
-              />
-            )}
-          </div>
+      {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice, rozbalené návrhy), dá se posunout,
+          místo aby se texty a ikony překryly. */}
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:px-8 sm:pb-[8vh]">
+        {/* Přivítání jen na telefonu. Nesmršťuje se (shrink-0); když se rozbalí návrhy, ustoupí jim. */}
+        <div className={`flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:hidden ${hintOpen ? "hidden" : "flex"} ${fade}`}>
+          <span aria-hidden="true" className="flex size-14 rounded-[16px] bg-tabule p-[5px]">
+            <span className="flex flex-1 items-center justify-center rounded-[11px] border-[2.5px] border-white font-sign text-[30px] leading-none font-bold text-white">?</span>
+          </span>
+          <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink">Na co se chcete zeptat?</h1>
+          <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted">Grafy, tabulky a čísla z dopravních senzorů v Olomouci.</p>
+        </div>
+        <h1 className="sr-only max-sm:hidden">OKS – Zeptej se Olomouce</h1>
+        {/* Na mobilu návrhy nad polem (order), na počítači pod ním. */}
+        <div className={`flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
+          <div className="order-2 sm:order-1">{composer}</div>
+          <div className="order-1 sm:order-2">{hint}</div>
         </div>
       </main>
-      <div className={fade}>
+      <div className={`max-sm:hidden ${fade}`}>
         <Footer tone="light" />
       </div>
       {/* Modrá skvrna pro animaci. Je skrytá, dokud ji submit neumístí na tlačítko. */}

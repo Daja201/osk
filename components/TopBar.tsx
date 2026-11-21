@@ -16,7 +16,7 @@ type Props = {
 export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
   const onBlue = tone === "blue";
   return (
-    <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-4 sm:px-8 sm:py-5">
+    <header className="flex shrink-0 items-center justify-between gap-3 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 sm:px-8 sm:pt-5 sm:pb-5">
       {/* Obyčejný <a>, ne next/link: kliknutí stránku celou znovu načte (jako logo na většině webů),
           takže se smaže odpověď a začne se od úvodu. */}
       {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- chceme úplné znovunačtení, <Link> by ho neudělal */}
@@ -26,14 +26,14 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
           onBlue ? "text-white hover:text-white" : "text-ink hover:text-ink"
         }`}
       >
-        <span className="text-[26px] leading-none font-bold">Osk</span>
+        <span className="text-[26px] leading-none font-bold">OKS</span>
         <span className={`hidden text-[17px] leading-none font-medium sm:inline ${onBlue ? "text-on-sign-muted" : "text-muted"}`}>
           Zeptej se Olomouce
         </span>
       </a>
       <div className="flex items-center gap-2">
         {onBack && (
-          <button type="button" onClick={onBack} className={`${PILL[tone]} whitespace-nowrap`}>
+          <button type="button" onClick={onBack} className={`${PILL[tone]} whitespace-nowrap max-sm:rounded-xl`}>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
               <path d="M6 15l6-6 6 6" />
             </svg>
@@ -41,7 +41,7 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
           </button>
         )}
         {onNew && (
-          <button type="button" onClick={onNew} className={`${PILL[tone]} whitespace-nowrap max-sm:w-11 max-sm:justify-center max-sm:px-0`} aria-label="Nová otázka" title="Nová otázka">
+          <button type="button" onClick={onNew} className={`${PILL[tone]} whitespace-nowrap max-sm:w-11 max-sm:justify-center max-sm:rounded-xl max-sm:px-0`} aria-label="Nová otázka" title="Nová otázka">
             {/* Na mobilu jen „+“, jinak by se lišta nevešla a text se zalomil. */}
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" className="sm:hidden">
               <path d="M12 5v14M5 12h14" />

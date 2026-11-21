@@ -117,4 +117,5 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 - Prompt sám jako pojistka nestačí: Claude odpovídal z hlavy, doplňoval dnešní datum, odvozoval hodiny z pozic v poli a psal markdown. Proto čísla kontroluje kód.
 - Přesná data CITIQ dá jen skript (D1), ne WebFetch (vynechává části).
 - Ve strict tool schématu nejde `enum` spojit s `type: ["string", "null"]` (API vrátí 400 „Enum value … does not match declared type“). Použij `anyOf: [{ type: "string", enum: [...] }, { type: "null" }]`. Testy bez sítě to neodhalí, ověř přes `npm run ask`.
+- Dev server (Turbopack + `@tailwindcss/turbopack`) občas nezaregistruje změnu `app/globals.css` a dál posílá starou verzi (černý / rozbitý vzhled, staré rámečky). Po úpravě `globals.css` ověř servírované CSS (`curl` na `/_next/static/chunks/*.css`) a když je staré, `touch app/globals.css`; jinak restart `npm run dev` (případně `rm -rf .next`).
 - Čas bodu z CITIQ je konec hodinového okna, poslední bod dne má čas `stop` (23:59:59). Hodina = `ceil((T − půlnoc) / 1 h) − 1`, ne `floor`.
