@@ -1,5 +1,5 @@
 make:
-git pull
-npm ci 
-npm run build
-pm2 restart osk
+	git pull
+	npm ci 
+	npm run build
+	pm2 restart osk
