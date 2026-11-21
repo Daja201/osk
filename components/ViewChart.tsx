@@ -8,6 +8,7 @@ import { useShareUrl } from "@/lib/ui/qr";
 import { type ChartView, defaultView } from "@/lib/view";
 import Chart from "./charts/Chart";
 import DataTable from "./DataTable";
+import TitleParts from "./TitleParts";
 
 // Vzhled, podle kterého se odpověď kreslí: úprava z editoru, uložený vzhled, nebo výchozí od AI.
 // null = odpověď není graf ani tabulka (věta, zdroj dat) a nikdo ji v editoru nepřepnul.
@@ -43,7 +44,11 @@ export default function ViewChart({
   if (view.format === "table") {
     return (
       <div className={`flex flex-col gap-4 rounded-3xl p-5 ring-1 sm:p-8 ${ring}`} style={{ background: colors.bg, color: colors.text }}>
-        {view.title && <h2 className="m-0 font-sign text-[24px] leading-tight font-bold sm:text-[28px]">{view.title}</h2>}
+        {view.title && (
+          <h2 className="m-0 font-sign text-[24px] leading-tight font-bold sm:text-[28px]">
+            <TitleParts title={view.title} />
+          </h2>
+        )}
         <DataTable result={result} onPick={onPick} picked={picked} />
       </div>
     );

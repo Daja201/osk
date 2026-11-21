@@ -119,6 +119,12 @@ circle.chart-item:focus-visible {
   display: none;
 }
 
+/* Oblasti, na které přesouvá focus kód (odpověď, nadpis podrobností; tabindex="-1"), nejsou ovládací prvky:
+   Tabem se na ně nedá dostat, focus tam je jen pro čtečku obrazovky. Proto bez žlutého obrysu. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 /* Viditelný focus pro ovládání klávesnicí: jen žlutý obrys (bez bílého / tmavého okraje kolem).
    Je schválně mimo vrstvu, takže má přednost před třídami Tailwindu a je vždy vidět. */
 :focus-visible {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { explainNumber, periodOf, timingsOf, viewOf } from "../lib/ui/answer";
-import { chartColors, chartData, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
+import { chartColors, chartData, extremes, hourSummary, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
 import { tableTsv } from "../lib/ui/export";
 import { FIXTURES } from "../lib/ui/fixtures";
 
@@ -132,5 +132,30 @@ describe("odkud je číslo v grafu", () => {
       { gate: 1, bucket: 0 },
       { gate: 2, bucket: 0 },
     ]);
+  });
+});
+
+describe("závěr grafu po hodinách", () => {
+  it("nejvyšší a nejnižší hodnota bez chybějících hodin, při shodě první", () => {
+    expect(extremes([5, null, 9, 0, 9])).toEqual({ max: 2, min: 3 });
+    expect(extremes([null, 4, null])).toBeNull();
+  });
+
+  it("věta s rozsahem hodin a čísly; jen po hodinách a pro jedno místo", () => {
+    const result = (labels: string[], values: (number | null)[][], granularity: "hour" | "day" = "hour") =>
+      ({
+        ok: true,
+        data: {
+          granularity,
+          buckets: labels.map((label) => ({ label, start: "", end: "" })),
+          series: values.map((v, i) => ({ gate: `Místo ${i}`, sensors: [], values: v, total: 0, coverage: { hours: 0, of: 0 } })),
+        },
+      }) as unknown as Parameters<typeof hourSummary>[0];
+    expect(hourSummary(result(["3:00", "4:00", "14:00"], [[60, null, 2290]]))).toBe("Nejvíc vozidel: 14:00–15:00 (2\u00a0290). Nejméně: 3:00–4:00 (60).");
+    expect(hourSummary(result(["st 18. 11. 22:00", "st 18. 11. 23:00"], [[5, 7]]))).toBe(
+      "Nejvíc vozidel: st 18. 11. 23:00–24:00 (7). Nejméně: st 18. 11. 22:00–23:00 (5).",
+    );
+    expect(hourSummary(result(["3:00", "4:00"], [[1, 2], [3, 4]]))).toBeNull();
+    expect(hourSummary(result(["po", "út"], [[1, 2]], "day"))).toBeNull();
   });
 });

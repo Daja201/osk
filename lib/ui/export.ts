@@ -132,7 +132,17 @@ export async function renderPng(svg: SVGSVGElement): Promise<Blob> {
     context.fillStyle = style.getPropertyValue("fill") || "#000";
     context.textAlign = anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
     context.textBaseline = "alphabetic"; // jako SVG: y je účaří
-    context.fillText(content, text.x.baseVal[0]?.value ?? 0, text.y.baseVal[0]?.value ?? 0);
+    const tx = text.x.baseVal[0]?.value ?? 0;
+    const ty = text.y.baseVal[0]?.value ?? 0;
+    // Obrys v barvě pozadí (popisek u vrcholu grafu), ať je číslo čitelné i přes čáru.
+    const outline = text.getAttribute("stroke");
+    if (outline) {
+      context.strokeStyle = outline;
+      context.lineWidth = Number(text.getAttribute("stroke-width") ?? 1);
+      context.lineJoin = "round";
+      context.strokeText(content, tx, ty);
+    }
+    context.fillText(content, tx, ty);
   }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));

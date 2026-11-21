@@ -2,6 +2,7 @@
 
 import { type RefObject, useEffect, useRef, useState } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
+import { viewOf } from "@/lib/ui/answer";
 import { copyText, downloadCsv, downloadPng, downloadSvg, tableTsv } from "@/lib/ui/export";
 import type { ChartView } from "@/lib/view";
 import { effectiveView } from "./ViewChart";
@@ -96,7 +97,10 @@ export default function AnswerActions({
   editing?: boolean;
 }) {
   const [status, setStatus] = useState<string | null>(null);
-  const url = useShareUrl(answer.id);
+  // U „nevím“ a chyb není co sdílet ani stahovat: zůstane jen „Jak to víme“.
+  const shareable = viewOf(answer) === "answer";
+  const shareUrl = useShareUrl(answer.id);
+  const url = shareable ? shareUrl : null;
   const result = answer.result?.ok ? answer.result : null;
   const shown = effectiveView(answer, view);
   const isChart = shown !== null && shown.format !== "table";
@@ -109,7 +113,7 @@ export default function AnswerActions({
   const button = `${PRESS} inline-flex h-11 items-center gap-2 rounded-full bg-white/15 px-4 text-[15px] font-semibold text-white hover:bg-white/25`;
   type Action = { label: string; hint?: string; run: () => Promise<void> | void };
   const downloads: Action[] = [];
-  if (isChart) {
+  if (isChart && shareable) {
     downloads.push({
       label: "Obrázek PNG",
       hint: "do prezentace, dokumentu, e-mailu",
@@ -130,7 +134,7 @@ export default function AnswerActions({
       },
     });
   }
-  if (result && answer.format !== "source") {
+  if (result && shareable && answer.format !== "source") {
     downloads.push({ label: "Data CSV", hint: "pro Excel a Google Tabulky", run: () => downloadCsv(result, `${name}.csv`) });
     // Data jako tabulka do schránky: vloží se do Excelu / Google Tabulek rovnou do buněk.
     downloads.push({

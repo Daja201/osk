@@ -4,13 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
+import { defaultView } from "@/lib/view";
 import AnswerActions from "./AnswerActions";
 import AnswerCard from "./AnswerCard";
 import AnswerExplorer from "./AnswerExplorer";
 import Footer from "./Footer";
+import HourSummary from "./HourSummary";
 import Proof from "./Proof";
 import { PRESS } from "./styles";
 import TopBar from "./TopBar";
+import { effectiveView } from "./ViewChart";
 
 // Uložená odpověď (/a/<id>): stejná grafika jako v aplikaci, pod ní celý důkaz.
 // Odkaz jde poslat dál nebo vložit do prezentace; platí 7 dní.
@@ -30,7 +33,10 @@ export default function SavedView({ answer }: { answer: AskAnswer }) {
         </div>
         {/* Graf a tabulka jsou klikací (odkud je číslo); věta, zdroj a „nevím“ jako v aplikaci. */}
         {["bar", "line", "pie", "table"].includes(answer.format ?? "") && answer.result?.ok ? (
-          <AnswerExplorer answer={answer} svgRef={svg} />
+          <>
+            <AnswerExplorer answer={answer} svgRef={svg} />
+            {answer.result?.ok && <HourSummary result={answer.result} view={effectiveView(answer, null) ?? defaultView(answer)} />}
+          </>
         ) : (
           <AnswerCard answer={answer} svgRef={svg} interactive={false} />
         )}

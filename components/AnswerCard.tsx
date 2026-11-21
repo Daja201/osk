@@ -9,7 +9,9 @@ import { copyText } from "@/lib/ui/export";
 import { formatNumber } from "@/lib/ui/format";
 import { splitSentence } from "@/lib/ui/sentence";
 import type { ChartView } from "@/lib/view";
+import HourSummary from "./HourSummary";
 import { PRESS } from "./styles";
+import TitleParts from "./TitleParts";
 import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
 import ViewChart, { effectiveView } from "./ViewChart";
 
@@ -159,9 +161,12 @@ export default function AnswerCard({
   const result = answer.result?.ok ? answer.result : null;
   const plain = "rounded-3xl bg-surface p-6 text-ink sm:p-10";
 
-  if (viewOf(answer) !== "answer" || !result) {
+  const kind = viewOf(answer);
+  if (kind !== "answer" || !result) {
+    // „Nevím“ je na první pohled jiná než běžná odpověď: neutrální šedá karta.
+    const unknown = kind === "out_of_scope" || kind === "unknown";
     return (
-      <div className={plain}>
+      <div className={unknown ? "rounded-3xl bg-band p-6 text-ink sm:p-10" : plain}>
         <OtherBody answer={answer} interactive={interactive} />
       </div>
     );
@@ -172,6 +177,7 @@ export default function AnswerCard({
     return (
       <div className="flex flex-col gap-3">
         <ViewChart answer={answer} result={result} view={shown} svgRef={svgRef} />
+        <HourSummary result={result} view={shown} />
         <Notes notes={answer.notes} className="text-white" />
       </div>
     );
@@ -199,7 +205,11 @@ export default function AnswerCard({
           Čísla ve větě ověřil náš kód
         </p>
       )}
-      <p className="m-0 mt-5 text-[16px] text-muted">{answer.title}</p>
+      {answer.title && (
+        <p className="m-0 mt-5 text-[16px] text-muted">
+          <TitleParts title={answer.title} />
+        </p>
+      )}
       <Notes notes={answer.notes} className="mt-2 text-ink" />
     </div>
   );

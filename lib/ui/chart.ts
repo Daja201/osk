@@ -2,7 +2,7 @@
 import type { SeriesOk } from "../citiq/series";
 import { PALETTE, type PaletteName } from "../ai/palette";
 import { type AxisSetting, customAxisError } from "../view";
-import { niceAxis } from "./format";
+import { formatNumber, niceAxis } from "./format";
 
 export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
 
@@ -22,6 +22,31 @@ export function chartData(result: SeriesOk): ChartData {
     categories: buckets.map((b) => b.label),
     series: series.map((s) => ({ name: placeName(s.gate), values: s.values })),
   };
+}
+
+// Index nejvyšší a nejnižší hodnoty. Chybějící hodnoty (null) se nepočítají; při shodě vyhrává první.
+// Potřebujeme aspoň dvě známé hodnoty, jinak null.
+export function extremes(values: (number | null)[]): { max: number; min: number } | null {
+  const known = values.flatMap((value, index) => (value === null ? [] : [{ value, index }]));
+  if (known.length < 2) return null;
+  const max = known.reduce((best, item) => (item.value > best.value ? item : best));
+  const min = known.reduce((best, item) => (item.value < best.value ? item : best));
+  return { max: max.index, min: min.index };
+}
+
+// „14:00“ → „14:00–15:00“, „st 18. 11. 22:00“ → „st 18. 11. 22:00–23:00“
+const hourRange = (label: string) => label.replace(/(\d{1,2}):00$/, (_, hour: string) => `${hour}:00–${Number(hour) + 1}:00`);
+
+// Závěr pod graf po hodinách s jedním místem, spočítaný kódem (ne AI):
+// „Nejvíc vozidel: 14:00–15:00 (2 290). Nejméně: 3:00–4:00 (60).“ U jiných grafů null.
+export function hourSummary(result: SeriesOk): string | null {
+  const { granularity, buckets, series } = result.data;
+  if (granularity !== "hour" || series.length !== 1) return null;
+  const { values } = series[0];
+  const found = extremes(values);
+  if (!found) return null;
+  const part = (index: number) => `${hourRange(buckets[index].label)} (${formatNumber(values[index] ?? 0)})`;
+  return `Nejvíc vozidel: ${part(found.max)}. Nejméně: ${part(found.min)}.`;
 }
 
 // Bod grafu v datech: místo (index řady ve výsledku) a bucket (index období), nebo celé období (null).

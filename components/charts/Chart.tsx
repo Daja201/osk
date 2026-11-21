@@ -3,7 +3,7 @@
 import { type Ref, useEffect, useRef, useState } from "react";
 import type { PALETTE } from "@/lib/ai/palette";
 import type { SeriesOk } from "@/lib/citiq/series";
-import { type DataPick, type ValueAxis, axisFor, chartData, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
+import { type DataPick, type ValueAxis, axisFor, chartData, extremes, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
 import type { AxisSetting } from "@/lib/view";
 import { formatNumber } from "@/lib/ui/format";
 import QrCode from "../QrCode";
@@ -32,9 +32,15 @@ function useWidth(): [Ref<HTMLDivElement>, number] {
   return [ref, width];
 }
 
-// Text do nejvýš `maxLines` řádků (SVG text se sám nezalamuje). Dělí se na mezerách i pevných mezerách.
+// Text do nejvýš `maxLines` řádků (SVG text se sám nezalamuje). Nadpis „Počet vozidel · 17. listopadu · 20. 11. 2026“
+// se láme jen mezi částmi oddělenými „ · “, ne uvnitř nich; uvnitř části jen tehdy, když se celá na řádek nevejde.
+// Jinak se dělí na mezerách i pevných mezerách.
 function wrap(text: string, maxChars: number, maxLines = 2): string[] {
-  const words = text.split(/[ \u00A0]/);
+  const parts = text.split(" · ");
+  const words = parts.flatMap((part, i) => {
+    const unit = i < parts.length - 1 ? `${part} ·` : part;
+    return unit.length <= maxChars ? [unit] : unit.split(/[ \u00A0]/);
+  });
   const lines: string[] = [""];
   for (const word of words) {
     const line = lines[lines.length - 1];
@@ -295,6 +301,10 @@ function Axes({
   const x = (i: number) =>
     kind === "bar" ? plot.left + slot * (i + 0.5) : plot.left + labels.inset + (n === 1 ? inner / 2 : (inner * i) / (n - 1));
   const showValues = kind === "bar" && n * data.series.length <= 16;
+  // Popisek u nejvyššího sloupce / bodu (jedna řada), když hodnoty nejsou vypsané u všech.
+  const peak = data.series.length === 1 && !showValues && !labels.values ? extremes(data.series[0].values)?.max ?? null : null;
+  const peakValue = peak === null ? null : data.series[0].values[peak];
+  const peakX = peak === null ? 0 : Math.min(plot.right - 28, Math.max(plot.left + 28, x(peak)));
 
   return (
     <g>
@@ -415,6 +425,12 @@ function Axes({
               </g>
             );
           })}
+
+      {peak !== null && peakValue !== null && (
+        <text x={peakX} y={y(peakValue) - (kind === "line" ? 12 : 8)} fontSize="15" fontWeight="700" textAnchor="middle" fill={colors.text} stroke={colors.bg} strokeWidth="4" paintOrder="stroke">
+          {formatNumber(peakValue)}
+        </text>
+      )}
     </g>
   );
 }
