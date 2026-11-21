@@ -42,3 +42,31 @@ export function weekdayCz(date: string): string {
 export function pragueTime(at: Date): string {
   return new Intl.DateTimeFormat("cs-CZ", { timeZone: "Europe/Prague", hour: "2-digit", minute: "2-digit" }).format(at);
 }
+
+// Celá hodina v pražském čase (0–23).
+export function pragueHour(at: Date): number {
+  const hour = new Intl.DateTimeFormat("en-GB", { timeZone: PRAGUE_TIME_ZONE, hour: "numeric", hourCycle: "h23" }).format(at);
+  return Number(hour);
+}
+
+// Období pro lidi z UTC začátku a konce: „19. 11. 2026“, „17.–19. 11. 2026“, „19. 11. 2026, 8:00–15:00“,
+// „18. 11. 2026 22:00 – 19. 11. 2026 2:00“. Konec se nezahrnuje.
+export function formatPeriod(startIso: string, endIso: string): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  const lastHour = new Date(end.getTime() - 3600 * 1000);
+  const startDate = pragueDate(start);
+  const endDate = pragueDate(lastHour);
+  const hourOf = (at: Date) => `${pragueHour(at)}:00`;
+  const wholeDays = pragueHour(start) === 0 && pragueHour(end) === 0;
+  if (wholeDays) {
+    if (startDate === endDate) return formatCzDate(startDate);
+    const [sy, sm, sd] = startDate.split("-").map(Number);
+    const [ey, em] = endDate.split("-").map(Number);
+    if (sy === ey && sm === em) return `${sd}.–${formatCzDate(endDate)}`;
+    return `${formatCzDate(startDate)} – ${formatCzDate(endDate)}`;
+  }
+  const endHour = pragueHour(end) === 0 ? "24:00" : hourOf(end);
+  if (startDate === endDate) return `${formatCzDate(startDate)}, ${hourOf(start)}–${endHour}`;
+  return `${formatCzDate(startDate)} ${hourOf(start)} – ${formatCzDate(endDate)} ${endHour}`;
+}

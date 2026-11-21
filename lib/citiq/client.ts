@@ -21,9 +21,9 @@ export class CitiqError extends Error {
   }
 }
 
-//function to get API data
-export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
-  //builds URL when API call
+// Přesná adresa dotazu na CITIQ. Používá ji fetchCitiq a stejnou adresu ukazujeme uživateli
+// jako zdroj dat (dá se otevřít v prohlížeči a ověřit).
+export function citiqUrl(params: CitiqParams): string {
   const { view, ...query } = params;
   const url = new URL(`${CITIQ_BASE}/${encodeURIComponent(view)}/`);
   const format = query.format ?? "json";
@@ -38,8 +38,15 @@ export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
   if (query.group_by_tags) {
     url.searchParams.set("group_by_tags", query.group_by_tags.join(","));
   }
+  return url.toString();
+}
+
+//function to get API data
+export async function fetchCitiq(params: CitiqParams): Promise<unknown> {
+  const { view } = params;
+  const format = params.format ?? "json";
   //call
-  const res = await fetch(url.toString());
+  const res = await fetch(citiqUrl(params));
   //error handler
   if (res.status === 429) {
     throw new CitiqError(429, "CITIQ: error (rate limit)");

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import Footer from "./Footer";
 import { PRESS } from "./styles";
+import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
 import TopBar from "./TopBar";
 
 // Kroky animace: tlačítko se roztočí, „roztéká“ (mění tvar) a zvětší přes celou obrazovku.
@@ -17,6 +18,8 @@ function blobFrames(scale: number): Keyframe[] {
   ];
 }
 
+const HINT_DELAY_MS = 5000;
+
 // Úvod: jen pole pro otázku a tlačítko. Po odeslání se tlačítko rozleje přes obrazovku
 // a zavolá se onCovered (rodič přepne na modrou obrazovku s odpovědí). Odpověď se mezitím počítá.
 export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
@@ -26,10 +29,23 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const blob = useRef<HTMLDivElement>(null);
+  // Nápověda pod polem: tlačítko se objeví až po chvíli, ať úvod na začátku zůstane čistý.
+  const [hintVisible, setHintVisible] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHintVisible(true), HINT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    const question = value.trim();
+    start(value);
+  }
+
+  // Odeslání otázky a animace. Volá ho formulář i kliknutí na navrženou otázku.
+  function start(raw: string) {
+    const question = raw.trim();
     if (!question || leaving) return;
     void ask(question);
     setLeaving(true);
@@ -67,33 +83,74 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         />
       </div>
       <main className="flex min-h-0 flex-1 items-center justify-center px-4 pb-[8vh] sm:px-8">
-        <form role="search" onSubmit={submit} className="flex w-full max-w-[760px] flex-col gap-3 sm:flex-row">
-          <label htmlFor="otazka" className="sr-only">
-            Vaše otázka
-          </label>
-          <input
-            ref={input}
-            id="otazka"
-            type="text"
-            value={value}
-            maxLength={300}
-            required
-            autoComplete="off"
-            autoFocus
-            disabled={leaving}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder="Kolik aut včera projelo ulicí 17. listopadu?"
-            className={`h-16 w-full min-w-0 rounded-2xl border-2 border-line bg-surface px-5 font-sans text-[19px] font-medium text-ink transition-colors hover:border-muted focus:border-ink sm:flex-1 sm:text-[21px] ${fade}`}
-          />
-          <button
-            ref={button}
-            type="submit"
-            disabled={leaving}
-            className={`${PRESS} h-16 shrink-0 rounded-2xl bg-tabule px-8 font-sans text-[21px] font-semibold whitespace-nowrap text-white hover:bg-[#0A4482] disabled:hover:scale-100`}
-          >
-            <span className={leaving ? "invisible" : undefined}>Zeptat se</span>
-          </button>
-        </form>
+        {/* relative: nápověda visí pod formulářem (absolute), takže se pole při jejím objevení neposune. */}
+        <div className="relative w-full max-w-[760px]">
+          <form role="search" onSubmit={submit} className="flex w-full flex-col gap-3 sm:flex-row">
+            <label htmlFor="otazka" className="sr-only">
+              Vaše otázka
+            </label>
+            <input
+              ref={input}
+              id="otazka"
+              type="text"
+              value={value}
+              maxLength={300}
+              required
+              autoComplete="off"
+              autoFocus
+              disabled={leaving}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder="Kolik aut včera projelo ulicí 17. listopadu?"
+              className={`h-16 w-full min-w-0 rounded-2xl border-2 border-line bg-surface px-5 font-sans text-[19px] font-medium text-ink transition-colors hover:border-muted focus:border-ink sm:flex-1 sm:text-[21px] ${fade}`}
+            />
+            <button
+              ref={button}
+              type="submit"
+              disabled={leaving}
+              className={`${PRESS} h-16 shrink-0 rounded-2xl bg-tabule px-8 font-sans text-[21px] font-semibold whitespace-nowrap text-white hover:bg-[#0A4482] disabled:hover:scale-100`}
+            >
+              <span className={leaving ? "invisible" : undefined}>Zeptat se</span>
+            </button>
+          </form>
+          <div className={`absolute inset-x-0 top-full mt-5 flex flex-col items-center gap-3 ${fade}`}>
+            {hintVisible && !leaving && (
+              <button
+                type="button"
+                aria-expanded={hintOpen}
+                aria-controls="navrhy"
+                onClick={() => setHintOpen(!hintOpen)}
+                className={`${PRESS} animate-rise flex items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
+              >
+                Na co se můžu zeptat?
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`transition-transform duration-200 ${hintOpen ? "rotate-180" : ""}`}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            )}
+            {hintOpen && !leaving && (
+              <Suggestions
+                id="navrhy"
+                questions={TOP_EXAMPLES}
+                className="animate-rise max-w-[560px]"
+                onPick={(question) => {
+                  setValue(question);
+                  start(question);
+                }}
+              />
+            )}
+          </div>
+        </div>
       </main>
       <div className={fade}>
         <Footer tone="light" />

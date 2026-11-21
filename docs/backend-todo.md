@@ -1,28 +1,32 @@
 # Co frontend potřebuje od backendu
 
-Sepsal Jáchym (s Claude Code) 21. 11. 2026. Frontend dnes jede jen na tom, co vrací `/api/ask`
-(`lib/citiq/traffic.ts` → `lib/ai/ask.ts`). Nic z tohohle není nutné pro demo, je to seřazené podle užitku.
+Sepsal Jáchym (s Claude Code) 21. 11. 2026. Frontend jede jen na tom, co vrací `/api/ask`
+(`lib/citiq/series.ts` → `lib/ai/ask.ts`). Nic z tohohle není nutné pro demo, je to seřazené podle užitku.
+
+## Předěláno 21. 11. (generátor grafů)
+- `lib/citiq/traffic.ts` nahradil `lib/citiq/series.ts`: víc míst, libovolný rozsah, po hodinách / dnech / celkem,
+  odkazy na zdroj. Parsování CITIQ je v `parse.ts`, seznam bran a skupin v `gates.ts` (export `KNOWN_GATES` je hotový).
+- Den se změnou času (23/25 h) `series.ts` zvládá: hodiny se počítají ze skutečné délky dne a popisky jsou v pražském čase.
 
 ## Už opraveno (21. 11.)
-- **Posun hodin v `traffic.ts`:** `floor(…) - 1` → `ceil(…) - 1`. Poslední bod dne má čas `22:59:59Z` (= stop dotazu)
-  a s `floor` padal do hodiny 22 (dvakrát), hodina 23 zůstala `null`. Test: `tests/traffic-hours.test.ts`.
+- **Posun hodin:** `floor(…) - 1` → `ceil(…) - 1` (teď `hourIndexOf` v `parse.ts`). Poslední bod dne má čas `22:59:59Z`
+  (= stop dotazu) a s `floor` padal do hodiny 22 (dvakrát), hodina 23 zůstala `null`. Test: `tests/series.test.ts`.
 
 ## Chyby, které zůstaly
-1. **Dny se změnou času a rozsah hodin.** V `trafficCount` je `rangeTo = hour_to ?? 24`. Den se změnou času má
-   25 hodin, takže bez `hour_to` se poslední hodina zahodí (stejné je to v `sumResults` v `lib/ai/ask.ts`).
-   Výchozí hodnota by měla být `expectedHours`. U 23/25hodinových dnů navíc index ≠ hodina na hodinách.
-2. **`npm run ask` čte `.env`, ale klíč je v `.env.local`.** Web to nerozbije (Next načítá oba), skript v terminálu
+1. **`npm run ask` čte `.env`, ale klíč je v `.env.local`.** Web to nerozbije (Next načítá oba), skript v terminálu
    klíč nenajde. Buď vrátit `--env-file-if-exists=.env.local`, nebo dát obě.
-3. **Smazaný `lib/citiq/traffic.test.ts`.** `npm test` pořád spouští `node --test lib/citiq/*.test.ts` (teď 0 testů).
-   Buď testy vrátit, nebo tu část skriptu smazat.
+2. **Smazaný `lib/citiq/traffic.test.ts`.** `npm test` pořád spouští `node --test lib/citiq/*.test.ts` (teď 0 testů).
+   Testy backendu jsou teď ve vitestu (`tests/series.test.ts`), tu část skriptu jde smazat.
 
 ## Data, která frontend potřebuje
-1. **Export seznamu bran.** `lib/ai/gates.ts` má kopii `KNOWN_GATES`. Stačí `export const KNOWN_GATES` v `traffic.ts`.
+1. ~~**Export seznamu bran.**~~ Hotovo: `lib/citiq/gates.ts`.
 2. **Lidské názvy a skupiny bran (`data/gates.json`).**
    - Pro každou bránu: název pro lidi („17. listopadu, jih“), přezdívky, ke kterému místu patří.
    - Které brány tvoří jedno místo: 17. listopadu (2), Kafkova (2), Šmeralova (3), Trnkova (2).
      Šmeralovu a Trnkovu dnes UI vůbec nenabízí, protože skupina chybí.
    - UI z toho vezme seznam míst v nápovědě „?“ (teď je natvrdo v `components/InfoButton.tsx`).
+   - Skupiny jsou zatím v `lib/citiq/gates.ts` (`members`); Šmeralova a Trnkova tam chybí, protože jsme neověřili,
+     jestli se jejich brány smí sčítat (IN/OUT brány na Šmeralově by mohly počítat stejná auta dvakrát).
 3. **Souřadnice bran** (z registru CITIQ `olomouc-traffic`, případně OpenStreetMap), pokud budeme chtít mapu.
    Získávání patří do backendu, frontendu stačí `{ name, lat, lon }`.
 4. **Stav senzorů** (`last_seen` z view `olomouc-traffic`): které brány teď nevysílají. Hodí se jako další nástroj

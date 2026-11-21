@@ -1,16 +1,18 @@
 // Jak stránka získá odpověď. Běží v prohlížeči.
 import { z } from "zod";
 import type { AskAnswer } from "../ai/types";
+import { FORMATS } from "../ai/tools";
 import { FIXTURES } from "./fixtures";
 
 // Kontrola tvaru odpovědi z /api/ask: jen pole, bez kterých stránka nic neukáže.
-// Celé schéma kontraktu přijde, až se domluvíme s Davidem (ZADANI.md, fáze 2).
 const AskResponse = z.looseObject({
   ok: z.literal(true),
   question: z.string(),
   kind: z.enum(["answer", "unknown"]),
-  sentence: z.string(),
-  sentence_source: z.enum(["ai", "fallback", "fixed"]),
+  format: z.enum(FORMATS).nullable(),
+  sentence: z.string().nullable(),
+  sentence_source: z.enum(["ai", "fallback", "fixed"]).nullable(),
+  notes: z.array(z.string()),
   trace: z.looseObject({ steps: z.array(z.unknown()), total_ms: z.number(), model: z.string(), now: z.string() }),
 });
 
@@ -18,19 +20,26 @@ export const NETWORK_ERROR_TEXT = "Data se teď nepodařilo stáhnout.";
 
 function networkError(question: string, message: string): AskAnswer {
   return {
+    id: null,
+    expires_at: null,
     question,
+    created_at: new Date().toISOString(),
     kind: "unknown",
+    format: null,
+    title: null,
+    background: null,
     sentence: NETWORK_ERROR_TEXT,
     sentence_source: "fixed",
     reason: { code: "NETWORK_ERROR", message },
-    assumptions: [],
+    spec: null,
     result: null,
+    notes: [],
     trace: { model: "", now: new Date().toISOString(), steps: [], total_ms: 0 },
   };
 }
 
 export async function getAnswer(question: string): Promise<AskAnswer> {
-  // ?fixture=ok apod. → testovací odpověď bez volání serveru. Čte se až teď, při odeslání.
+  // ?fixture=bar apod. → testovací odpověď bez volání serveru. Čte se až teď, při odeslání.
   const fixture = new URLSearchParams(window.location.search).get("fixture");
   if (fixture && fixture in FIXTURES) return FIXTURES[fixture];
 

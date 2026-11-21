@@ -1,64 +1,71 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { GATES, GATE_NAMES } from "./gates";
+import { GATES, GATE_NAMES, MAX_GATES } from "./gates";
+import { PALETTE_NAMES } from "./palette";
 
 const gateList = GATES.map((gate) =>
   gate.aliases.length > 0 ? `${gate.objectName} (${gate.aliases.join(", ")})` : gate.objectName,
 ).join("; ");
 
-// Definice nástroje pro Claude. Odpovídá Davidově funkci trafficCount({ gate, direction, date }),
-// navíc "both" (oba směry sečte náš kód) a date_assumed (jen pro účtenku, funkci se neposílá).
-export const trafficCountTool: Anthropic.Tool = {
-  name: "traffic_count",
+export const FORMATS = ["text", "bar", "line", "pie", "table", "source"] as const;
+export type Format = (typeof FORMATS)[number];
+
+// Jediný nástroj: Claude z otázky vyplní ZADÁNÍ odpovědi (co spočítat a jak to ukázat).
+// Čísla spočítá náš kód (lib/citiq/series.ts), Claude je nevidí, dokud nejsou spočítaná.
+export const buildAnswerTool: Anthropic.Tool = {
+  name: "build_answer",
   description:
-    "Počet průjezdů vozidel dopravní branou (senzorem) v Olomouci za jeden den nebo vybraný časový rozsah. " +
-    "Vrací součet za den, nejrušnější hodinu a poznámky o chybějících datech. " +
+    "Připraví odpověď z dat dopravních senzorů v Olomouci: počty vozidel, které projely branami " +
+    "v zadaném čase, a způsob zobrazení (věta, graf, tabulka, nebo odkaz na zdroj dat). " +
     `Brány (název a v závorce přezdívky): ${gateList}.`,
   strict: true,
   input_schema: {
     type: "object",
     properties: {
-      gate: { type: "string", enum: GATE_NAMES, description: "Název brány přesně ze seznamu." },
-      direction: {
+      format: {
         type: "string",
-        enum: ["in", "out", "both"],
-        description: "in = dovnitř, out = ven, both = oba směry dohromady. Když otázka směr neurčuje, použij both.",
+        enum: [...FORMATS],
+        description:
+          "text = odpověď větou; bar = sloupcový graf (porovnání); line = čárový graf (průběh v čase); " +
+          "pie = koláčový graf (podíl míst na celku); table = tabulka; source = jen odkud data bereme (API).",
       },
-      date: { type: "string", description: "Den ve formátu YYYY-MM-DD (místní datum v Praze). Nikdy ne budoucnost." },
-      date_assumed: { type: "boolean", description: "true, když v otázce nebylo datum a použil jsi včerejšek." },
-      hour_from: {
-        type: ["integer", "null"],
-        description: "Začátek hodiny 0–23 místního času. Bez omezení null.",
+      title: { type: ["string", "null"], description: "Nadpis grafu nebo tabulky, když si ho uživatel řekl, jinak null." },
+      // enum nejde spojit s type: ["string", "null"] (API vrátí 400), proto anyOf.
+      background: {
+        anyOf: [{ type: "string", enum: [...PALETTE_NAMES] }, { type: "null" }],
+        description: "Barva pozadí grafu z palety, když si ji uživatel řekl, jinak null.",
       },
-      hour_to: {
-        type: ["integer", "null"],
-        description: "Konec hodiny 1–24 (nezahrnuje se). Bez omezení null.",
+      gates: {
+        type: "array",
+        items: { type: "string", enum: GATE_NAMES },
+        description: `Místa (1 až ${MAX_GATES}). Pro místo s víc branami použij skupinu „(obě brány)“.`,
       },
+      direction: { type: "string", enum: ["in", "out", "both"], description: "Směr; když ho otázka neurčuje, both." },
+      from: { type: "string", description: "Začátek, pražský čas, tvar YYYY-MM-DDTHH:00." },
+      to: { type: "string", description: "Konec (nezahrnuje se), pražský čas, tvar YYYY-MM-DDTHH:00; půlnoc na konci dne = T24:00." },
+      granularity: { type: "string", enum: ["hour", "day", "total"], description: "hour = po hodinách, day = po dnech, total = jedno číslo za místo." },
+      date_assumed: { type: "boolean", description: "true, když v otázce nebyl žádný čas a použil jsi výchozí (včerejšek)." },
     },
-    required: ["gate", "direction", "date", "date_assumed", "hour_from", "hour_to"],
+    required: ["format", "title", "background", "gates", "direction", "from", "to", "granularity", "date_assumed"],
     additionalProperties: false,
   },
 };
 
-// Stejná pravidla ještě jednou v Zodu. strict hlídá tvar, Zod navíc formát data.
-export const TrafficCountInput = z
-  .object({
-    gate: z.enum(GATE_NAMES as [string, ...string[]]),
-    direction: z.enum(["in", "out", "both"]),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    date_assumed: z.boolean(),
-    hour_from: z.number().int().min(0).max(23).nullable().optional().transform((value) => value ?? undefined),
-    hour_to: z.number().int().min(1).max(24).nullable().optional().transform((value) => value ?? undefined),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.hour_from !== undefined && value.hour_to !== undefined && value.hour_from >= value.hour_to) {
-      ctx.addIssue({
-        code: "custom",
-        message: "hour_from musí být menší než hour_to.",
-        path: ["hour_from"],
-      });
-    }
-  });
+const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-4]):00$/;
 
-export type TrafficCountInput = z.infer<typeof TrafficCountInput>;
+// Stejná pravidla ještě jednou v Zodu. strict hlídá tvar, Zod navíc formát času a počet míst.
+export const BuildAnswerInput = z
+  .object({
+    format: z.enum(FORMATS),
+    title: z.string().trim().max(120).nullable(),
+    background: z.enum(PALETTE_NAMES).nullable(),
+    gates: z.array(z.enum(GATE_NAMES as [string, ...string[]])).min(1).max(MAX_GATES),
+    direction: z.enum(["in", "out", "both"]),
+    from: z.string().regex(LOCAL_TIME),
+    to: z.string().regex(LOCAL_TIME),
+    granularity: z.enum(["hour", "day", "total"]),
+    date_assumed: z.boolean(),
+  })
+  .strict();
+
+export type BuildAnswerInput = z.infer<typeof BuildAnswerInput>;

@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ask } from "@/lib/ai/ask";
+import { saveAnswer } from "@/lib/answers";
 import { appNow } from "@/lib/ai/dates";
-import { trafficCount } from "@/lib/citiq/traffic";
+import { trafficSeries } from "@/lib/citiq/series";
 
 const MAX_QUESTION_LENGTH = 300;
 
@@ -13,16 +14,18 @@ async function handle(question: unknown): Promise<Response> {
     );
   }
 
+  const now = appNow();
   const answer = await ask(question.trim(), {
     // Klíč si SDK vezme z ANTHROPIC_API_KEY; Next načítá .env automaticky.
     client: new Anthropic({ maxRetries: 3, timeout: 30_000 }),
     model: process.env.CLAUDE_MODEL ?? "claude-haiku-5-5",
-    now: appNow(),
-    // Davidova reálná funkce: data z CITIQ přes cache v data/cache/.
-    trafficCount,
+    now,
+    // Výpočet z dat CITIQ (přes cache v data/cache/), se stejným „teď“ jako prompt.
+    trafficSeries: (params) => trafficSeries(params, { now }),
   });
-  // „Nevím“ je platná odpověď, proto vždy 200.
-  return Response.json({ ok: true, ...answer });
+  // Každou odpověď uložíme na 7 dní, aby šla sdílet odkazem /a/<id>. „Nevím“ je platná odpověď, proto vždy 200.
+  const saved = await saveAnswer(answer);
+  return Response.json({ ok: true, ...saved });
 }
 
 // GET /api/ask?q=… pro rychlé zkoušení v prohlížeči
