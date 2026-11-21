@@ -35,14 +35,18 @@ export const FORMAT_LABEL: Record<Format, string> = {
 };
 
 export const DIRECTION_LABEL = { both: "oba směry", in: "jen dovnitř (vjezdy)", out: "jen ven (výjezdy)" } as const;
-export const GRANULARITY_LABEL = { hour: "po hodinách", day: "po dnech", total: "celkem za období" } as const;
+export const GRANULARITY_LABEL = { hour: "po hodinách", day: "po dnech", total: "celkem za období", period: "po srovnávaných obdobích" } as const;
 
 // Období odpovědi pro lidi („19. 11. 2026, 8:00–15:00“). Bez výsledku z toho, co zadala AI.
 export function periodOf(answer: AskAnswer): string | null {
   if (answer.result?.ok) {
+    if (answer.result.data.comparison) return answer.result.data.comparison.periods.map((period) => period.label).join("; ");
     return formatSelectedPeriod(answer.result.meta.period.start, answer.result.meta.period.end, answer.result.meta.params.dates);
   }
   if (answer.spec) {
+    if (answer.spec.periods?.length) {
+      return answer.spec.periods.map((period) => formatSelectedPeriod(period.from, period.to)).join("; ");
+    }
     return answer.spec.dates?.length
       ? formatSelectedPeriod(answer.spec.from, answer.spec.to, answer.spec.dates)
       : `${answer.spec.from.replace("T", " ")} – ${answer.spec.to.replace("T", " ")}`;
@@ -118,6 +122,39 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
         return { who: "code", short: "počet hodin bez dat", long: `Za ${missing} h senzory u místa ${placeName(s.gate)} neposlaly data. Spočítal náš kód.` };
       }
     }
+    if (result.data.comparison) {
+      for (const comparisonSeries of result.data.comparison.series) {
+        const place = placeName(comparisonSeries.gate);
+        for (const [periodIndex, point] of comparisonSeries.points.entries()) {
+          const label = result.data.comparison.periods[periodIndex].label;
+          if (point.delta === token.value) {
+            const unit = result.data.comparison.basis === "weather_mean"
+              ? comparisonSeries.unit ?? ""
+              : result.data.comparison.basis === "traffic_per_hour"
+                ? "voz/h"
+                : "vozidel";
+            return { who: "code", short: `rozdíl oproti základu, ${place}`, long: `Rozdíl ${formatNumber(token.value)} ${unit} za ${label} oproti prvnímu období (${result.data.comparison.baseline}). Spočítal náš kód.` };
+          }
+          if (point.percent === token.value) {
+            return { who: "code", short: `procentní změna, ${place}`, long: `Změna ${formatNumber(token.value)} % za ${label} oproti prvnímu období (${result.data.comparison.baseline}). Spočítal náš kód.` };
+          }
+          if (point.value === token.value) {
+            const unit = result.data.comparison.basis === "weather_mean"
+              ? comparisonSeries.unit ?? ""
+              : result.data.comparison.basis === "traffic_per_hour"
+                ? "voz/h"
+                : "vozidel";
+            return { who: "code", short: `${place}, ${label}`, long: `Srovnávací hodnota ${formatNumber(token.value)} ${unit} za ${label}. Spočítal náš kód.` };
+          }
+          if (point.total === token.value) {
+            return { who: "code", short: `součet za období, ${place}`, long: `Celkový součet ${formatNumber(token.value)} vozidel za ${label}. Spočítal náš kód.` };
+          }
+          if (point.perHour === token.value) {
+            return { who: "code", short: `průměr za hodinu, ${place}`, long: `Průměr ${formatNumber(token.value)} vozidel na dostupnou hodinu za ${label}. Spočítal náš kód.` };
+          }
+        }
+      }
+    }
     for (const s of result.data.series) {
       const i = s.values.findIndex((value) => value === token.value);
       if (i >= 0) {
@@ -138,7 +175,12 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
   const place = places.find((p) => p.match(/\d+/g)?.map(Number).includes(token.value));
   if (place) return placeSource(place);
   // Den, měsíc nebo rok z období, které AI vybrala z otázky (např. 20, 11, 2026).
-  const dateParts = [answer.spec?.from, answer.spec?.to, ...(answer.spec?.dates ?? [])].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
+  const dateParts = [
+    answer.spec?.from,
+    answer.spec?.to,
+    ...(answer.spec?.dates ?? []),
+    ...(answer.spec?.periods ?? []).flatMap((period) => [period.from, period.to]),
+  ].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
   if (dateParts.includes(token.value)) {
     return { who: "ai", short: "datum z otázky", long: `Část data z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
   }
@@ -165,13 +207,47 @@ export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | n
   const bucket = pick.bucket === null || result.data.granularity === "total" ? null : result.data.buckets[pick.bucket];
   const start = bucket ? bucket.start : result.meta.period.start;
   const end = bucket ? bucket.end : result.meta.period.end;
-  const value = bucket ? series.values[pick.bucket ?? 0] : aggregateValue(series);
-  const hours = bucket ? Math.round((Date.parse(end) - Date.parse(start)) / 3600000) : series.coverage.of;
+  const comparisonPoint = bucket ? result.data.comparison?.series[pick.gate]?.points[pick.bucket ?? 0] : undefined;
+  const value = comparisonPoint ? comparisonPoint.value : bucket ? series.values[pick.bucket ?? 0] : aggregateValue(series);
+  const hours = comparisonPoint
+    ? comparisonPoint.coverage.hours
+    : bucket
+      ? Math.round((Date.parse(end) - Date.parse(start)) / 3600000)
+      : series.coverage.of;
   const sensors = series.sensors.length > 1 ? `senzorů ${series.sensors.join(" a ")}` : `senzoru ${series.sensors[0]}`;
   const direction = result.meta.tool === "weather_series" ? "meteorologické veličiny" : DIRECTION_TEXT[result.meta.params.direction];
   const firstDate = pragueDate(Date.parse(start));
   const lastDate = pragueDate(Date.parse(end) - 1);
   const period = bucket ? formatPeriod(start, end) : formatSelectedPeriod(start, end, result.meta.params?.dates);
+  if (comparisonPoint && result.data.comparison) {
+    const comparison = result.data.comparison;
+    const details = comparison.series[pick.gate];
+    const baseline = details.points[0];
+    const differenceUnit = comparison.basis === "weather_mean"
+      ? details.unit ?? ""
+      : comparison.basis === "traffic_per_hour"
+        ? " voz/h"
+        : " vozidel";
+    const difference =
+      comparisonPoint.delta === null
+        ? "rozdíl oproti prvnímu období nelze určit"
+        : `rozdíl oproti prvnímu období (${comparison.baseline}) je ${comparisonPoint.delta > 0 ? "+" : ""}${formatNumber(comparisonPoint.delta)}${differenceUnit}${comparisonPoint.percent === null ? "" : ` (${comparisonPoint.percent > 0 ? "+" : ""}${formatNumber(comparisonPoint.percent)} %)`}`;
+    const text =
+      value === null
+        ? "Pro toto období nejsou dostupná data."
+        : comparison.basis === "weather_mean"
+          ? `Průměr ${formatNumber(value)} ${details.unit ?? ""} za ${hours} z ${comparisonPoint.coverage.of} dostupných hodin; ${difference}. Spočítal ho náš kód.`
+          : comparison.basis === "traffic_per_hour"
+            ? `Průměr ${formatNumber(comparisonPoint.perHour ?? 0)} vozidel na dostupnou hodinu; celkem ${formatNumber(comparisonPoint.total ?? 0)} vozidel za ${hours} z ${comparisonPoint.coverage.of} dostupných hodin; ${difference}.`
+            : `Součet ${formatNumber(comparisonPoint.total ?? 0)} vozidel za ${hours} z ${comparisonPoint.coverage.of} dostupných hodin; průměr ${formatNumber(comparisonPoint.perHour ?? 0)} voz/h; ${difference}.`;
+    return {
+      place: placeName(series.gate),
+      period,
+      value,
+      text: comparisonPoint === baseline ? `${text} Jde o výchozí období.` : text,
+      sources: result.meta.sources.filter((s) => s.date >= pragueDate(Date.parse(start)) && s.date <= pragueDate(Date.parse(end) - 1)).map(({ date, url }) => ({ date, url })),
+    };
+  }
   const text =
     value === null
       ? `Senzory v tomto čase neposlaly žádná data. Nedoplňujeme je nulou, proto tu číslo chybí.`

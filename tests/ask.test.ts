@@ -82,6 +82,7 @@ const spec = {
   from: "2026-11-19T08:00",
   to: "2026-11-19T11:00",
   dates: [],
+  periods: [],
   granularity: "hour",
   date_assumed: false,
 };
@@ -94,6 +95,7 @@ const weatherSpec = {
   from: "2026-11-19T08:00",
   to: "2026-11-19T11:00",
   dates: [],
+  periods: [],
   granularity: "hour",
   date_assumed: false,
 };
@@ -138,12 +140,12 @@ const fakeWeather: WeatherSeriesResult = {
 describe("build_answer: nástroj", () => {
   it("strict schéma vyžaduje všechna pole", () => {
     expect(buildAnswerTool.strict).toBe(true);
-    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "direction", "from", "to", "dates", "granularity", "date_assumed"]);
+    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
   });
 
   it("weather_series má samostatné strict schéma bez dopravního směru", () => {
     expect(weatherSeriesTool.strict).toBe(true);
-    expect(weatherSeriesTool.input_schema.required).toEqual(["format", "title", "background", "stations", "metrics", "from", "to", "dates", "granularity", "date_assumed"]);
+    expect(weatherSeriesTool.input_schema.required).toEqual(["format", "title", "background", "stations", "metrics", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
     expect(weatherSeriesTool.input_schema.properties).not.toHaveProperty("direction");
     expect(weatherSeriesTool.description).toContain("humidity (%)");
   });
@@ -258,6 +260,29 @@ describe("ask: grafy a tabulky", () => {
 
     expect(seriesCalls[0]).toMatchObject({ dates, from: input.from, to: input.to, granularity: "day" });
     expect(answer.title).toContain("úterý 17. 11. 2026 a čtvrtek 19. 11. 2026");
+  });
+
+  it("volá výpočet samostatně pro každé srovnávané období", async () => {
+    const periods = [
+      { from: "2026-11-17T00:00", to: "2026-11-18T00:00" },
+      { from: "2026-11-19T00:00", to: "2026-11-20T00:00" },
+    ];
+    const input = {
+      ...spec,
+      gates: ["Parkoviště Flora"],
+      from: periods[0].from,
+      to: periods[1].to,
+      periods,
+      granularity: "period",
+    };
+    const answer = await ask("Porovnej pondělí a středu", deps(fakeClient([toolUse(input)])));
+
+    expect(seriesCalls).toHaveLength(2);
+    expect(seriesCalls.map(({ from, to, granularity }) => ({ from, to, granularity }))).toEqual(
+      periods.map((period) => ({ ...period, granularity: "total" })),
+    );
+    expect(answer).toMatchObject({ kind: "answer", format: "bar", title: expect.stringContaining("srovnání 2 období") });
+    expect(answer.result).toMatchObject({ ok: true, data: { granularity: "period", buckets: [{}, {}], comparison: { periods: [{}, {}] } } });
   });
 
   it("nadpis a barva od uživatele projdou", async () => {

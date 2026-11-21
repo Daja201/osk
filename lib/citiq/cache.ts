@@ -105,6 +105,49 @@ export function utcStartOfPragueDay(date: string): Date {
   return new Date(localMidnightAsUtc - utcOffsetMs);
 }
 
+// Converts an input wall-clock hour without assuming every Prague day is exactly 24 hours.
+// On the autumn clock change, the earlier occurrence of an ambiguous hour is selected.
+export function parsePragueDateTime(value: string): number | null {
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):00$/.exec(value);
+  if (!match || Number(match[2]) > 24) return null;
+  const [, date, hourText] = match;
+  try {
+    utcStartOfPragueDay(date);
+  } catch {
+    return null;
+  }
+  const hour = Number(hourText);
+  if (hour === 24) {
+    try {
+      return utcStartOfPragueDay(addDays(date, 1)).getTime();
+    } catch {
+      return null;
+    }
+  }
+
+  const [year, month, day] = date.split("-").map(Number);
+  const wallTimeAsUtc = Date.UTC(year, month - 1, day, hour);
+  const probes = [-6, -3, -1, 0, 1, 3, 6].map((offset) => wallTimeAsUtc + offset * 60 * 60 * 1000);
+  const offsets = new Set(
+    probes.map((probe) => {
+      const parts = datePartsInPrague(new Date(probe));
+      return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute)) - probe;
+    }),
+  );
+  const candidates = [...offsets]
+    .map((offset) => wallTimeAsUtc - offset)
+    .filter((candidate) => {
+      const parts = datePartsInPrague(new Date(candidate));
+      return parts.year === String(year).padStart(4, "0") &&
+        parts.month === String(month).padStart(2, "0") &&
+        parts.day === String(day).padStart(2, "0") &&
+        Number(parts.hour) === hour &&
+        parts.minute === "00";
+    })
+    .sort((left, right) => left - right);
+  return candidates[0] ?? null;
+}
+
 // shape for item in cache
 export type CacheEntry = {
   data: unknown;

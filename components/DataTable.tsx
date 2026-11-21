@@ -16,7 +16,8 @@ export default function DataTable({
 }) {
   const { buckets, series } = result.data;
   const mean = isMeanSeries(result);
-  const showTotal = buckets.length > 1;
+  const comparison = result.data.comparison;
+  const showTotal = buckets.length > 1 && !comparison;
   const cell = (pick: DataPick, content: React.ReactNode, label: string) =>
     onPick ? (
       <button
@@ -52,15 +53,38 @@ export default function DataTable({
               <th scope="row" className="border-b border-current/15 px-3 py-1.5 font-normal whitespace-nowrap opacity-80">
                 {bucket.label}
               </th>
-              {series.map((s, gate) => (
-                <td key={s.gate} className="border-b border-current/15 px-3 py-1.5 text-right">
-                  {cell(
-                    { gate, bucket: i },
-                    s.values[i] === null ? <span className="opacity-60">–</span> : formatNumber(s.values[i] ?? 0),
-                    `${placeName(s.gate)}, ${bucket.label}: ${s.values[i] === null ? "bez dat" : formatNumber(s.values[i] ?? 0)}`,
-                  )}
-                </td>
-              ))}
+              {series.map((s, gate) => {
+                const point = comparison?.series[gate]?.points[i];
+                const value = point ? point.value : s.values[i];
+                const unit = comparison?.series[gate]?.unit;
+                const delta =
+                  point?.delta === null || point?.delta === undefined
+                    ? null
+                    : `${point.delta > 0 ? "+" : ""}${formatNumber(point.delta)}${point.percent === null ? "" : ` (${point.percent > 0 ? "+" : ""}${formatNumber(point.percent)} %)`}`;
+                const secondary = point && comparison
+                  ? comparison.basis === "weather_mean"
+                    ? `${i === 0 ? "základ" : `Δ ${delta ?? "—"} vs první období`} · data ${point.coverage.hours}/${point.coverage.of} h`
+                    : comparison.basis === "traffic_per_hour"
+                      ? `${point.total === null ? "součet —" : `součet ${formatNumber(point.total)} vozidel`} · ${i === 0 ? "základ" : `Δ ${delta ?? "—"} voz/h vs první období`} · data ${point.coverage.hours}/${point.coverage.of} h`
+                      : `${point.perHour === null ? "průměr —" : `${formatNumber(point.perHour)} voz/h`} · ${i === 0 ? "základ" : `Δ ${delta ?? "—"} vs první období`} · data ${point.coverage.hours}/${point.coverage.of} h`
+                  : null;
+                const shown = value === null
+                  ? <span className="opacity-60">–</span>
+                  : `${formatNumber(value)}${comparison ? ` ${comparison.basis === "weather_mean" ? unit ?? "" : comparison.basis === "traffic_per_hour" ? "voz/h" : "vozidel"}` : ""}`;
+                const primaryUnit = comparison
+                  ? comparison.basis === "weather_mean" ? unit ?? "" : comparison.basis === "traffic_per_hour" ? "voz/h" : "vozidel"
+                  : unit ?? "";
+                const label = `${placeName(s.gate)}, ${bucket.label}: ${value === null ? "bez dat" : `${formatNumber(value)}${primaryUnit ? ` ${primaryUnit}` : ""}`}${secondary ? `. ${secondary}` : ""}`;
+                return (
+                  <td key={s.gate} className="border-b border-current/15 px-3 py-1.5 text-right">
+                    {cell(
+                      { gate, bucket: i },
+                      <>{shown}{secondary && <span className="block text-[13px] leading-snug opacity-70">{secondary}</span>}</>,
+                      label,
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

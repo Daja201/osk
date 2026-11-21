@@ -3,7 +3,7 @@
 OSK je česká webová aplikace pro dotazy k otevřeným měřením ze sítě CITIQ v Olomouci.
 Zeptáte se přirozeně, například „Kolik aut včera projelo u Billy?“, a aplikace spočítá
 odpověď z dat a zobrazí ji jako větu, graf, tabulku nebo odkaz na zdroj. Umí také sečíst
-vybrané dny nebo porovnat jen konkrétní, i nesouvislá data.
+vybrané dny nebo porovnat konkrétní, i nesouvislá data a více časových období.
 
 V současnosti podporuje:
 - průjezdovou dopravu v Olomouci,
@@ -77,6 +77,7 @@ v našem kódu; Claude by neměl počítat vlastní data.
 - `app/api/ask/route.ts` přijímá otázku a volá Claude i výpočet dat.
 - `lib/ai/ask.ts` sestaví zadání a rozhoduje o odpovědi.
 - `lib/citiq/series.ts` stáhne data po dnech a sestaví hodnoty po hodinách, dnech nebo celkem.
+- `lib/citiq/comparePeriods.ts` porovnává 2–12 období; u různě dlouhých dopravních období srovnává průměr na dostupnou hodinu.
 - `lib/citiq/cache.ts` ukládá CITIQ odpovědi do `data/cache/` na 30 dní.
 - `lib/answers.ts` uloží sdílenou odpověď na 7 dní.
 - `app/a/[id]/page.tsx` zobrazí uloženou odpověď; ostatní API routy poskytují JSON a CSV.
