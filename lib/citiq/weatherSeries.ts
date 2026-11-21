@@ -3,6 +3,7 @@ import { CitiqError, citiqUrl } from "./client";
 import { ZodError } from "zod";
 import { findWeatherRow, parseWeatherResponse, weatherMeasurement } from "./weatherParse";
 import { HIH_RELH_KEY, HIH_TEMP_KEY, resolveWeatherMetric, resolveWeatherStation, stationName, type WeatherMetricKey } from "./weatherStations";
+import { validateSelectedDays } from "./selectedDays";
 
 const VIEW = "meteorological-data-olomouc";
 const TIME_ZONE = "Europe/Prague";
@@ -15,6 +16,7 @@ export type WeatherSeriesParams = {
   metrics: WeatherMetricKey[];
   from: string;
   to: string;
+  dates?: string[];
   granularity: WeatherGranularity;
 };
 export type WeatherBucket = { label: string; start: string; end: string };
@@ -148,13 +150,21 @@ export async function weatherSeries(
   const endMs = Math.min(toMs, lastFullHour);
   const clipped = endMs < toMs;
   const today = pragueDate(now);
+  const selection = validateSelectedDays(params.dates, fromMs, toMs, today);
+  if (selection.error) return fail(selection.error.code, selection.error.message);
+  const selectedDates = selection.dates;
   const slots: Slot[] = [];
   const sources: WeatherSource[] = [];
   // U vlhkosti stahujeme i teplotu téhož čidla (podle ní poznáme poruchu, viz metricHours).
   const requestedKeys: WeatherMetricKey[] = metrics.includes(HIH_RELH_KEY) && !metrics.includes(HIH_TEMP_KEY) ? [...metrics, HIH_TEMP_KEY] : metrics;
 
-  for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) {
+  const datesToFetch = selectedDates ?? [];
+  if (!selectedDates) {
+    for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) datesToFetch.push(date);
+  }
+  for (const date of datesToFetch) {
     const dayStart = utcStartOfPragueDay(date).getTime();
+    if (dayStart >= endMs) continue;
     const dayEnd = utcStartOfPragueDay(nextDate(date)).getTime();
     const hours = Math.round((dayEnd - dayStart) / MS_PER_HOUR);
     const stop = date === today ? lastFullHour - 1000 : dayEnd - 1000;
@@ -204,8 +214,15 @@ export async function weatherSeries(
   }
 
   const keyOf = (slot: Slot) => (params.granularity === "hour" ? String(slot.start) : params.granularity === "day" ? slot.date : "total");
+  const dayCount = datesToFetch.filter((date) => utcStartOfPragueDay(date).getTime() < endMs).length;
   const labelOf = (slot: Slot) =>
-    params.granularity === "total" ? "Průměr" : params.granularity === "day" ? dayFormat.format(slot.start) : timeFormat.format(slot.start);
+    params.granularity === "total"
+      ? "Průměr"
+      : params.granularity === "day"
+        ? dayFormat.format(slot.start)
+        : dayCount > 1
+          ? `${dayFormat.format(slot.start)} ${timeFormat.format(slot.start)}`
+          : timeFormat.format(slot.start);
   const groups: { key: string; label: string; start: number; end: number; slots: Slot[] }[] = [];
   for (const slot of slots) {
     const last = groups[groups.length - 1];
@@ -245,6 +262,7 @@ export async function weatherSeries(
 
   const notes: string[] = [];
   if (clipped) notes.push(`Rozsah sahal do budoucnosti, data jsou do ${timeFormat.format(endMs)} (poslední celá hodina).`);
+  if (selectedDates) notes.push(`Zahrnujeme jen vybrané dny: ${selectedDates.map((date) => dayFormat.format(utcStartOfPragueDay(date).getTime())).join(", ")}.`);
   series.forEach((item, index) => {
     const invalid = invalidHours.get(index) ?? 0;
     const missing = item.coverage.of - item.coverage.hours - invalid;
@@ -265,7 +283,7 @@ export async function weatherSeries(
     },
     meta: {
       tool: "weather_series",
-      params: { ...params, stations: stations.map((station) => station.nick), metrics },
+      params: { ...params, ...(selectedDates ? { dates: selectedDates } : {}), stations: stations.map((station) => station.nick), metrics },
       period: { start: iso(fromMs), end: iso(endMs), clipped },
       sources,
       notes,

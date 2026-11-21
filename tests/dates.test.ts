@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, pragueDate } from "../lib/ai/dates";
+import { addDays, formatSelectedPeriod, pragueDate } from "../lib/ai/dates";
 
 describe("pražské datum", () => {
   it("před UTC půlnocí je Praha ještě předchozí den", () => {
@@ -12,5 +12,11 @@ describe("pražské datum", () => {
 
   it("výpočet dnů je stabilní přes UTC kalendář", () => {
     expect(addDays("2026-11-20", -1)).toBe("2026-11-19");
+  });
+
+  it("nesouvislé vybrané dny vypíše jednotlivě místo souvislého rozsahu", () => {
+    expect(
+      formatSelectedPeriod("2026-11-16T23:00:00.000Z", "2026-11-19T23:00:00.000Z", ["2026-11-17", "2026-11-19"]),
+    ).toBe("úterý 17. 11. 2026 a čtvrtek 19. 11. 2026");
   });
 });
