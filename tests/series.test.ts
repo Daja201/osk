@@ -1,6 +1,7 @@
 // lib/citiq/series.ts bez sítě: getCachedDay / getCachedRange vrací falešná data ve tvaru CITIQ.
 // Čas bodu = KONEC hodinového okna, poslední bod dne má čas „stop“ (23:59:59 místního času).
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CitiqError } from "../lib/citiq/client";
 
 const H = 3600 * 1000;
 // Pravidlo pro falešná data: kolik aut projelo bránou v daný den a hodinu a směrem. null = senzor nevysílal.
@@ -8,6 +9,7 @@ type Rule = (gate: string, date: string, hour: number, direction: "in" | "out") 
 let rule: Rule = () => 1;
 // Brány, které v odpovědi CITIQ úplně chybí (senzor nevysílá).
 let silent = new Set<string>();
+let cacheError: unknown = null;
 const calls: { kind: "day" | "range"; date?: string; stop?: string }[] = [];
 
 const GATES = ["17.listopadu JIH", "17.listopadu Sever", "Parkoviště Flora", "Billa (Hynaisova)", "Zikova"];
@@ -50,10 +52,12 @@ vi.mock("../lib/citiq/cache", async (importOriginal) => {
   return {
     ...original,
     getCachedDay: async (_view: string, date: string) => {
+      if (cacheError) throw cacheError;
       calls.push({ kind: "day", date });
       return day(date);
     },
     getCachedRange: async (_view: string, start: Date, stop: Date) => {
+      if (cacheError) throw cacheError;
       calls.push({ kind: "range", date: pragueDate(start.getTime()), stop: stop.toISOString() });
       return day(pragueDate(start.getTime()));
     },
@@ -69,6 +73,7 @@ const run = (params: Parameters<typeof trafficSeries>[0], now = NOW) => trafficS
 beforeEach(() => {
   rule = () => 1;
   silent = new Set();
+  cacheError = null;
   calls.length = 0;
 });
 
@@ -168,6 +173,17 @@ describe("trafficSeries: chyby a zdroj", () => {
     expect(await run({ gates: ["Zikova"], direction: "both", from: "2026-11-19T00:00", to: "2026-11-20T00:00", granularity: "total" })).toMatchObject({
       ok: false,
       error: { code: "NO_DATA" },
+    });
+  });
+
+  it("rate limit CITIQ rozpozná jako omezení počtu dotazů", async () => {
+    cacheError = new CitiqError(429, "CITIQ: error (rate limit)");
+    expect(await run({ gates: ["Flora"], direction: "both", from: "2026-11-19T00:00", to: "2026-11-20T00:00", granularity: "total" })).toMatchObject({
+      ok: false,
+      error: {
+        code: "RATE_LIMIT_ERROR",
+        message: "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.",
+      },
     });
   });
 

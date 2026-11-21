@@ -103,12 +103,21 @@ function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: bo
   const view = viewOf(answer);
   if (view === "error") {
     const aiFailed = answer.reason?.code === "AI_ERROR";
+    const rateLimited = answer.reason?.code === "RATE_LIMIT_ERROR";
     const detail =
-      answer.reason?.code === "NETWORK_ERROR" ? "Zkontrolujte připojení k internetu a zkuste to znovu." : (answer.reason?.message ?? "Zkuste to prosím za chvíli.");
+      rateLimited
+        ? (answer.reason?.message ?? "Počkejte prosím chvíli a zkuste to znovu.")
+        : answer.reason?.code === "NETWORK_ERROR"
+          ? "Zkontrolujte připojení k internetu a zkuste to znovu."
+          : (answer.reason?.message ?? "Zkuste to prosím za chvíli.");
     return (
       <>
         <p className="m-0 font-sign text-[30px] leading-[1.1] font-bold sm:text-[38px]">
-          {aiFailed ? "Odpověď se teď nepodařilo připravit." : "Data se teď nepodařilo stáhnout."}
+          {rateLimited
+            ? "Příliš mnoho dotazů."
+            : aiFailed
+              ? "Odpověď se teď nepodařilo připravit."
+              : "Data se teď nepodařilo stáhnout."}
         </p>
         <p className="m-0 mt-2 text-muted">{detail}</p>
         {interactive && (

@@ -173,6 +173,8 @@ function stopsOf(answer: AskAnswer): StopData[] {
     stops.push({ marker: "ai", title: "Spojení s AI selhalo", body: <p className="m-0">{answer.reason.message}</p> });
   } else if (answer.reason?.code === "NETWORK_ERROR") {
     stops.push({ marker: "code", title: "Server neodpověděl", body: <p className="m-0">{answer.reason.message}</p> });
+  } else if (answer.reason?.code === "RATE_LIMIT_ERROR") {
+    stops.push({ marker: "code", title: "Server omezil počet dotazů", body: <p className="m-0">{answer.reason.message}</p> });
   }
 
   if (spec) {
