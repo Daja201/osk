@@ -45,14 +45,33 @@ Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba
 - **Nadpis:** „…s nadpisem Stav nyní“. Bez něj nadpis složí kód (místa a období).
 - **Pozadí:** modrá, červená, zelená, oranžová, fialová, šedá, tmavá, bílá. Jiné barvy nejsou; ke každé
   jsme vybrali čitelné barvy textu a řad, aby graf šel rovnou do prezentace.
-- Graf zatím nejde upravovat (editor grafu přijde později). Stačí otázku napsat znovu jinak.
+- **Měřítko:** když jsou hodnoty blízko sebe (např. 21 500 a 23 000), osa sloupcového a čárového grafu nezačne na nule,
+  ale na hezkém čísle pod nimi (19 000), aby byl rozdíl vidět. Přiblížení je mírné (nejmenší sloupec zabere aspoň
+  ~40 % výšky) a vždy označené: přerušení osy a poznámka „Osa začíná na 19 000, ne na nule“ přímo v grafu.
+  Při velkých rozdílech osa začíná na nule.
+- **Editor:** tlačítko „Upravit vzhled“ pod odpovědí otevře panel vedle grafu. Změny se ukazují hned:
+  - typ: sloupcový, čárový, koláčový, tabulka (nevhodný typ je vypnutý a po najetí myší řekne proč),
+  - nadpis, pozadí (paleta), barva každého místa (vzorník nebo libovolná barva),
+  - osa: automaticky, od nuly, nebo vlastní „od–do“. Vlastní rozsah musí obsáhnout všechny hodnoty
+    (žádný sloupec se neuřízne); když nezačíná nulou, graf to označí,
+  - QR kód zapnout / vypnout (výchozí: zapnutý).
+  - „Uložit vzhled do odkazu“ vytvoří nový odkaz (a QR) s tímhle vzhledem. Čísla se zkopírují na serveru
+    z původní odpovědi, takže úpravou vzhledu nejde změnit data; původní odkaz zůstane, jak byl.
+  - Stahuje se přesně to, co vidíte, i bez uložení.
 
 ## Co s odpovědí
+- **QR kód**: je přímo v grafu vpravo nahoře (i ve staženém PNG), takže kdo vyfotí slajd, dostane se k důkazu.
+  Tlačítko „QR kód“ ho ukáže velký (i u tabulky a věty) a dá se stáhnout. Vede na stejný odkaz `/a/<id>`.
+  Učitel tak může zpětně (7 dní) ověřit, jak student k číslům došel.
 - **Kopírovat odkaz**: odkaz `/a/<id>` platí 7 dní. Ukáže stejný graf a pod ním důkaz:
   zadání, které AI vyplnila, všechna čísla a přesné dotazy na API CITIQ (dají se otevřít v prohlížeči).
-- **Stáhnout PNG**: obrázek grafu i s nadpisem a zdrojem, ve dvojnásobném rozlišení.
-- **Stáhnout CSV**: data pro Excel (středník, UTF-8). Chybějící hodina je prázdná buňka, ne 0.
-- **Kopírovat tabulku**: u tabulky, vloží se do Excelu nebo Google Tabulek rovnou do buněk.
+- **Stáhnout ▾**:
+  - **Obrázek PNG**: graf i s nadpisem, QR a zdrojem, ve dvojnásobném rozlišení (do prezentace, dokumentu).
+  - **Obrázek SVG**: ostrý v jakékoli velikosti; v PowerPointu ho jde „Převést na obrazec“ a dál upravit.
+  - **Data CSV**: pro Excel a Google Tabulky (středník, UTF-8). Chybějící hodina je prázdná buňka, ne 0.
+  - **Kopírovat do tabulky**: vloží se do Excelu nebo Google Tabulek (Ctrl+V) rovnou do buněk.
+  - Graf jako upravitelný graf Excelu export neumí. Do Excelu vložte PNG, nebo z vložených dat
+    vytvořte graf (Vložit → Graf).
 - **Podrobnosti** (tlačítko vpravo pod odpovědí): totéž co důkaz na odkazu. Čísla ve větě jdou
   rozkliknout: plné žluté podtržení = spočítal náš kód, čárkované = z vaší otázky (vybrala AI).
 

@@ -65,6 +65,7 @@ function answer(question: string, rest: Partial<AskAnswer> & Pick<AskAnswer, "tr
     spec: null,
     result: null,
     notes: [],
+    view: null,
     ...rest,
   };
 }

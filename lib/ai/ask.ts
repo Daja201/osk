@@ -149,6 +149,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     spec,
     result,
     notes,
+    view: null,
     trace: { model: deps.model, now: deps.now.toISOString(), steps, total_ms: Date.now() - started },
   });
   const unknown = (code: string, message: string, sentence = message): AskAnswer =>

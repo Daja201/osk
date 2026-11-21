@@ -1,6 +1,8 @@
 // Příprava dat pro grafy. Jen přeskupení čísel, která spočítal lib/citiq/series.ts. Testy: tests/chart.test.ts.
 import type { SeriesOk } from "../citiq/series";
 import { PALETTE, type PaletteName } from "../ai/palette";
+import { type AxisSetting, customAxisError } from "../view";
+import { niceAxis } from "./format";
 
 export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
 
@@ -66,9 +68,10 @@ export function labelStep(count: number, max = 12): number {
   return Math.max(1, Math.ceil(count / max));
 }
 
-// Barvy grafu: zvolená paleta, jinak bílá (světlý režim) nebo tmavá (tmavý režim).
-export function chartColors(background: PaletteName | null, theme: "light" | "dark") {
-  return PALETTE[background ?? (theme === "dark" ? "tmava" : "bila")];
+// Barvy grafu: vždy podle zvoleného pozadí (bez volby bílé), nikdy podle světlého / tmavého režimu stránky.
+// Graf je obrázek do prezentace a má vypadat pořád stejně.
+export function chartColors(background: PaletteName | null) {
+  return PALETTE[background ?? "bila"];
 }
 
 // Čitelná barva textu na dané barvě (#RRGGBB): tmavá na světlé, bílá na tmavé (relativní jas podle WCAG).
@@ -79,4 +82,57 @@ export function textOn(hex: string): "#14243A" | "#FFFFFF" {
   });
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luminance > 0.4 ? "#14243A" : "#FFFFFF";
+}
+
+// --- osa hodnot ---------------------------------------------------------------
+
+export type ValueAxis = { min: number; max: number; ticks: number[]; zoomed: boolean };
+
+// Kolik rozpětí (max − min) necháme pod nejmenší hodnotou, když osu přibližujeme.
+// 1,5 = nejmenší sloupec zabere zhruba 40–60 % výšky: rozdíl je vidět hned, ale přiblížení je mírné.
+const ZOOM_PADDING = 1.5;
+
+function niceStep(rough: number): number {
+  const power = 10 ** Math.floor(Math.log10(rough));
+  return [1, 2, 2.5, 5, 10].map((m) => m * power).find((step) => step >= rough) ?? 10 * power;
+}
+
+// Osa grafu. Normálně od nuly. Když jsou hodnoty blízko sebe (21 500 a 23 000), začne na hezkém čísle
+// pod nimi (19 000), aby byl rozdíl vidět. Graf to pak musí označit (zoomed: true): přerušení osy a poznámka.
+export function valueAxis(values: number[]): ValueAxis {
+  const max = Math.max(0, ...values);
+  const min = values.length > 0 ? Math.min(...values) : 0;
+  const fromZero = (): ValueAxis => {
+    const axis = niceAxis(max);
+    return { min: 0, max: axis.max, ticks: [0, ...axis.ticks], zoomed: false };
+  };
+  const span = max - min;
+  const guess = min - span * ZOOM_PADDING;
+  if (values.length < 2 || min <= 0 || span === 0 || guess <= 0) return fromZero();
+  const step = niceStep((max - guess) / 4);
+  const lo = Math.floor(guess / step) * step;
+  if (lo <= 0) return fromZero();
+  let hi = Math.ceil(max / step) * step;
+  if (hi < max + step * 0.25) hi += step; // nad nejvyšším sloupcem místo na popisek
+  const ticks: number[] = [];
+  for (let tick = lo; tick < hi; tick += step) ticks.push(tick);
+  return { min: lo, max: hi, ticks, zoomed: true };
+}
+
+// Osa podle nastavení z editoru: automaticky (valueAxis), od nuly, nebo vlastní rozsah.
+// Vlastní rozsah musí obsáhnout všechny hodnoty (kontroluje customAxisError v lib/view.ts), jinak se použije automatický.
+export function axisFor(values: number[], setting: AxisSetting): ValueAxis {
+  if (setting.mode === "zero") {
+    const axis = niceAxis(Math.max(0, ...values));
+    return { min: 0, max: axis.max, ticks: [0, ...axis.ticks], zoomed: false };
+  }
+  if (setting.mode === "custom" && customAxisError(values, setting.min, setting.max) === null) {
+    const step = niceStep((setting.max - setting.min) / 5);
+    const ticks = [setting.min];
+    for (let tick = Math.ceil(setting.min / step) * step; tick < setting.max; tick += step) {
+      if (tick > setting.min + step * 0.3) ticks.push(tick); // popisek těsně nad začátkem by se překrýval
+    }
+    return { min: setting.min, max: setting.max, ticks, zoomed: setting.min > 0 };
+  }
+  return valueAxis(values);
 }

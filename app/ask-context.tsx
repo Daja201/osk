@@ -15,6 +15,8 @@ type AskState = {
 type AskContextValue = AskState & {
   ask: (question: string) => Promise<void>;
   reset: () => void;
+  // Nahradí zobrazenou odpověď (např. uloženou kopií s upraveným vzhledem a novým odkazem).
+  replace: (answer: AskAnswer) => void;
 };
 
 const AskContext = createContext<AskContextValue | null>(null);
@@ -33,8 +35,9 @@ export function AskProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const reset = useCallback(() => setState(INITIAL), []);
+  const replace = useCallback((answer: AskAnswer) => setState({ question: answer.question, answer, status: "done" }), []);
 
-  const value = useMemo(() => ({ ...state, ask, reset }), [state, ask, reset]);
+  const value = useMemo(() => ({ ...state, ask, reset, replace }), [state, ask, reset, replace]);
   return <AskContext.Provider value={value}>{children}</AskContext.Provider>;
 }
 

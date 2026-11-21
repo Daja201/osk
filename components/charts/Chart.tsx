@@ -3,8 +3,10 @@
 import { type Ref, useEffect, useRef, useState } from "react";
 import type { PALETTE } from "@/lib/ai/palette";
 import type { SeriesOk } from "@/lib/citiq/series";
-import { type DataPick, chartData, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
-import { formatNumber, niceAxis } from "@/lib/ui/format";
+import { type DataPick, type ValueAxis, axisFor, chartData, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
+import type { AxisSetting } from "@/lib/view";
+import { formatNumber } from "@/lib/ui/format";
+import QrCode from "../QrCode";
 
 // Grafy jako SVG bez knihovny. Celý obrázek (pozadí, nadpis, graf, legenda, zdroj) je v jednom <svg>,
 // takže ho jde stáhnout jako PNG a vložit do prezentace přesně tak, jak vypadá na stránce.
@@ -107,25 +109,54 @@ type ChartProps = Interaction & {
   colors: Colors;
   svgRef?: Ref<SVGSVGElement>;
   height?: number;
+  qrUrl?: string | null; // odkaz na uloženou odpověď: QR vpravo nahoře (je i ve staženém PNG)
+  axisSetting?: AxisSetting; // osa z editoru (výchozí automaticky)
+  slotColors?: (string | null)[]; // jen barvy, které si uživatel v editoru sám nastavil (null = výchozí z palety)
 };
 
-export default function Chart({ kind, result, title, colors, svgRef, height: HEIGHT = 460, onPick, picked }: ChartProps) {
+export default function Chart({
+  kind,
+  result,
+  title,
+  colors,
+  svgRef,
+  height: HEIGHT = 460,
+  onPick,
+  picked,
+  qrUrl,
+  axisSetting = { mode: "auto" },
+  slotColors = [],
+}: ChartProps) {
   const interaction = { onPick, picked };
   const [box, width] = useWidth();
   const pad = width < 500 ? 16 : 28;
-  const titleLines = wrap(title, Math.floor((width - 2 * pad) / 13));
-  const top = pad + titleLines.length * 32 + 10;
+  // QR kód vpravo nahoře vedle nadpisu; nadpis se zúží, graf začne pod QR.
+  const qrSize = qrUrl ? (width < 500 ? 64 : 84) : 0;
+  const qrSpace = qrSize ? qrSize + 16 : 0;
+  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / 13));
+  const top = Math.max(pad + titleLines.length * 32 + 10, qrSize ? pad + qrSize + 22 : 0);
   const data = chartData(result);
-  const seriesColor = (i: number) => colors.series[i % colors.series.length];
+  const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
+  const axis = axisFor(values, axisSetting);
+  const footnote = kind !== "pie" && axis.zoomed ? `Osa začíná na ${formatNumber(axis.min)}, ne na nule · ${FOOTNOTE}` : FOOTNOTE;
+  // Barvy: výchozí jako vždycky (sloupce „celkem za místo“ jednou barvou, jinak 1., 2., 3. barva palety),
+  // vlastní barva z editoru jen tam, kde si ji uživatel nastavil. Řada i = místo i; u „celkem za místo“ je místo kategorie.
+  const perCategory = result.data.buckets.length === 1;
+  const paletteColor = (i: number) => colors.series[i % colors.series.length];
+  const seriesColor = (series: number, category: number) =>
+    perCategory ? (slotColors[category] ?? paletteColor(0)) : (slotColors[series] ?? paletteColor(series));
 
   // Legenda: u koláče výseče, jinak řady (jen když jich je víc než jedna).
   const slices = kind === "pie" ? pieSlices(result) : [];
+  // Výseč = místo, jen u koláče jednoho místa po obdobích je výseč období. Výchozí barva podle pořadí výseče.
+  const pieSlot = (pick: DataPick) => (result.data.series.length > 1 || result.data.buckets.length === 1 ? pick.gate : (pick.bucket ?? 0));
+  const sliceColor = (i: number) => slotColors[pieSlot(slices[i].pick)] ?? paletteColor(i);
   const shares = percentShares(slices.map((s) => s.value));
   const legendItems: Legend =
     kind === "pie"
-      ? slices.map((s, i) => ({ label: `${s.label}: ${formatNumber(s.value)} (${shares[i]} %)`, color: seriesColor(i) }))
+      ? slices.map((s, i) => ({ label: `${s.label}: ${formatNumber(s.value)} (${shares[i]} %)`, color: sliceColor(i) }))
       : data.series.length > 1
-        ? data.series.map((s, i) => ({ label: s.name, color: seriesColor(i) }))
+        ? data.series.map((s, i) => ({ label: s.name, color: seriesColor(i, 0) }))
         : [];
   const legend = legendRows(legendItems, width - 2 * pad, colors, 0);
   // Popis pro čtečky obrazovky: hodnoty grafu slovy (u dlouhých řad jen prvních 12).
@@ -150,7 +181,7 @@ export default function Chart({ kind, result, title, colors, svgRef, height: HEI
         height={HEIGHT}
         viewBox={`0 0 ${width} ${HEIGHT}`}
         role="img"
-        aria-label={`${title}. ${summary}`}
+        aria-label={`${title}. ${summary}${kind !== "pie" && axis.zoomed ? `. Osa začíná na ${formatNumber(axis.min)}, ne na nule.` : ""}`}
         fontFamily={FONT}
         className="block h-auto w-full"
       >
@@ -162,15 +193,23 @@ export default function Chart({ kind, result, title, colors, svgRef, height: HEI
         ))}
 
         {kind === "pie" ? (
-          <Pie slices={slices} shares={shares} cx={plot.left + plotW / 2} cy={plot.top + plotH / 2} r={Math.max(40, Math.min(plotW, plotH) / 2 - 4)} colors={colors} interaction={interaction} />
+          <Pie slices={slices} shares={shares} sliceColor={sliceColor} cx={plot.left + plotW / 2} cy={plot.top + plotH / 2} r={Math.max(40, Math.min(plotW, plotH) / 2 - 4)} colors={colors} interaction={interaction} />
         ) : (
-          <Axes kind={kind} result={result} data={data} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} interaction={interaction} />
+          <Axes kind={kind} result={result} data={data} axis={axis} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} interaction={interaction} />
         )}
 
         <g transform={`translate(${pad}, ${bottom + 26})`}>{legend.nodes}</g>
         <text x={pad} y={HEIGHT - pad + 4} fontSize="12" fill={colors.muted}>
-          {FOOTNOTE}
+          {footnote}
         </text>
+        {qrUrl && (
+          <>
+            <QrCode inline text={qrUrl} size={qrSize} x={width - pad - qrSize} y={pad} />
+            <text x={width - pad - qrSize / 2} y={pad + qrSize + 14} fontSize="11" textAnchor="middle" fill={colors.muted}>
+              Ověřit data
+            </text>
+          </>
+        )}
       </svg>
     </div>
   );
@@ -182,6 +221,7 @@ function Axes({
   kind,
   result,
   data,
+  axis,
   plot,
   plotW,
   plotH,
@@ -192,16 +232,16 @@ function Axes({
   kind: "bar" | "line";
   result: SeriesOk;
   interaction: Interaction;
+  axis: ValueAxis;
   data: ReturnType<typeof chartData>;
   plot: Plot;
   plotW: number;
   plotH: number;
   colors: Colors;
-  seriesColor: (i: number) => string;
+  seriesColor: (series: number, category: number) => string;
 }) {
-  const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
-  const axis = niceAxis(Math.max(0, ...values));
-  const y = (value: number) => plot.bottom - (value / axis.max) * plotH;
+  // Hodnota → výška. Osa může začínat nad nulou (axis.min), pak je to u ní vyznačené přerušením.
+  const y = (value: number) => plot.bottom - ((value - axis.min) / (axis.max - axis.min)) * plotH;
   const n = data.categories.length;
   const step = labelStep(n, Math.max(2, Math.floor(plotW / 64)));
   const slot = plotW / n;
@@ -211,14 +251,29 @@ function Axes({
 
   return (
     <g>
-      {[0, ...axis.ticks].map((tick) => (
+      {axis.ticks.map((tick) => (
         <g key={tick}>
-          <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} stroke={tick === 0 ? colors.text : colors.grid} strokeWidth={tick === 0 ? 2 : 1} />
+          <line
+            x1={plot.left}
+            x2={plot.right}
+            y1={y(tick)}
+            y2={y(tick)}
+            stroke={tick === axis.min ? colors.text : colors.grid}
+            strokeWidth={tick === axis.min ? 2 : 1}
+          />
           <text x={plot.left - 8} y={y(tick) + 4} fontSize="13" textAnchor="end" fill={colors.muted}>
             {formatNumber(tick)}
           </text>
         </g>
       ))}
+
+      {/* Přerušení osy: dvě šikmé čárky na začátku spodní čáry, když osa nezačíná nulou. */}
+      {axis.zoomed && (
+        <g aria-hidden="true">
+          <rect x={plot.left - 2} y={plot.bottom - 7} width="14" height="14" fill={colors.bg} />
+          <path d={`M${plot.left - 3},${plot.bottom + 7} l7,-14 M${plot.left + 4},${plot.bottom + 7} l7,-14`} stroke={colors.text} strokeWidth="2" />
+        </g>
+      )}
 
       {data.categories.map((label, i) =>
         i % step === 0 ? (
@@ -249,7 +304,7 @@ function Axes({
                         width={Math.max(1, barW - 2)}
                         height={plot.bottom - y(value)}
                         rx="3"
-                        fill={seriesColor(si)}
+                        fill={seriesColor(si, i)}
                         stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
                         strokeWidth="3"
                       >
@@ -271,7 +326,7 @@ function Axes({
             const d = s.values.map((value, i) => (value === null ? "" : `${i > 0 && s.values[i - 1] !== null ? "L" : "M"}${x(i)},${y(value)}`)).join("");
             return (
               <g key={si}>
-                <path d={d} fill="none" stroke={seriesColor(si)} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                <path d={d} fill="none" stroke={seriesColor(si, 0)} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
                 {(n <= 40 || interaction.onPick) &&
                   s.values.map((value, i) =>
                     value === null ? null : (
@@ -280,7 +335,7 @@ function Axes({
                         cx={x(i)}
                         cy={y(value)}
                         r={samePick(interaction.picked, pickAt(result, si, i)) ? 7 : 4}
-                        fill={seriesColor(si)}
+                        fill={seriesColor(si, i)}
                         stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
                         strokeWidth="2"
                         {...interactive(pickAt(result, si, i), `${data.categories[i]}, ${s.name}: ${formatNumber(value)}. Ukázat odkud je.`, interaction, colors.text)}
@@ -304,8 +359,10 @@ function Pie({
   r,
   colors,
   interaction,
+  sliceColor,
 }: {
   interaction: Interaction;
+  sliceColor: (i: number) => string;
   slices: { label: string; value: number; pick: DataPick }[];
   shares: number[];
   cx: number;
@@ -333,14 +390,14 @@ function Pie({
           <g key={i} {...interactive(slice.pick, `${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %). Ukázat odkud je.`, interaction, colors.text)}>
             <path
               d={path}
-              fill={colors.series[i % colors.series.length]}
+              fill={sliceColor(i)}
               stroke={samePick(interaction.picked, slice.pick) ? colors.text : colors.bg}
               strokeWidth={samePick(interaction.picked, slice.pick) ? 4 : 2}
             >
               <title>{`${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %)`}</title>
             </path>
             {shares[i] >= 6 && (
-              <text x={lx} y={ly + 6} fontSize="17" fontWeight="700" textAnchor="middle" fill={textOn(colors.series[i % colors.series.length])}>
+              <text x={lx} y={ly + 6} fontSize="17" fontWeight="700" textAnchor="middle" fill={textOn(sliceColor(i))}>
                 {shares[i]} %
               </text>
             )}

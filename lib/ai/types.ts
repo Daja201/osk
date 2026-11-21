@@ -1,4 +1,5 @@
 import type { SeriesResult } from "../citiq/series";
+import type { ChartView } from "../view";
 import type { PaletteName } from "./palette";
 import type { BuildAnswerInput, Format } from "./tools";
 
@@ -29,5 +30,6 @@ export type AskAnswer = {
   spec: BuildAnswerInput | null; // co AI vybrala
   result: SeriesResult | null; // co spočítal náš kód
   notes: string[]; // úpravy, které udělal kód (např. „V otázce nebyl čas, ukazujeme včerejšek.“)
+  view: ChartView | null; // vzhled upravený v editoru (uložená kopie odpovědi), null = jak vybrala AI
   trace: { model: string; now: string; steps: TraceStep[]; total_ms: number };
 };

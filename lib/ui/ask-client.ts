@@ -34,6 +34,7 @@ function networkError(question: string, message: string): AskAnswer {
     spec: null,
     result: null,
     notes: [],
+    view: null,
     trace: { model: "", now: new Date().toISOString(), steps: [], total_ms: 0 },
   };
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
+import type { ChartView } from "@/lib/view";
 import AnswerExplorer from "./AnswerExplorer";
 import Footer from "./Footer";
 import Proof from "./Proof";
@@ -11,11 +12,13 @@ import TopBar from "./TopBar";
 // a důkaz. Stránka jako celek se nescrolluje, posouvá se celý pohled.
 export default function DetailsScreen({
   answer,
+  view,
   active,
   onBack,
   onNew,
 }: {
   answer: AskAnswer;
+  view: ChartView | null;
   active: boolean;
   onBack: () => void;
   onNew: () => void;
@@ -39,7 +42,7 @@ export default function DetailsScreen({
             Podrobnosti odpovědi
           </h1>
           {/* Odpověď = graf / tabulka (klikací čísla), u věty pruh s klikacími čísly ve větě. */}
-          <AnswerExplorer key={answer.id ?? answer.question} answer={answer} height={340} />
+          <AnswerExplorer key={answer.id ?? answer.question} answer={answer} view={view} height={340} />
           <Proof answer={answer} />
         </div>
         <Footer tone="light" />
