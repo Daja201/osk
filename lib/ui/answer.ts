@@ -3,7 +3,7 @@
 import { formatPeriod } from "../ai/dates";
 import type { Format } from "../ai/tools";
 import type { AskAnswer } from "../ai/types";
-import { placeName } from "./chart";
+import { type DataPick, placeName } from "./chart";
 import { formatNumber } from "./format";
 import type { NumberToken } from "./sentence";
 
@@ -118,4 +118,44 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
   const place = places.find((p) => p.match(/\d+/g)?.map(Number).includes(token.value));
   if (place) return placeSource(place);
   return { who: "ai", short: "povolené číslo", long: "Číslo z věty, které kontrola povolila (např. část data), v datech ho přímo nenajdeme." };
+}
+
+// Odkud je jedno číslo grafu nebo tabulky (kliknutí v podrobnostech). Spočítal ho vždy náš kód;
+// tady se jen popíše z čeho: které senzory, směry, hodiny a který dotaz na CITIQ.
+export type PointSource = {
+  place: string;
+  period: string;
+  value: number | null;
+  text: string;
+  sources: { date: string; url: string }[];
+};
+
+const DIRECTION_TEXT = { both: "oba směry", in: "jen směr dovnitř", out: "jen směr ven" } as const;
+const pragueDate = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague" }).format(ms);
+
+export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | null {
+  const result = answer.result?.ok ? answer.result : null;
+  const series = result?.data.series[pick.gate];
+  if (!result || !series) return null;
+  const bucket = pick.bucket === null ? null : result.data.buckets[pick.bucket];
+  const start = bucket ? bucket.start : result.meta.period.start;
+  const end = bucket ? bucket.end : result.meta.period.end;
+  const value = bucket ? series.values[pick.bucket ?? 0] : series.total;
+  const hours = Math.round((Date.parse(end) - Date.parse(start)) / 3600000);
+  const sensors = series.sensors.length > 1 ? `senzorů ${series.sensors.join(" a ")}` : `senzoru ${series.sensors[0]}`;
+  const direction = DIRECTION_TEXT[result.meta.params.direction];
+  const firstDate = pragueDate(Date.parse(start));
+  const lastDate = pragueDate(Date.parse(end) - 1);
+  const text =
+    value === null
+      ? `Senzory v tomto čase neposlaly žádná data. Nedoplňujeme je nulou, proto tu číslo chybí.`
+      : `${hours === 1 ? "Hodinová hodnota" : `Součet ${hours} hodinových hodnot`} ${sensors} (${direction}) ze sítě CITIQ. ` +
+        `Sečetl je náš kód, AI do čísla nezasahovala.`;
+  return {
+    place: placeName(series.gate),
+    period: formatPeriod(start, end),
+    value,
+    text,
+    sources: result.meta.sources.filter((s) => s.date >= firstDate && s.date <= lastDate).map(({ date, url }) => ({ date, url })),
+  };
 }

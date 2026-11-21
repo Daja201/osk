@@ -6,6 +6,7 @@ import { useRef } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
 import AnswerActions from "./AnswerActions";
 import AnswerCard from "./AnswerCard";
+import AnswerExplorer from "./AnswerExplorer";
 import Footer from "./Footer";
 import Proof from "./Proof";
 import { PRESS } from "./styles";
@@ -27,7 +28,12 @@ export default function SavedView({ answer }: { answer: AskAnswer }) {
           <p className="m-0 text-[15px] text-on-sign-muted">Uložená odpověď{until ? ` · odkaz platí do ${until}` : ""}</p>
           <h1 className="m-0 text-[19px] leading-snug font-medium text-pretty sm:text-[21px]">„{answer.question}“</h1>
         </div>
-        <AnswerCard answer={answer} svgRef={svg} interactive={false} />
+        {/* Graf a tabulka jsou klikací (odkud je číslo); věta, zdroj a „nevím“ jako v aplikaci. */}
+        {["bar", "line", "pie", "table"].includes(answer.format ?? "") && answer.result?.ok ? (
+          <AnswerExplorer answer={answer} svgRef={svg} />
+        ) : (
+          <AnswerCard answer={answer} svgRef={svg} interactive={false} />
+        )}
         <AnswerActions answer={answer} svg={svg} />
       </main>
       <section aria-label="Jak to víme" className="rounded-t-[32px] bg-surface text-ink">

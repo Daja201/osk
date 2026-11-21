@@ -3,7 +3,7 @@
 import { type Ref, useEffect, useRef, useState } from "react";
 import type { PALETTE } from "@/lib/ai/palette";
 import type { SeriesOk } from "@/lib/citiq/series";
-import { chartData, labelStep, percentShares, pieSlices, textOn } from "@/lib/ui/chart";
+import { type DataPick, chartData, labelStep, percentShares, pickAt, pieSlices, textOn } from "@/lib/ui/chart";
 import { formatNumber, niceAxis } from "@/lib/ui/format";
 
 // Grafy jako SVG bez knihovny. Celý obrázek (pozadí, nadpis, graf, legenda, zdroj) je v jednom <svg>,
@@ -12,8 +12,8 @@ import { formatNumber, niceAxis } from "@/lib/ui/format";
 export type Colors = (typeof PALETTE)[keyof typeof PALETTE];
 type Kind = "bar" | "line" | "pie";
 
-const FONT = "Barlow, 'Barlow Semi Condensed', system-ui, sans-serif";
-const HEIGHT = 460;
+export const FONT = "Barlow, system-ui, sans-serif";
+export const TITLE_FONT = "'Barlow Semi Condensed', Barlow, system-ui, sans-serif";
 const FOOTNOTE = "Zdroj: senzorová síť Olomouc (CITIQ) · Osk";
 
 // Šířka rodiče, aby SVG mělo skutečné rozměry a písmo nebylo na mobilu zmenšené.
@@ -74,9 +74,43 @@ function legendRows(items: Legend, width: number, colors: Colors, top: number) {
   return { nodes, height: items.length > 0 ? (row + 1) * 24 : 0 };
 }
 
-type ChartProps = { kind: Kind; result: SeriesOk; title: string; colors: Colors; svgRef?: Ref<SVGSVGElement> };
+// Klikací prvek grafu (sloupec, bod, výseč): myší i klávesnicí (Tab + Enter/mezerník).
+type Interaction = { onPick?: (pick: DataPick) => void; picked?: DataPick | null };
 
-export default function Chart({ kind, result, title, colors, svgRef }: ChartProps) {
+// Focus z klávesnice ukáže globální CSS (.chart-item:focus-visible v app/globals.css) obrysem v barvě textu grafu.
+function interactive(pick: DataPick, label: string, { onPick, picked }: Interaction, color: string) {
+  if (!onPick) return {};
+  const isPicked = picked?.gate === pick.gate && picked?.bucket === pick.bucket;
+  return {
+    role: "button",
+    tabIndex: 0,
+    className: "chart-item",
+    "aria-label": label,
+    "aria-pressed": isPicked,
+    style: { cursor: "pointer", color },
+    onClick: () => onPick(pick),
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onPick(pick);
+      }
+    },
+  } as const;
+}
+
+const samePick = (a: DataPick | null | undefined, b: DataPick) => a?.gate === b.gate && a?.bucket === b.bucket;
+
+type ChartProps = Interaction & {
+  kind: Kind;
+  result: SeriesOk;
+  title: string;
+  colors: Colors;
+  svgRef?: Ref<SVGSVGElement>;
+  height?: number;
+};
+
+export default function Chart({ kind, result, title, colors, svgRef, height: HEIGHT = 460, onPick, picked }: ChartProps) {
+  const interaction = { onPick, picked };
   const [box, width] = useWidth();
   const pad = width < 500 ? 16 : 28;
   const titleLines = wrap(title, Math.floor((width - 2 * pad) / 13));
@@ -122,15 +156,15 @@ export default function Chart({ kind, result, title, colors, svgRef }: ChartProp
       >
         <rect width={width} height={HEIGHT} fill={colors.bg} />
         {titleLines.map((line, i) => (
-          <text key={i} x={pad} y={pad + 24 + i * 32} fontSize="26" fontWeight="700" fill={colors.text}>
+          <text key={i} x={pad} y={pad + 24 + i * 32} fontSize="28" fontWeight="700" fontFamily={TITLE_FONT} fill={colors.text}>
             {line}
           </text>
         ))}
 
         {kind === "pie" ? (
-          <Pie slices={slices} shares={shares} cx={plot.left + plotW / 2} cy={plot.top + plotH / 2} r={Math.max(40, Math.min(plotW, plotH) / 2 - 4)} colors={colors} />
+          <Pie slices={slices} shares={shares} cx={plot.left + plotW / 2} cy={plot.top + plotH / 2} r={Math.max(40, Math.min(plotW, plotH) / 2 - 4)} colors={colors} interaction={interaction} />
         ) : (
-          <Axes kind={kind} data={data} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} />
+          <Axes kind={kind} result={result} data={data} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} interaction={interaction} />
         )}
 
         <g transform={`translate(${pad}, ${bottom + 26})`}>{legend.nodes}</g>
@@ -146,14 +180,18 @@ type Plot = { left: number; right: number; top: number; bottom: number };
 
 function Axes({
   kind,
+  result,
   data,
   plot,
   plotW,
   plotH,
   colors,
   seriesColor,
+  interaction,
 }: {
   kind: "bar" | "line";
+  result: SeriesOk;
+  interaction: Interaction;
   data: ReturnType<typeof chartData>;
   plot: Plot;
   plotW: number;
@@ -204,8 +242,17 @@ function Axes({
                       <title>{`${data.categories[i]}, ${s.name}: data chybí`}</title>–
                     </text>
                   ) : (
-                    <g key={i}>
-                      <rect x={start(i) + 1} y={y(value)} width={Math.max(1, barW - 2)} height={plot.bottom - y(value)} rx="3" fill={seriesColor(si)}>
+                    <g key={i} {...interactive(pickAt(result, si, i), `${data.categories[i]}, ${s.name}: ${formatNumber(value)}. Ukázat odkud je.`, interaction, colors.text)}>
+                      <rect
+                        x={start(i) + 1}
+                        y={y(value)}
+                        width={Math.max(1, barW - 2)}
+                        height={plot.bottom - y(value)}
+                        rx="3"
+                        fill={seriesColor(si)}
+                        stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
+                        strokeWidth="3"
+                      >
                         <title>{`${data.categories[i]}, ${s.name}: ${formatNumber(value)}`}</title>
                       </rect>
                       {showValues && (
@@ -225,10 +272,19 @@ function Axes({
             return (
               <g key={si}>
                 <path d={d} fill="none" stroke={seriesColor(si)} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-                {n <= 40 &&
+                {(n <= 40 || interaction.onPick) &&
                   s.values.map((value, i) =>
                     value === null ? null : (
-                      <circle key={i} cx={x(i)} cy={y(value)} r="4" fill={seriesColor(si)}>
+                      <circle
+                        key={i}
+                        cx={x(i)}
+                        cy={y(value)}
+                        r={samePick(interaction.picked, pickAt(result, si, i)) ? 7 : 4}
+                        fill={seriesColor(si)}
+                        stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
+                        strokeWidth="2"
+                        {...interactive(pickAt(result, si, i), `${data.categories[i]}, ${s.name}: ${formatNumber(value)}. Ukázat odkud je.`, interaction, colors.text)}
+                      >
                         <title>{`${data.categories[i]}, ${s.name}: ${formatNumber(value)}`}</title>
                       </circle>
                     ),
@@ -247,8 +303,10 @@ function Pie({
   cy,
   r,
   colors,
+  interaction,
 }: {
-  slices: { label: string; value: number }[];
+  interaction: Interaction;
+  slices: { label: string; value: number; pick: DataPick }[];
   shares: number[];
   cx: number;
   cy: number;
@@ -272,8 +330,13 @@ function Pie({
             : `M${cx},${cy}L${point(start, r)}A${r},${r} 0 ${sweep > Math.PI ? 1 : 0},1 ${point(end, r)}Z`;
         const [lx, ly] = point(mid, r * 0.62).split(",").map(Number);
         return (
-          <g key={i}>
-            <path d={path} fill={colors.series[i % colors.series.length]} stroke={colors.bg} strokeWidth="2">
+          <g key={i} {...interactive(slice.pick, `${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %). Ukázat odkud je.`, interaction, colors.text)}>
+            <path
+              d={path}
+              fill={colors.series[i % colors.series.length]}
+              stroke={samePick(interaction.picked, slice.pick) ? colors.text : colors.bg}
+              strokeWidth={samePick(interaction.picked, slice.pick) ? 4 : 2}
+            >
               <title>{`${slice.label}: ${formatNumber(slice.value)} (${shares[i]} %)`}</title>
             </path>
             {shares[i] >= 6 && (

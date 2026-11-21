@@ -2,13 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
-import AnswerStrip from "./AnswerStrip";
+import AnswerExplorer from "./AnswerExplorer";
 import Footer from "./Footer";
 import Proof from "./Proof";
 import TopBar from "./TopBar";
 
-// Druhá obrazovka pod odpovědí. Nahoře lišta a odpověď jako nízký pruh, pod tím se scrolluje
-// jen obsah s důkazem (stránka jako celek se nescrolluje, posouvá se celý pohled).
+// Druhá obrazovka pod odpovědí. Nahoře lišta, pod ní se scrolluje odpověď (graf, na který jde kliknout)
+// a důkaz. Stránka jako celek se nescrolluje, posouvá se celý pohled.
 export default function DetailsScreen({
   answer,
   active,
@@ -33,16 +33,13 @@ export default function DetailsScreen({
   return (
     <div className="flex h-dvh flex-col bg-surface">
       <TopBar tone="light" info="details" onBack={onBack} onNew={onNew} />
-      <div className="px-4 sm:px-8">
-        <div className="mx-auto max-w-[960px]">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-[960px] flex-col gap-12 px-4 pt-2 pb-6 sm:px-8">
           <h1 ref={heading} tabIndex={-1} className="sr-only">
             Podrobnosti odpovědi
           </h1>
-          <AnswerStrip key={answer.id ?? answer.question} answer={answer} />
-        </div>
-      </div>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[960px] px-4 pt-10 pb-6 sm:px-8">
+          {/* Odpověď = graf / tabulka (klikací čísla), u věty pruh s klikacími čísly ve větě. */}
+          <AnswerExplorer key={answer.id ?? answer.question} answer={answer} height={340} />
           <Proof answer={answer} />
         </div>
         <Footer tone="light" />

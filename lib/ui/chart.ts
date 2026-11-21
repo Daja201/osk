@@ -22,14 +22,27 @@ export function chartData(result: SeriesOk): ChartData {
   };
 }
 
-// Výseče koláče: s víc místy = součet za místo, s jedním místem = jeho buckety. Prázdné (null) vynecháme.
-export function pieSlices(result: SeriesOk): { label: string; value: number }[] {
+// Bod grafu v datech: místo (index řady ve výsledku) a bucket (index období), nebo celé období (null).
+export type DataPick = { gate: number; bucket: number | null };
+
+// Kliknutí na graf → bod v datech. S jediným bucketem jsou kategorie místa, jinak období a řady místa.
+export function pickAt(result: SeriesOk, seriesIndex: number, categoryIndex: number): DataPick {
+  return result.data.buckets.length === 1 ? { gate: categoryIndex, bucket: 0 } : { gate: seriesIndex, bucket: categoryIndex };
+}
+
+// Výseče koláče: s víc místy = součet za místo, s jedním místem = jeho buckety. Prázdné (null, 0) vynecháme.
+// Každá výseč si pamatuje, kterému bodu v datech odpovídá (pick).
+export function pieSlices(result: SeriesOk): { label: string; value: number; pick: DataPick }[] {
   const { buckets, series } = result.data;
   const raw =
     series.length > 1 || buckets.length === 1
-      ? series.map((s) => ({ label: placeName(s.gate), value: buckets.length === 1 ? s.values[0] : s.total }))
-      : buckets.map((b, i) => ({ label: b.label, value: series[0].values[i] }));
-  return raw.filter((slice): slice is { label: string; value: number } => slice.value !== null && slice.value > 0);
+      ? series.map((s, gate) => ({
+          label: placeName(s.gate),
+          value: buckets.length === 1 ? s.values[0] : s.total,
+          pick: { gate, bucket: buckets.length === 1 ? 0 : null },
+        }))
+      : buckets.map((b, bucket) => ({ label: b.label, value: series[0].values[bucket], pick: { gate: 0, bucket } }));
+  return raw.filter((slice): slice is { label: string; value: number; pick: DataPick } => slice.value !== null && slice.value > 0);
 }
 
 // Podíly v celých procentech, které dají dohromady přesně 100 (metoda největšího zbytku).

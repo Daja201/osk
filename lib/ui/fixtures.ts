@@ -23,7 +23,11 @@ function result(
     ok: true,
     data: {
       granularity,
-      buckets: buckets.map((b) => ({ ...b, end: new Date(Date.parse(b.start) + H).toISOString() })),
+      // „Celkem“ končí s obdobím (jako v lib/citiq/series.ts), hodina / den o hodinu / den později.
+      buckets: buckets.map((b) => ({
+        ...b,
+        end: granularity === "total" ? period[1] : new Date(Date.parse(b.start) + (granularity === "day" ? 24 : 1) * H).toISOString(),
+      })),
       series: places.map((p) => ({
         gate: p.gate,
         sensors: p.sensors ?? [p.gate],

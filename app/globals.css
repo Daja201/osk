@@ -48,6 +48,18 @@
   color-scheme: dark;
 }
 
+/* Klikací sloupec / bod / výseč v grafu (components/charts/Chart.tsx): SVG obrys focusu spolehlivě nevykreslí,
+   proto při focusu z klávesnice dostane tvar silný obrys v barvě textu grafu. */
+.chart-item:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.chart-item:focus-visible > :is(rect, path, circle),
+circle.chart-item:focus-visible {
+  stroke: currentColor;
+  stroke-width: 4px;
+}
+
 /* Kdo má v systému „omezit pohyb“, nevidí žádné animace ani přechody. */
 @media (prefers-reduced-motion: reduce) {
   *,

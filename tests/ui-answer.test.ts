@@ -91,3 +91,44 @@ describe("vysvětlení čísel a časy", () => {
     expect(periodOf(FIXTURES.line)).toBe("14.–20. 11. 2026");
   });
 });
+
+describe("písma do PNG", () => {
+  it("vloží jen latinku a latin-ext (čeština), ne vietnamštinu", async () => {
+    const { isLatinRange } = await import("../lib/ui/export");
+    expect(isLatinRange("U+??,U+131,U+152-153")).toBe(true);
+    expect(isLatinRange("U+0-FF, U+131")).toBe(true);
+    expect(isLatinRange("U+0000-00FF, U+0131")).toBe(true);
+    expect(isLatinRange("U+100-2BA,U+2BD-2C5")).toBe(true);
+    expect(isLatinRange("U+0100-02BA, U+02BD-02C5")).toBe(true);
+    expect(isLatinRange("U+102-103,U+110-111,U+1EA0-1EF9")).toBe(false);
+  });
+});
+
+describe("odkud je číslo v grafu", () => {
+  it("sloupec = místo a období, s popisem senzorů a odkazem na dotaz", async () => {
+    const { explainPoint } = await import("../lib/ui/answer");
+    const { pickAt } = await import("../lib/ui/chart");
+    const bar = FIXTURES.bar;
+    const result = ok("bar");
+    const point = explainPoint(bar, pickAt(result, 0, 1));
+    expect(point).toMatchObject({ place: "Kafkova", value: 3607, period: "21. 11. 2026, 8:00–11:00" });
+    expect(point?.text).toContain("Součet 3 hodinových hodnot senzorů Kafkova - levá a Kafkova - pravá (oba směry)");
+    expect(point?.sources.map((s) => s.date)).toEqual(["2026-11-21"]);
+  });
+
+  it("chybějící hodina: vysvětlí, že ji nedoplňujeme nulou", async () => {
+    const { explainPoint } = await import("../lib/ui/answer");
+    const point = explainPoint(FIXTURES.table, { gate: 0, bucket: 0 });
+    expect(point).toMatchObject({ value: null, period: "20. 11. 2026, 0:00–1:00" });
+    expect(point?.text).toContain("Nedoplňujeme");
+  });
+
+  it("výseč koláče si pamatuje své místo", async () => {
+    const { pieSlices } = await import("../lib/ui/chart");
+    expect(pieSlices(ok("pie")).map((s) => s.pick)).toEqual([
+      { gate: 0, bucket: 0 },
+      { gate: 1, bucket: 0 },
+      { gate: 2, bucket: 0 },
+    ]);
+  });
+});
