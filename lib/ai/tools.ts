@@ -10,6 +10,11 @@ const gateList = GATES.map((gate) =>
 export const FORMATS = ["text", "bar", "line", "pie", "table", "source"] as const;
 export type Format = (typeof FORMATS)[number];
 
+export const DATASET_BRIEF =
+  "Lze se ptát na počty vozidel na dopravních senzorech v Olomouci: jednotlivá místa nebo porovnání míst, " +
+  "vjely/vyjely/oba směry, období po hodinách nebo dnech, celkové počty a špičky; odpověď může být věta, " +
+  "sloupcový nebo čárový graf, koláčový graf, tabulka nebo odkaz na zdroj.";
+
 // Jediný nástroj: Claude z otázky vyplní ZADÁNÍ odpovědi (co spočítat a jak to ukázat).
 // Čísla spočítá náš kód (lib/citiq/series.ts), Claude je nevidí, dokud nejsou spočítaná.
 export const buildAnswerTool: Anthropic.Tool = {
@@ -17,7 +22,7 @@ export const buildAnswerTool: Anthropic.Tool = {
   description:
     "Připraví odpověď z dat dopravních senzorů v Olomouci: počty vozidel, které projely branami " +
     "v zadaném čase, a způsob zobrazení (věta, graf, tabulka, nebo odkaz na zdroj dat). " +
-    `Brány (název a v závorce přezdívky): ${gateList}.`,
+    `Brány (název a v závorce přezdívky): ${gateList}. ${DATASET_BRIEF}`,
   strict: true,
   input_schema: {
     type: "object",
