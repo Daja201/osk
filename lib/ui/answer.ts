@@ -1,6 +1,6 @@
 // Z odpovědi /api/ask připraví údaje pro stránku. Nic se tu nepočítá z AI, jen se čte to,
 // co spočítal náš kód (lib/citiq/series.ts). Testy: tests/ui-answer.test.ts.
-import { formatPeriod } from "../ai/dates";
+import { formatPeriod, formatSelectedPeriod } from "../ai/dates";
 import type { Format } from "../ai/tools";
 import type { AskAnswer } from "../ai/types";
 import { aggregateValue } from "../citiq/display";
@@ -39,8 +39,14 @@ export const GRANULARITY_LABEL = { hour: "po hodinách", day: "po dnech", total:
 
 // Období odpovědi pro lidi („19. 11. 2026, 8:00–15:00“). Bez výsledku z toho, co zadala AI.
 export function periodOf(answer: AskAnswer): string | null {
-  if (answer.result?.ok) return formatPeriod(answer.result.meta.period.start, answer.result.meta.period.end);
-  if (answer.spec) return `${answer.spec.from.replace("T", " ")} – ${answer.spec.to.replace("T", " ")}`;
+  if (answer.result?.ok) {
+    return formatSelectedPeriod(answer.result.meta.period.start, answer.result.meta.period.end, answer.result.meta.params.dates);
+  }
+  if (answer.spec) {
+    return answer.spec.dates?.length
+      ? formatSelectedPeriod(answer.spec.from, answer.spec.to, answer.spec.dates)
+      : `${answer.spec.from.replace("T", " ")} – ${answer.spec.to.replace("T", " ")}`;
+  }
   return null;
 }
 
@@ -132,7 +138,7 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
   const place = places.find((p) => p.match(/\d+/g)?.map(Number).includes(token.value));
   if (place) return placeSource(place);
   // Den, měsíc nebo rok z období, které AI vybrala z otázky (např. 20, 11, 2026).
-  const dateParts = [answer.spec?.from, answer.spec?.to].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
+  const dateParts = [answer.spec?.from, answer.spec?.to, ...(answer.spec?.dates ?? [])].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
   if (dateParts.includes(token.value)) {
     return { who: "ai", short: "datum z otázky", long: `Část data z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
   }
@@ -156,15 +162,16 @@ export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | n
   const result = answer.result?.ok ? answer.result : null;
   const series = result?.data.series[pick.gate];
   if (!result || !series) return null;
-  const bucket = pick.bucket === null ? null : result.data.buckets[pick.bucket];
+  const bucket = pick.bucket === null || result.data.granularity === "total" ? null : result.data.buckets[pick.bucket];
   const start = bucket ? bucket.start : result.meta.period.start;
   const end = bucket ? bucket.end : result.meta.period.end;
   const value = bucket ? series.values[pick.bucket ?? 0] : aggregateValue(series);
-  const hours = Math.round((Date.parse(end) - Date.parse(start)) / 3600000);
+  const hours = bucket ? Math.round((Date.parse(end) - Date.parse(start)) / 3600000) : series.coverage.of;
   const sensors = series.sensors.length > 1 ? `senzorů ${series.sensors.join(" a ")}` : `senzoru ${series.sensors[0]}`;
   const direction = result.meta.tool === "weather_series" ? "meteorologické veličiny" : DIRECTION_TEXT[result.meta.params.direction];
   const firstDate = pragueDate(Date.parse(start));
   const lastDate = pragueDate(Date.parse(end) - 1);
+  const period = bucket ? formatPeriod(start, end) : formatSelectedPeriod(start, end, result.meta.params?.dates);
   const text =
     value === null
       ? `Senzory v tomto čase neposlaly žádná data. Nedoplňujeme je nulou, proto tu číslo chybí.`
@@ -175,7 +182,7 @@ export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | n
           `Sečetl je náš kód, AI do čísla nezasahovala.`;
   return {
     place: placeName(series.gate),
-    period: formatPeriod(start, end),
+    period,
     value,
     text,
     sources: result.meta.sources.filter((s) => s.date >= firstDate && s.date <= lastDate).map(({ date, url }) => ({ date, url })),

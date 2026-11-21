@@ -2,7 +2,8 @@
 
 OSK je česká webová aplikace pro dotazy k otevřeným měřením ze sítě CITIQ v Olomouci.
 Zeptáte se přirozeně, například „Kolik aut včera projelo u Billy?“, a aplikace spočítá
-odpověď z dat a zobrazí ji jako větu, graf, tabulku nebo odkaz na zdroj.
+odpověď z dat a zobrazí ji jako větu, graf, tabulku nebo odkaz na zdroj. Umí také sečíst
+vybrané dny nebo porovnat jen konkrétní, i nesouvislá data.
 
 V současnosti podporuje:
 - průjezdovou dopravu v Olomouci,

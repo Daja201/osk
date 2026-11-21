@@ -13,12 +13,12 @@ export type Format = (typeof FORMATS)[number];
 
 const TRAFFIC_DATASET_BRIEF =
   "Lze se ptát na počty vozidel na dopravních senzorech v Olomouci: jednotlivá místa nebo porovnání míst, " +
-  "vjely/vyjely/oba směry, období po hodinách nebo dnech, celkové počty a špičky; odpověď může být věta, " +
+  "vjely/vyjely/oba směry, souvislá období i vybrané jednotlivé dny, celkové počty a špičky; odpověď může být věta, " +
   "sloupcový nebo čárový graf, koláčový graf, tabulka nebo odkaz na zdroj.";
 
 export const DATASET_BRIEF =
   `${TRAFFIC_DATASET_BRIEF} Také lze zjišťovat počasí z 10 olomouckých meteorologických stanic: ` +
-  "teplotu, vlhkost, tlak, rychlost a směr větru.";
+  "teplotu, vlhkost, tlak, rychlost a směr větru; pro obě skupiny dat lze vybrat i jednotlivé nesouvislé dny.";
 
 // Dopravní nástroj: Claude z otázky vyplní ZADÁNÍ odpovědi (co spočítat a jak to ukázat).
 // Čísla spočítá náš kód (lib/citiq/series.ts), Claude je nevidí, dokud nejsou spočítaná.
@@ -53,10 +53,15 @@ export const buildAnswerTool: Anthropic.Tool = {
       direction: { type: "string", enum: ["in", "out", "both"], description: "Směr; když ho otázka neurčuje, both." },
       from: { type: "string", description: "Začátek, pražský čas, tvar YYYY-MM-DDTHH:00." },
       to: { type: "string", description: "Konec (nezahrnuje se), pražský čas, tvar YYYY-MM-DDTHH:00; půlnoc na konci dne = T24:00." },
+      dates: {
+        type: "array",
+        items: { type: "string" },
+        description: "Volitelné přesné dny YYYY-MM-DD, jen pokud se ptá na vybrané nesouvislé dny. Jinak prázdné pole. Pro vybrané dny from/to vymezují celé dny od prvního do posledního.",
+      },
       granularity: { type: "string", enum: ["hour", "day", "total"], description: "hour = po hodinách, day = po dnech, total = jedno číslo za místo." },
       date_assumed: { type: "boolean", description: "true, když v otázce nebyl žádný čas a použil jsi výchozí (včerejšek)." },
     },
-    required: ["format", "title", "background", "gates", "direction", "from", "to", "granularity", "date_assumed"],
+    required: ["format", "title", "background", "gates", "direction", "from", "to", "dates", "granularity", "date_assumed"],
     additionalProperties: false,
   },
 };
@@ -70,7 +75,7 @@ export const weatherSeriesTool: Anthropic.Tool = {
   description:
     "Připraví zadání výpočtu meteorologických dat z CITIQ v Olomouci. " +
     `Stanice: ${weatherStationList}. Měřené veličiny a jednotky: ${weatherMetricDescriptions}. ` +
-    "Hodinová data jsou průměry; více veličin lze požadovat najednou.",
+    "Hodinová data jsou průměry; více veličin lze požadovat najednou a lze vybrat i jednotlivé nesouvislé dny.",
   strict: true,
   input_schema: {
     type: "object",
@@ -98,10 +103,15 @@ export const weatherSeriesTool: Anthropic.Tool = {
       },
       from: { type: "string", description: "Začátek, pražský čas, tvar YYYY-MM-DDTHH:00." },
       to: { type: "string", description: "Konec (nezahrnuje se), pražský čas, tvar YYYY-MM-DDTHH:00; půlnoc na konci dne = T24:00." },
+      dates: {
+        type: "array",
+        items: { type: "string" },
+        description: "Volitelné přesné dny YYYY-MM-DD pro výběr nesouvislých dní. Jinak prázdné pole. Pro vybrané dny from/to vymezují celé dny od prvního do posledního.",
+      },
       granularity: { type: "string", enum: ["hour", "day", "total"], description: "hour = po hodinách; day = po dnech; total = průměr za období." },
       date_assumed: { type: "boolean", description: "true, když v otázce nebyl žádný čas a použil jsi výchozí (včerejšek)." },
     },
-    required: ["format", "title", "background", "stations", "metrics", "from", "to", "granularity", "date_assumed"],
+    required: ["format", "title", "background", "stations", "metrics", "from", "to", "dates", "granularity", "date_assumed"],
     additionalProperties: false,
   },
 };
@@ -118,6 +128,7 @@ export const BuildAnswerInput = z
     direction: z.enum(["in", "out", "both"]),
     from: z.string().regex(LOCAL_TIME),
     to: z.string().regex(LOCAL_TIME),
+    dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(31).optional(),
     granularity: z.enum(["hour", "day", "total"]),
     date_assumed: z.boolean(),
   })
@@ -139,6 +150,7 @@ export const WeatherSeriesInput = z
       .max(WEATHER_METRICS.length),
     from: z.string().regex(LOCAL_TIME),
     to: z.string().regex(LOCAL_TIME),
+    dates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(31).optional(),
     granularity: z.enum(["hour", "day", "total"]),
     date_assumed: z.boolean(),
   })

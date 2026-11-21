@@ -35,6 +35,13 @@ export function formatCzDate(date: string): string {
   return `${day}. ${month}. ${year}`;
 }
 
+export function formatSelectedPeriod(startIso: string, endIso: string, dates?: string[]): string {
+  if (!dates?.length) return formatPeriod(startIso, endIso);
+  const labels = dates.map((date) => `${weekdayCz(date)} ${formatCzDate(date)}`);
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(", ")} a ${labels.at(-1)}`;
+}
+
 export function weekdayCz(date: string): string {
   return new Intl.DateTimeFormat("cs-CZ", { weekday: "long", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
 }

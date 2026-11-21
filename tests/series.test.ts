@@ -151,6 +151,41 @@ describe("trafficSeries: po dnech a celkem", () => {
     expect(result.data.series.map((s) => s.total)).toEqual([6, 6, 0]);
     expect(result.meta.notes).toContain("Kafkova (obě brány): senzor v tomto čase nevysílal.");
   });
+
+  it("vybrané nesouvislé dny vrátí jen jejich sloupce a nestahují mezilehlé dny", async () => {
+    rule = (_gate, date) => Number(date.slice(-2));
+    const result = await run({
+      gates: ["Flora"],
+      direction: "in",
+      from: "2026-11-17T00:00",
+      to: "2026-11-20T00:00",
+      dates: ["2026-11-17", "2026-11-19"],
+      granularity: "day",
+    });
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(result.data.buckets.map((bucket) => bucket.label)).toEqual(["út 17. 11.", "čt 19. 11."]);
+    expect(result.data.series[0].values).toEqual([17 * 24, 19 * 24]);
+    expect(calls.map((call) => call.date)).toEqual(["2026-11-17", "2026-11-19"]);
+    expect(result.meta.sources.map((source) => source.date)).toEqual(["2026-11-17", "2026-11-19"]);
+  });
+
+  it("součet přes vybrané dny zahrnuje jen jejich hodnoty", async () => {
+    rule = (_gate, date) => Number(date.slice(-2));
+    const result = await run({
+      gates: ["Flora"],
+      direction: "in",
+      from: "2026-11-17T00:00",
+      to: "2026-11-20T00:00",
+      dates: ["2026-11-17", "2026-11-19"],
+      granularity: "total",
+    });
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(result.data.series[0].values).toEqual([(17 + 19) * 24]);
+    expect(result.data.series[0].coverage).toEqual({ hours: 48, of: 48 });
+    expect(calls.map((call) => call.date)).toEqual(["2026-11-17", "2026-11-19"]);
+  });
 });
 
 describe("trafficSeries: dnešek a budoucnost", () => {
@@ -177,6 +212,19 @@ describe("trafficSeries: chyby a zdroj", () => {
     expect(await run({ ...base, gates: ["Flora"], from: "2026-11-19T10:00", to: "2026-11-19T10:00" })).toMatchObject({ ok: false, error: { code: "BAD_RANGE" } });
     expect(await run({ ...base, gates: ["Flora"], from: "2026-09-01T00:00", to: "2026-11-01T00:00" })).toMatchObject({ ok: false, error: { code: "RANGE_TOO_LONG" } });
     expect(await run({ ...base, gates: ["Flora"], from: "19. 11.", to: "2026-11-20T00:00" })).toMatchObject({ ok: false, error: { code: "BAD_PARAMS" } });
+  });
+
+  it("odmítne opakované nebo neplatné vybrané dny před stahováním", async () => {
+    const base = {
+      gates: ["Flora"],
+      direction: "both" as const,
+      from: "2026-11-17T00:00",
+      to: "2026-11-20T00:00",
+      granularity: "day" as const,
+    };
+    expect(await run({ ...base, dates: ["2026-11-17", "2026-11-17"] })).toMatchObject({ ok: false, error: { code: "BAD_PARAMS" } });
+    expect(await run({ ...base, dates: ["2026-02-31"] })).toMatchObject({ ok: false, error: { code: "BAD_PARAMS" } });
+    expect(calls).toHaveLength(0);
   });
 
   it("žádná data na žádném místě → NO_DATA", async () => {

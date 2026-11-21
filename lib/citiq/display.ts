@@ -17,6 +17,7 @@ export type SeriesDisplayOk = {
   };
   meta: {
     tool?: "traffic_series" | "weather_series";
+    params?: { dates?: string[] };
     period: { start: string; end: string; clipped: boolean };
     sources: { date: string; url: string; fetched_at: string }[];
     notes: string[];

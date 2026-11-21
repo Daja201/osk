@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
 import type { WeatherSeriesOk, WeatherSeriesParams, WeatherSeriesResult } from "../citiq/weatherSeries";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
-import { formatPeriod } from "./dates";
+import { formatSelectedPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
 import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool, weatherSeriesTool, WeatherSeriesInput } from "./tools";
@@ -66,7 +66,7 @@ export function defaultTitle(result: SeriesOk): string {
   const places = result.data.series.map((s) => placeName(s.gate));
   const placeText = places.length > 3 ? `${places.slice(0, 3).join(", ")} a další` : places.join(", ");
   const what = direction === "in" ? "Vjezdy" : direction === "out" ? "Výjezdy" : "Počet vozidel";
-  return `${what} · ${placeText} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+  return `${what} · ${placeText} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates)}`;
 }
 
 type AskSeriesOk = SeriesOk | WeatherSeriesOk;
@@ -79,7 +79,7 @@ function titleFor(result: AskSeriesOk): string {
   if (!isWeatherResult(result)) return defaultTitle(result);
   const stations = [...new Set(result.data.series.map((series) => stationName(series.station)))];
   const metrics = [...new Set(result.data.series.map((series) => resolveWeatherMetric(series.metric)?.label ?? series.metric))];
-  return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+  return `Průměr · ${stations.join(", ")} · ${metrics.join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates)}`;
 }
 
 // Nejvyšší a nejnižší bucket řady (počítá kód, Claude dostane jen výsledek).
@@ -100,7 +100,7 @@ function summaryForClaude(result: AskSeriesOk) {
     const labels = result.data.buckets.map((bucket) => bucket.label);
     const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
     return {
-      period: formatPeriod(result.meta.period.start, result.meta.period.end),
+      period: formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates),
       granularity: result.data.granularity,
       dataset: "počasí",
       stations: result.data.series.map((series) => ({
@@ -118,7 +118,7 @@ function summaryForClaude(result: AskSeriesOk) {
   const labels = result.data.buckets.map((b) => b.label);
   const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
   return {
-    period: formatPeriod(result.meta.period.start, result.meta.period.end),
+    period: formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates),
     granularity: result.data.granularity,
     direction: result.meta.params.direction,
     places: result.data.series.map((s) => ({
@@ -149,7 +149,7 @@ function allowedNumbers(summary: unknown): Set<number> {
 }
 
 function fallbackSentence(result: AskSeriesOk): string {
-  const period = formatPeriod(result.meta.period.start, result.meta.period.end);
+  const period = formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates);
   if (isWeatherResult(result)) {
     const parts = result.data.series.map((series) =>
       `${stationName(series.station)}, ${resolveWeatherMetric(series.metric)?.label ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
@@ -316,12 +316,20 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
           metrics: spec.metrics,
           from: spec.from,
           to: spec.to,
+          ...(spec.dates?.length ? { dates: spec.dates } : {}),
           granularity: spec.granularity,
         });
       } else if ("gates" in spec) {
         // Koláč porovnává místa: s víc místy vždy jedno číslo za místo.
         const granularity = spec.format === "pie" && spec.gates.length > 1 ? "total" : spec.granularity;
-        result = await deps.trafficSeries({ gates: spec.gates, direction: spec.direction, from: spec.from, to: spec.to, granularity });
+        result = await deps.trafficSeries({
+          gates: spec.gates,
+          direction: spec.direction,
+          from: spec.from,
+          to: spec.to,
+          ...(spec.dates?.length ? { dates: spec.dates } : {}),
+          granularity,
+        });
       } else {
         return aiError("Zadání nástroje neodpovídá jeho typu.");
       }

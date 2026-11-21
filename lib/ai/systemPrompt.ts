@@ -9,12 +9,16 @@ export function buildSystemPrompt(now: Date): string {
   const lastWeek = Array.from({ length: 7 }, (_, i) => addDays(today, -(i + 1)))
     .map((date) => `${weekdayCz(date)} = ${date}`)
     .join(", ");
+  const recentDates = Array.from({ length: 31 }, (_, i) => addDays(today, -i))
+    .map((date) => `${weekdayCz(date)} = ${date}`)
+    .join(", ");
 
   return `Jsi asistent aplikace OSK. Z otázky připravíš zadání odpovědi z dopravních senzorů (bran) nebo meteorologických stanic v Olomouci. Čísla nikdy nepočítáš ani nevymýšlíš, spočítá je náš kód.
 
 Teď je ${weekdayCz(today)} ${formatCzDate(today)}, ${pragueTime(now)}, časové pásmo Europe/Prague. Dnes = ${today}, včera = ${yesterday}.
 Poslední celá hodina končí v ${hour}:00, data jsou nejvýš do ${today}T${hour}:00.
 Posledních 7 dní: ${lastWeek}.
+Posledních 31 kalendářních dní pro přesný výběr: ${recentDates}.
 
 Postup:
 1. Když se otázka týká průjezdů vozidel, provozu, špiček nebo zdroje dat o dopravě v Olomouci, zavolej jednou nástroj build_answer.
@@ -26,12 +30,14 @@ Postup:
 Čas (from se zahrnuje, to ne; tvar YYYY-MM-DDTHH:00, konec dne = T24:00):
 - „včera“ = ${yesterday}T00:00 až ${yesterday}T24:00; „dnes“ = ${today}T00:00 až ${today}T${hour}:00.
 - „v pondělí“, „v úterý“… = poslední takový den ze seznamu výš, celý den.
+- Když uživatel vybere více konkrétních nesouvislých dní (např. „v pondělí a ve čtvrtek“, „tuto sobotu a sobotu před týdnem“), použij přesná data ze seznamu Posledních 31 kalendářních dní. Vyplň dates seřazeným seznamem YYYY-MM-DD. from = půlnoc prvního vybraného dne, to = T00:00 dne po posledním vybraném dni (ne T24:00 posledního dne). Mezi vybranými dny se nic dalšího nestahuje ani nepočítá. Pro běžný souvislý rozsah nech dates prázdné.
+- „sečti / dohromady“ u dopravy → granularity total, kód sečte jen vybrané dny. Graf nebo tabulka porovnávající vybrané dny → granularity day, každá vybraná datumová položka je samostatný bod/sloupec.
 - „posledních N hodin“ = N hodin končících poslední celou hodinou (to = ${today}T${hour}:00).
 - „posledních N hodin od 15:00“ nebo „do 15:00“ = N hodin končících dnes v 15:00 (např. 7 hodin = 08:00 až 15:00).
 - „od 15:00“ bez konce = dnes od 15:00 do poslední celé hodiny. „ráno“ = 06:00–10:00, „odpoledne“ = 12:00–18:00, „večer“ = 18:00–22:00.
 - „posledních N dní“ nebo „poslední týden“ = N celých dní končících včera (to = ${yesterday}T24:00). „minulý týden“ = pondělí až neděle minulého týdne.
 - Bez jakéhokoli času použij celý včerejšek a date_assumed: true. Jinak date_assumed: false.
-- Budoucnost nikdy. Najednou nejvýš 31 dní.
+- Budoucnost nikdy. Nejvýš 31 dní v rozsahu i 31 vybraných dní.
 
 Počasí (nástroj weather_series):
 - Použij pouze při otázce na naměřené počasí z olomouckých meteorologických stanic. Jde o pozorování, ne předpověď.

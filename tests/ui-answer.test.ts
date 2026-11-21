@@ -127,6 +127,47 @@ describe("odkud je číslo v grafu", () => {
     expect(point?.sources.map((s) => s.date)).toEqual(["2026-11-21"]);
   });
 
+  it("součet sloupce za nesouvislé dny vysvětlí jen vybrané dny a hodiny", async () => {
+    const { explainPoint } = await import("../lib/ui/answer");
+    const { pickAt } = await import("../lib/ui/chart");
+    const original = FIXTURES.bar.result;
+    if (!original?.ok || original.meta.tool !== "traffic_series") throw new Error("bar fixture nemá dopravní výsledek");
+    const selected: (typeof FIXTURES)["bar"] = {
+      ...FIXTURES.bar,
+      result: {
+        ...original,
+        data: {
+          ...original.data,
+          series: original.data.series.map((series) => ({
+            ...series,
+            total: 48,
+            coverage: { hours: 48, of: 48 },
+          })),
+        },
+        meta: {
+          ...original.meta,
+          params: { ...original.meta.params, dates: ["2026-11-17", "2026-11-19"] },
+          period: { start: "2026-11-16T23:00:00.000Z", end: "2026-11-19T23:00:00.000Z", clipped: false },
+          sources: [
+            ...original.meta.sources,
+            { date: "2026-11-17", url: "https://example.test/17", fetched_at: "2026-11-21T10:00:00.000Z" },
+            { date: "2026-11-19", url: "https://example.test/19", fetched_at: "2026-11-21T10:00:00.000Z" },
+          ],
+        },
+      },
+    };
+    const result = selected.result;
+    if (!result?.ok || result.meta.tool !== "traffic_series") throw new Error("selected result should be successful");
+    const point = explainPoint(selected, pickAt(result, 0, 0));
+
+    expect(point).toMatchObject({
+      value: 48,
+      period: "úterý 17. 11. 2026 a čtvrtek 19. 11. 2026",
+    });
+    expect(point?.text).toContain("Součet 48 hodinových hodnot");
+    expect(point?.sources.map((source) => source.date)).toEqual(["2026-11-17", "2026-11-19"]);
+  });
+
   it("chybějící hodina: vysvětlí, že ji nedoplňujeme nulou", async () => {
     const { explainPoint } = await import("../lib/ui/answer");
     const point = explainPoint(FIXTURES.table, { gate: 0, bucket: 0 });

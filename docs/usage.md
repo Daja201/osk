@@ -26,6 +26,8 @@ stáhnout, nebo poslat odkazem. Ke každé odpovědi je důkaz, odkud čísla js
 | špičku | „Kdy byla v pondělí největší špička u Billy?“ | větu s hodinou |
 | porovnat místa | „Porovnej sloupcovým grafem 17. listopadu, Kafkovu a Billu za včerejšek“ | sloupcový graf |
 | vývoj v čase | „Jak se měnil provoz na Floře posledních 7 dní?“ | čárový graf po dnech |
+| součet vybraných dnů | „Kolik aut dohromady projelo v pondělí a ve čtvrtek u Billy?“ | součet jen za pondělí a čtvrtek |
+| porovnat nesouvislé dny | „Sloupcový graf soboty 14. a 21. listopadu na Floře“ | dva sloupce, bez dnů mezi nimi |
 | podíl na celku | „Koláčový graf: podíl aut na 17. listopadu a Kafkově za poslední týden“ | koláčový graf |
 | čísla do Excelu | „Tabulka vjezdů na parkoviště Flora včera po hodinách“ | tabulku |
 | data sám | „Odkud berete data? Dej mi odkaz na API“ | přesné odkazy na API CITIQ |
@@ -37,6 +39,8 @@ Když napíšete „kruhový nebo sloupcový“, AI vybere ten, který se k dat�
 - „včera“, „dnes“ (do poslední celé hodiny), „v pondělí“ (poslední pondělí), „předevčírem“
 - „posledních 7 hodin“, „posledních 7 hodin do 15:00“, „od 15:00“, „ráno“ (6–10), „odpoledne“ (12–18), „večer“ (18–22)
 - „posledních 7 dní“, „poslední týden“ (7 celých dní do včerejška), „minulý týden“ (pondělí až neděle)
+- Lze vybrat i více konkrétních dnů, které nejdou po sobě. Textové „dohromady“ u dopravy sečte jen vybrané dny; graf a tabulka je mohou ukázat samostatně. Mezilehlé dny se nestahují ani nezapočítávají.
+- U počasí se vybrané dny zobrazí samostatně; „celkem“ zůstává průměrem, ne součtem různých denních průměrů.
 - Bez času se ukáže celý včerejšek a u odpovědi to je napsané.
 - Data jsou za posledních ~30 dní, najednou nejvýš 31 dní. Budoucnost ne.
 
