@@ -197,10 +197,10 @@ function DownloadMenu({ actions, className }: { actions: { label: string; hint?:
           <path d="M6 9l6 6 6-6" />
         </svg>
       </summary>
-      {/* Na mobilu se nabídka otevře NAHORU od levého okraje řady tlačítek (dole by ji uřízl konec obrazovky,
-          vpravo by vyjela za okraj), na větší obrazovce pod tlačítkem. Ne position: fixed: rodič má transform
-          (posun obrazovek), takže by se fixed vázalo k němu, ne k oknu. */}
-      <ul className="animate-rise absolute bottom-full left-0 z-30 m-0 mb-2 flex w-[min(18rem,calc(100vw-2rem))] list-none flex-col rounded-2xl bg-surface p-1.5 text-ink shadow-[0_8px_28px_rgba(0,0,0,0.3)] sm:top-full sm:bottom-auto sm:mt-2 sm:mb-0">
+      {/* Nabídka se otevře NAHORU (dole by vyjela pod okraj okna, ukázal by se posuvník a stránka by uskočila),
+          na mobilu od levého okraje řady tlačítek (vpravo by vyjela za okraj). Ne position: fixed: rodič má
+          transform (posun obrazovek), takže by se fixed vázalo k němu, ne k oknu. */}
+      <ul className="animate-rise absolute bottom-full left-0 z-30 m-0 mb-2 flex w-[min(18rem,calc(100vw-2rem))] list-none flex-col rounded-2xl bg-surface p-1.5 text-ink shadow-[0_8px_28px_rgba(0,0,0,0.3)]">
         {actions.map((action) => (
           <li key={action.label}>
             <button

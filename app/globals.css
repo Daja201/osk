@@ -109,6 +109,16 @@ circle.chart-item:focus-visible {
   }
 }
 
+/* Posuvníky skryté všude (Brave, Chrome na Windows…): když se obsah na chvíli prodlouží (otevřená nabídka,
+   podrobnosti), neukáže se pruh vpravo a stránka neuskočí o jeho šířku. Posouvat jde dál kolečkem, touchpadem,
+   prstem i klávesnicí. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Viditelný focus pro ovládání klávesnicí: jen žlutý obrys (bez bílého / tmavého okraje kolem).
    Je schválně mimo vrstvu, takže má přednost před třídami Tailwindu a je vždy vidět. */
 :focus-visible {
