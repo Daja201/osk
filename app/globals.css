@@ -1,23 +1,23 @@
 @import "tailwindcss";
 
 /* Barvy a písma z návrhu (docs/design/ZADANI.md). Tailwind z nich dělá třídy, např. bg-tabule, text-ink, font-sign.
-   Třídy odkazují na proměnné (var(--color-ink)…), takže tmavý režim níž jen přepíše jejich hodnoty. */
+   light-dark(světlá, tmavá): prohlížeč vybere hodnotu podle color-scheme (viz „Světlý a tmavý režim“ níž). */
 @theme {
-  --color-surface: #FFFFFF; /* pozadí stránky a bílých oken */
-  --color-accent: #0B4F96; /* modrá pro text a ikony na ploše */
-  --color-missing: #F3F5F8; /* chybějící hodiny v grafu */
-  --color-tabule: #0B4F96;
-  --color-ink: #14243A;
-  --color-muted: #4B5A6B;
-  --color-band: #EEF2F6;
-  --color-line: #D5DDE5;
-  --color-grid: #DCE3EA;
-  --color-bar: #7D95B0;
+  --color-surface: light-dark(#FFFFFF, #0E1621); /* pozadí stránky a bílých oken */
+  --color-accent: light-dark(#0B4F96, #7DB3F0); /* modrá pro text a ikony na ploše */
+  --color-missing: light-dark(#F3F5F8, #1A2431); /* chybějící hodiny v grafu */
+  --color-tabule: light-dark(#0B4F96, #0A3F78);
+  --color-ink: light-dark(#14243A, #E7EDF4);
+  --color-muted: light-dark(#4B5A6B, #9DABBB);
+  --color-band: light-dark(#EEF2F6, #18222F);
+  --color-line: light-dark(#D5DDE5, #2B3848);
+  --color-grid: light-dark(#DCE3EA, #233040);
+  --color-bar: light-dark(#7D95B0, #5D7795);
   --color-marking: #FFC21A;
-  --color-slate: #3D4B5C;
+  --color-slate: light-dark(#3D4B5C, #2E3A48);
   --color-on-sign-muted: #D6DEE7;
-  --color-ok: #1E7B45;
-  --color-bad: #B3261E;
+  --color-ok: light-dark(#1E7B45, #4FC283);
+  --color-bad: light-dark(#B3261E, #FF7A70);
   --font-sans: "Barlow", system-ui, sans-serif;
   --font-sign: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
 
@@ -31,29 +31,21 @@
   }
 }
 
-/* Tmavý režim: zapne se sám podle nastavení systému (prefers-color-scheme), žádný přepínač.
-   „ink“ (text) se otočí na světlou, plochy ztmavnou. Modrá tabule zůstane modrá, jen o kousek tmavší,
-   aby celá modrá obrazovka v noci neoslňovala. Žlutá a bílý text na modré se nemění. */
+/* Světlý a tmavý režim. Stránka se vždycky načte podle systému (color-scheme: light dark).
+   Tlačítko v horní liště pak přepíná světlý/tmavý přes <html data-theme="light|dark"> (components/ThemeToggle.tsx).
+   Volba se neukládá, po obnovení stránky platí zase systém.
+   V tmavém režimu se text otočí na světlý a plochy ztmavnou. Modrá tabule je o kousek tmavší, aby celá modrá
+   obrazovka v noci neoslňovala. Žlutá a bílý text na modré se nemění. */
 :root {
   color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-surface: #0E1621;
-    --color-accent: #7DB3F0;
-    --color-missing: #1A2431;
-    --color-tabule: #0A3F78;
-    --color-ink: #E7EDF4;
-    --color-muted: #9DABBB;
-    --color-band: #18222F;
-    --color-line: #2B3848;
-    --color-grid: #233040;
-    --color-bar: #5D7795;
-    --color-slate: #2E3A48;
-    --color-ok: #4FC283;
-    --color-bad: #FF7A70;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 /* Kdo má v systému „omezit pohyb“, nevidí žádné animace ani přechody. */

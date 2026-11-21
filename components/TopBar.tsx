@@ -2,6 +2,7 @@
 
 import InfoButton, { type InfoTopic } from "./InfoButton";
 import { PILL } from "./styles";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = {
   tone: "light" | "blue";
@@ -11,7 +12,7 @@ type Props = {
   onPick?: (question: string) => void;
 };
 
-// Horní lišta: vlevo název, vpravo „Zpět“, „Nová otázka“ a čtverec s otazníkem (nápověda).
+// Horní lišta: vlevo název, vpravo „Zpět“, „Nová otázka“, přepínač vzhledu a čtverec s otazníkem (nápověda).
 export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
   const onBlue = tone === "blue";
   return (
@@ -36,6 +37,7 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
             Nová otázka
           </button>
         )}
+        <ThemeToggle tone={tone} />
         <InfoButton topic={info} tone={tone} onPick={onPick} />
       </div>
     </header>
