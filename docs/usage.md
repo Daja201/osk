@@ -29,6 +29,7 @@ stáhnout, nebo poslat odkazem. Ke každé odpovědi je důkaz, odkud čísla js
 | součet vybraných dnů | „Kolik aut dohromady projelo v pondělí a ve čtvrtek u Billy?“ | součet jen za pondělí a čtvrtek |
 | porovnat nesouvislé dny | „Sloupcový graf soboty 14. a 21. listopadu na Floře“ | dva sloupce, bez dnů mezi nimi |
 | porovnat období | „Porovnej provoz u Billy v pondělí–středu a ve čtvrtek–sobotu“ | sloupce za obě období, rozdíl a změna vůči prvnímu |
+| sloučit brány v každém dni | „Každý den sečti sever a jih 17. listopadu do jednoho sloupce“ | jeden denní sloupec se součtem obou bran |
 | podíl na celku | „Koláčový graf: podíl aut na 17. listopadu a Kafkově za poslední týden“ | koláčový graf |
 | čísla do Excelu | „Tabulka vjezdů na parkoviště Flora včera po hodinách“ | tabulku |
 | data sám | „Odkud berete data? Dej mi odkaz na API“ | přesné odkazy na API CITIQ |

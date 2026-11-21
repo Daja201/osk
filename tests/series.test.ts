@@ -104,6 +104,49 @@ describe("trafficSeries: po hodinách", () => {
     ]);
   });
 
+  it("výslovně sloučené vzdálené brány se sčítají uvnitř každého dne do jedné řady", async () => {
+    rule = (gate) => (gate === "17.listopadu JIH" ? 2 : 3);
+    const result = await run({
+      gates: ["17. listopadu"],
+      combineGates: true,
+      direction: "in",
+      from: "2026-11-17T00:00",
+      to: "2026-11-19T00:00",
+      granularity: "day",
+    });
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(result.data.series).toHaveLength(1);
+    expect(result.data.series[0]).toMatchObject({
+      gate: "17. listopadu (jih) + 17. listopadu (sever)",
+      sensors: ["17.listopadu JIH", "17.listopadu Sever"],
+      values: [5 * 24, 5 * 24],
+      total: 5 * 48,
+      coverage: { hours: 48, of: 48 },
+    });
+    expect(result.meta.notes).toContain("Součet zahrnuje průjezdy na všech vybraných branách; stejné vozidlo může být započteno na více branách.");
+  });
+
+  it("při sloučení vynechá hodiny, kdy chybí data alespoň z jedné brány", async () => {
+    rule = (gate, _date, hour) => (gate === "17.listopadu Sever" && hour === 2 ? null : gate === "17.listopadu JIH" ? 2 : 3);
+    const result = await run({
+      gates: ["17. listopadu"],
+      combineGates: true,
+      direction: "in",
+      from: "2026-11-19T00:00",
+      to: "2026-11-19T24:00",
+      granularity: "day",
+    });
+    if (!result.ok) throw new Error(result.error.message);
+
+    expect(result.data.series[0]).toMatchObject({
+      values: [5 * 23],
+      total: 5 * 23,
+      coverage: { hours: 23, of: 24 },
+    });
+    expect(result.meta.notes).toContain("Součet zahrnuje jen hodiny s daty ze všech vybraných bran; 1 částečných hodin jsme vynechali.");
+  });
+
   it("jen jeden směr", async () => {
     rule = (_gate, _date, _hour, direction) => (direction === "in" ? 3 : 7);
     const result = await run({ gates: ["Parkoviště Flora"], direction: "out", from: "2026-11-19T06:00", to: "2026-11-19T09:00", granularity: "hour" });

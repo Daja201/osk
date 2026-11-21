@@ -16,6 +16,7 @@ export type Granularity = "hour" | "day" | "total" | "period";
 // from / to jsou místní (pražský) čas „YYYY-MM-DDTHH:00“, `to` se nezahrnuje. „T24:00“ = půlnoc dalšího dne.
 export type SeriesParams = {
   gates: string[];
+  combineGates?: boolean;
   direction: Direction;
   from: string;
   to: string;
@@ -93,6 +94,14 @@ function placeHourly(data: { results: CitiqGateRow[] }, gate: Gate, direction: D
 }
 
 const add = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) + b);
+const sumComplete = (values: (number | null)[]): number | null => {
+  let sum = 0;
+  for (const value of values) {
+    if (value === null) return null;
+    sum += value;
+  }
+  return sum;
+};
 
 export async function trafficSeries(params: SeriesParams, options: { now?: Date } = {}): Promise<SeriesResult> {
   const now = (options.now ?? new Date()).getTime();
@@ -112,6 +121,7 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
     for (const place of placesOf(gate)) if (!gates.includes(place)) gates.push(place);
   }
   if (gates.length > MAX_GATES) return fail("BAD_PARAMS", `Zadejte 1 až ${MAX_GATES} míst.`);
+  const combineGates = params.combineGates === true && gates.length > 1;
   const fromMs = parseLocal(params.from);
   const toMs = parseLocal(params.to);
   if (fromMs === null || toMs === null) return fail("BAD_PARAMS", "Čas musí být ve tvaru YYYY-MM-DDTHH:00 (pražský čas).");
@@ -196,28 +206,57 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
     }
   }
 
-  // 4) Výsledek pro každé místo.
-  const series: GateSeries[] = gates.map((gate, g) => {
-    const hourValues = slots.map((slot) => slot.values[g]);
-    return {
-      gate: gate.objectName,
-      sensors: sensorsOf(gate),
-      values: groups.map((group) => group.slots.reduce<number | null>((sum, slot) => add(sum, slot.values[g]), null)),
-      total: hourValues.reduce<number>((sum, value) => sum + (value ?? 0), 0),
-      coverage: { hours: hourValues.filter((value) => value !== null).length, of: hourValues.length },
-    };
-  });
+  // 4) Výsledek pro každé místo, případně jedna sloučená řada.
+  const series: GateSeries[] = combineGates
+    ? [
+        {
+          gate: gates.map((gate) => gate.label ?? gate.objectName).join(" + "),
+          sensors: [...new Set(gates.flatMap(sensorsOf))],
+          values: groups.map((group) =>
+            group.slots.reduce<number | null>((sum, slot) => add(sum, sumComplete(slot.values)), null),
+          ),
+          total: slots.reduce((sum, slot) => {
+            const value = sumComplete(slot.values);
+            return value === null ? sum : sum + value;
+          }, 0),
+          coverage: {
+            hours: slots.filter((slot) => sumComplete(slot.values) !== null).length,
+            of: slots.length,
+          },
+        },
+      ]
+    : gates.map((gate, g) => {
+        const hourValues = slots.map((slot) => slot.values[g]);
+        return {
+          gate: gate.objectName,
+          sensors: sensorsOf(gate),
+          values: groups.map((group) => group.slots.reduce<number | null>((sum, slot) => add(sum, slot.values[g]), null)),
+          total: hourValues.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+          coverage: { hours: hourValues.filter((value) => value !== null).length, of: hourValues.length },
+        };
+      });
 
   if (series.every((s) => s.coverage.hours === 0)) {
+    if (combineGates) return fail("NO_DATA", "Vybrané brány nemají žádnou společnou hodinu s úplnými daty, proto jejich součet nelze spolehlivě sestavit.");
     return fail("NO_DATA", "Senzory na vybraných místech v tomto čase neposlaly žádná data.");
   }
 
   const notes: string[] = [];
   if (clipped) notes.push(`Rozsah sahal do budoucnosti, data jsou do ${timeFormat.format(endMs)} (poslední celá hodina).`);
   if (selectedDates) notes.push(`Zahrnujeme jen vybrané dny: ${selectedDates.map((date) => dayFormat.format(utcStartOfPragueDay(date).getTime())).join(", ")}.`);
+  if (combineGates) notes.push("Součet zahrnuje průjezdy na všech vybraných branách; stejné vozidlo může být započteno na více branách.");
   for (const s of series) {
     if (s.coverage.hours === 0) notes.push(`${s.gate}: senzor v tomto čase nevysílal.`);
     else if (s.coverage.hours < s.coverage.of) notes.push(`${s.gate}: chybí data za ${s.coverage.of - s.coverage.hours} h, součet je neúplný.`);
+  }
+  if (combineGates) {
+    const partialHours = slots.filter((slot) => {
+      const readings = slot.values;
+      return readings.some((value) => value === null) && readings.some((value) => value !== null);
+    }).length;
+    if (partialHours > 0) {
+      notes.push(`Součet zahrnuje jen hodiny s daty ze všech vybraných bran; ${partialHours} částečných hodin jsme vynechali.`);
+    }
   }
   if (otherDayLength) notes.push("V rozsahu je den se změnou času (23 nebo 25 hodin).");
 

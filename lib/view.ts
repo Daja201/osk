@@ -64,13 +64,16 @@ export function formatOptions(result: SeriesDisplayOk): { format: ViewFormat; la
   const { buckets, series } = result.data;
   const metricCount = new Set(series.flatMap((item) => (item.metric ? [item.metric] : []))).size;
   const mixedUnits = result.meta.tool === "weather_series" && metricCount > 1;
+  const unitCount = new Set(series.map((item) => item.unit ?? "")).size;
+  const tooManyAxes = result.meta.tool === "combined_series" && unitCount > 2;
+  const combined = result.meta.tool === "combined_series";
   const slices = series.length > 1 || buckets.length === 1 ? series.length : buckets.length;
   return [
-    { format: "bar", label: "Sloupcový", disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : null },
+    { format: "bar", label: "Sloupcový", disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : tooManyAxes ? "Graf umí nejvýše dvě jednotky; zobrazte je v tabulce." : null },
     {
       format: "line",
       label: "Čárový",
-      disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : buckets.length < 2 ? "Čárový graf potřebuje průběh v čase (aspoň 2 období)." : null,
+      disabled: mixedUnits ? "Veličiny mají různé jednotky; zobrazte je v tabulce." : tooManyAxes ? "Graf umí nejvýše dvě jednotky; zobrazte je v tabulce." : buckets.length < 2 ? "Čárový graf potřebuje průběh v čase (aspoň 2 období)." : null,
     },
     {
       format: "pie",
@@ -79,6 +82,8 @@ export function formatOptions(result: SeriesDisplayOk): { format: ViewFormat; la
         ? "Koláčový graf neukazuje změny mezi obdobími; použijte sloupcový graf nebo tabulku."
         : mixedUnits
         ? "Veličiny mají různé jednotky; zobrazte je v tabulce."
+        : combined
+        ? "Koláčový graf nemůže zobrazit dopravu a počasí v různých jednotkách."
         : slices < 2
           ? "Koláč s jedinou položkou nic neukáže."
           : slices > MAX_PIE_SLICES
@@ -99,7 +104,7 @@ export function colorSlots(result: SeriesDisplayOk, format: ViewFormat): string[
 
 // Sloupcový graf „celkem za místo“ má ve výchozím stavu všechny sloupce jednou barvou (jako vždycky).
 export function uniformColors(result: SeriesDisplayOk, format: ViewFormat): boolean {
-  return format === "bar" && result.data.buckets.length === 1;
+  return format === "bar" && result.data.buckets.length === 1 && result.meta.tool !== "combined_series";
 }
 
 // Barva položky, jak ji graf opravdu nakreslí: vlastní z editoru, jinak výchozí z palety pozadí

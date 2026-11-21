@@ -114,6 +114,7 @@ export async function compareTrafficPeriods(
   for (const period of validated.periods) {
     const result = await run({
       gates: params.gates,
+      combineGates: params.combineGates,
       direction: params.direction,
       from: period.input.from,
       to: period.input.to,
@@ -158,6 +159,7 @@ export async function compareTrafficPeriods(
       tool: "traffic_series",
       params: {
         gates: params.gates,
+        combineGates: params.combineGates,
         direction: params.direction,
         from: params.from,
         to: params.to,

@@ -81,6 +81,7 @@ const barSpec: BuildAnswerInput = {
   title: "Stav nyní",
   background: "cervena",
   gates: [LISTOPADU.gate, KAFKOVA.gate, "Billa (Hynaisova)"],
+  combine_gates: false,
   direction: "both",
   from: "2026-11-21T08:00",
   to: "2026-11-21T11:00",

@@ -78,6 +78,7 @@ const spec = {
   title: null,
   background: null,
   gates: ["17. listopadu (obě brány)", "Parkoviště Flora"],
+  combine_gates: false,
   direction: "both",
   from: "2026-11-19T08:00",
   to: "2026-11-19T11:00",
@@ -140,7 +141,7 @@ const fakeWeather: WeatherSeriesResult = {
 describe("build_answer: nástroj", () => {
   it("strict schéma vyžaduje všechna pole", () => {
     expect(buildAnswerTool.strict).toBe(true);
-    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
+    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "combine_gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
   });
 
   it("weather_series má samostatné strict schéma bez dopravního směru", () => {
@@ -243,7 +244,7 @@ describe("ask: grafy a tabulky", () => {
     expect(answer).toMatchObject({ kind: "answer", format: "bar", sentence: null, sentence_source: null, background: null });
     expect(answer.title).toBe("Počet vozidel · 17. listopadu, Parkoviště Flora · 19. 11. 2026, 8:00–11:00");
     expect(seriesCalls).toEqual([
-      { gates: spec.gates, direction: "both", from: "2026-11-19T08:00", to: "2026-11-19T11:00", granularity: "hour" },
+      { gates: spec.gates, combineGates: false, direction: "both", from: "2026-11-19T08:00", to: "2026-11-19T11:00", granularity: "hour" },
     ]);
   });
 
@@ -283,6 +284,29 @@ describe("ask: grafy a tabulky", () => {
     );
     expect(answer).toMatchObject({ kind: "answer", format: "bar", title: expect.stringContaining("srovnání 2 období") });
     expect(answer.result).toMatchObject({ ok: true, data: { granularity: "period", buckets: [{}, {}], comparison: { periods: [{}, {}] } } });
+  });
+
+  it("předá výslovný požadavek na sloučení bran jako jednu denní řadu", async () => {
+    const answer = await ask(
+      "Sečti každý den sever a jih 17. listopadu do jednoho sloupce",
+      deps(fakeClient([
+        toolUse({
+          ...spec,
+          gates: ["17. listopadu (obě brány)"],
+          combine_gates: true,
+          from: "2026-11-17T00:00",
+          to: "2026-11-20T00:00",
+          granularity: "day",
+        }),
+      ])),
+    );
+
+    expect(seriesCalls[0]).toMatchObject({
+      gates: ["17. listopadu (obě brány)"],
+      combineGates: true,
+      granularity: "day",
+    });
+    expect(answer.result).toMatchObject({ ok: true, data: { granularity: "day", series: [{ gate: "17. listopadu (obě brány)" }] } });
   });
 
   it("nadpis a barva od uživatele projdou", async () => {
