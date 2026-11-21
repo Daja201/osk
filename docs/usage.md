@@ -15,6 +15,8 @@ stáhnout, nebo poslat odkazem. Ke každé odpovědi je důkaz, odkud čísla js
 5. Odpověď se uloží na 7 dní do konverzace s odkazem `/c/<id>`.
 6. Pod odpovědí jde navázat další otázkou („a předevčírem?“, „ukaž to grafem“). AI dostane kontext
    z posledních 2 otázek (otázku, zadání a odpověď, ne čísla k počítání). Jedna konverzace má nejvýš 10 otázek.
+   Navazující otázka staví na předchozí odpovědi a mění jen to, co řekne: „červený“ nechá místa, čas, typ i nadpis
+   a vzhled z editoru (barvy řad, osu, QR); u jiných dat se barvy řad a osa nepřenesou.
 
 ## Na co se ptát
 

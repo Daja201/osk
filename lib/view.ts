@@ -39,6 +39,26 @@ export function defaultView(answer: AskAnswer): ChartView {
   return { format, title: answer.title ?? "", background: answer.background, colors: [], axis: { mode: "auto" }, qr: true };
 }
 
+// Navazující otázka v konverzaci („červený“, „s nadpisem…“) staví na předchozí odpovědi: převezme její vzhled
+// z editoru (barvy řad, osu, QR, typ, nadpis, pozadí). Co si uživatel řekl teď (spec od AI), má přednost.
+// Barvy řad a osa se převezmou jen u stejných dat (stejná místa, čas, rozlišení), jinak by nesedily.
+// null = nová odpověď není graf ani tabulka, nebo předchozí neměla data.
+export function carryView(previous: ChartView, before: AskAnswer, next: AskAnswer): ChartView | null {
+  const format = next.format;
+  if (next.kind !== "answer" || !next.result?.ok || !before.result?.ok) return null;
+  if (format !== "bar" && format !== "line" && format !== "pie" && format !== "table") return null;
+  const sameData = JSON.stringify(before.result.meta.params) === JSON.stringify(next.result.meta.params);
+  return {
+    // Typ změnila otázka („jako čárový“), jinak zůstane typ z editoru.
+    format: format !== before.format ? format : previous.format,
+    title: next.spec?.title ?? (sameData ? previous.title : (next.title ?? "")),
+    background: next.spec?.background ?? previous.background,
+    colors: sameData ? previous.colors : [],
+    axis: sameData ? previous.axis : { mode: "auto" },
+    qr: previous.qr,
+  };
+}
+
 // Které typy grafu se k datům hodí. Nevhodné jsou v editoru vypnuté i s důvodem.
 export function formatOptions(result: SeriesDisplayOk): { format: ViewFormat; label: string; disabled: string | null }[] {
   const { buckets, series } = result.data;

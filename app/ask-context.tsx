@@ -5,6 +5,7 @@
 // Konverzace: další otázka navazuje na předchozí (server dostane conversation_id a přidá kontext).
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { AskAnswer } from "@/lib/ai/types";
+import type { ChartView } from "@/lib/view";
 import { getAnswer } from "@/lib/ui/ask-client";
 
 // Kolik otázek může mít jedna konverzace (stejně jako MAX_TURNS v lib/conversations.ts).
@@ -21,7 +22,8 @@ type AskState = {
 type AskContextValue = AskState & {
   turns: number; // kolik otázek konverzace už má
   // Položí otázku. Když běží konverzace, navazuje na ni; reset() začne novou.
-  ask: (question: string) => Promise<void>;
+  // view = aktuální vzhled poslední odpovědi (z editoru), aby na něm navazující odpověď stavěla.
+  ask: (question: string, view?: ChartView | null) => Promise<void>;
   reset: () => void;
   // Nahradí zobrazenou odpověď (např. uloženou kopií s upraveným vzhledem a novým odkazem).
   replace: (answer: AskAnswer) => void;
@@ -38,7 +40,7 @@ export function AskProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AskState>(INITIAL);
 
   const ask = useCallback(
-    async (raw: string) => {
+    async (raw: string, view: ChartView | null = null) => {
       const question = raw.trim();
       if (!question) return;
       setState((current) => ({
@@ -49,7 +51,7 @@ export function AskProvider({ children }: { children: React.ReactNode }) {
         history: inConversation(current.answer) ? [...current.history, current.answer] : current.history,
         answer: null,
       }));
-      const answer = await getAnswer(question, state.conversationId);
+      const answer = await getAnswer(question, state.conversationId, view);
       setState((current) => ({
         ...current,
         question: answer.question,

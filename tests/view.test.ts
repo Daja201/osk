@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type { SeriesOk } from "../lib/citiq/series";
 import { axisFor } from "../lib/ui/chart";
 import { FIXTURES } from "../lib/ui/fixtures";
-import { ChartViewSchema, colorSlots, customAxisError, defaultView, formatOptions, slotColor } from "../lib/view";
+import { ChartViewSchema, carryView, colorSlots, customAxisError, defaultView, formatOptions, slotColor } from "../lib/view";
 
 const ok = (name: string) => {
   const result = FIXTURES[name].result;
@@ -16,6 +17,35 @@ describe("výchozí vzhled", () => {
   it("věta a zdroj dat → sloupcový graf", () => {
     expect(defaultView(FIXTURES.text).format).toBe("bar");
     expect(defaultView(FIXTURES.source).format).toBe("bar");
+  });
+});
+
+describe("navazující otázka staví na předchozím vzhledu", () => {
+  const before = FIXTURES.bar;
+  const edited = { ...defaultView(before), format: "line" as const, title: "Můj graf", colors: ["#1E7B45"], axis: { mode: "zero" as const }, qr: false };
+  const spec = before.spec && "gates" in before.spec ? before.spec : null;
+  if (!spec) throw new Error("fixture bez zadání");
+
+  it("„modrý“: stejná data → zůstanou barvy, osa, QR, typ i nadpis z editoru, změní se jen pozadí", () => {
+    const next = { ...before, spec: { ...spec, background: "modra" as const, title: null }, background: "modra" as const };
+    expect(carryView(edited, before, next)).toEqual({ ...edited, background: "modra" });
+  });
+
+  it("„jako tabulku“ změní typ; nadpis řečený v otázce má přednost", () => {
+    const next = { ...before, format: "table" as const, spec: { ...spec, format: "table" as const, title: "Nový" } };
+    expect(carryView(edited, before, next)).toMatchObject({ format: "table", title: "Nový", colors: ["#1E7B45"] });
+  });
+
+  it("jiná data → barvy řad a osa se nepřenesou (nesedí na nová místa)", () => {
+    const result = before.result?.ok && before.result.meta.tool === "traffic_series" ? (before.result as SeriesOk) : null;
+    if (!result) throw new Error("fixture bez dat");
+    const next = { ...before, title: "Jiný nadpis", spec: { ...spec, title: null }, result: { ...result, meta: { ...result.meta, params: { ...result.meta.params, from: "2026-11-01T00:00" } } } };
+    expect(carryView(edited, before, next)).toMatchObject({ colors: [], axis: { mode: "auto" }, title: "Jiný nadpis", qr: false });
+  });
+
+  it("odpověď větou nebo „nevím“ → bez vzhledu", () => {
+    expect(carryView(edited, before, { ...before, format: "text" })).toBeNull();
+    expect(carryView(edited, before, FIXTURES.out_of_scope ?? { ...before, kind: "unknown", result: null })).toBeNull();
   });
 });
 

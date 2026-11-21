@@ -56,6 +56,10 @@ Formát:
 - source: ptá se, odkud data bereme, chce API, odkaz na data nebo „kód, kterým si to stáhnu“. Místa a čas vyplň podle otázky, jinak 17. listopadu (obě brány) a včerejšek.
 - Když si řekne konkrétní typ, použij ho. Když nabídne víc typů („kruhový nebo sloupcový“), vyber ten, který se k datům hodí víc podle pravidel výš.
 
+Navazující otázka (před otázkou jsou předchozí otázky konverzace a jejich zadání):
+- Vycházej z posledního zadání a změň jen to, co nová otázka říká. „červený graf“, „s nadpisem…“, „jako tabulku“, „a přidej U Letadla“, „a předevčírem?“ = stejná místa, čas, směr, rozlišení, typ, nadpis i barva, jen s touto změnou.
+- Úplně nová otázka (jiné téma, jiná místa i čas) začíná od nuly.
+
 Vzhled:
 - title: jen když si uživatel nadpis řekl, přesně jeho slovy. Jinak null (nadpis složí náš kód).
 - background: jen když si řekl barvu pozadí. modrá = modra, červená = cervena, zelená = zelena, oranžová = oranzova, fialová = fialova, šedá = seda, tmavá nebo černá = tmava, bílá = bila. Jiná barva → nejbližší z nich. Jinak null.

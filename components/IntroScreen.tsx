@@ -28,6 +28,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const [value, setValue] = useState("");
   const [leaving, setLeaving] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const blob = useRef<HTMLDivElement>(null);
@@ -111,7 +112,11 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         type="button"
         aria-expanded={hintOpen}
         aria-controls="datasety"
-        onClick={() => setHintOpen(!hintOpen)}
+        onClick={() => {
+          setHintOpen(!hintOpen);
+          // Na telefonu je pole přilepené dole: rozbalený panel posuneme do pohledu nad pole (pole se nehne).
+          if (!hintOpen && !wide) requestAnimationFrame(() => panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+        }}
         className={`${PRESS} flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
       >
         Na co se můžu zeptat?
@@ -120,7 +125,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         </svg>
       </button>
       {hintOpen && (
-        <div id="datasety" className="animate-rise grid w-full gap-3 sm:grid-cols-2">
+        <div id="datasety" ref={panel} className="animate-rise grid w-full scroll-mb-28 gap-3 sm:grid-cols-2">
           {[TRAFFIC_DATASET, WEATHER_DATASET].map((dataset) => (
             <section key={dataset.title} className="rounded-2xl border border-line bg-surface p-4 text-left">
               <h2 className="m-0 text-[17px] font-bold text-ink">{dataset.title}</h2>
@@ -150,17 +155,19 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         />
       </div>
       {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice), dá se posunout, místo aby se texty překryly. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center-safe sm:px-8 sm:pb-[8vh]">
-        <div className={`flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex sm:flex-none sm:pt-0 sm:pb-8 ${hintOpen ? "hidden" : "flex"} ${fade}`}>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:px-8 sm:pt-[max(24px,calc(50dvh-240px))] sm:pb-[8vh]">
+        <div className={`flex flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex-none sm:pt-0 sm:pb-8 ${fade}`}>
           <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">Na co se chcete zeptat?</h1>
           <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted sm:max-w-none sm:text-[19px]">
             Grafy, tabulky a čísla z dopravních senzorů a meteostanic v Olomouci.
           </p>
         </div>
         {/* Na mobilu ukázkové otázky nad polem (order), na počítači pod ním. */}
-        {/* Na mobilu panel nad polem (order), na počítači pod ním. Pole se posune jen po kliknutí, ne samo. */}
-        <div className={`flex w-full max-w-[760px] shrink-0 flex-col gap-4 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
-          <div className="order-2 sm:order-1">{composer}</div>
+        {/* Panel se vždy rozbalí dolů a pole se nehne:
+            - telefon: tlačítko a panel nad polem, pole přilepené dole u palce (sticky), obsah nad ním se posouvá,
+            - počítač: panel pod polem; blok není centrovaný, ale má pevné odsazení shora. */}
+        <div className="flex w-full max-w-[760px] shrink-0 flex-col gap-4">
+          <div className="order-2 bg-surface max-sm:sticky max-sm:bottom-0 max-sm:pb-1 sm:order-1">{composer}</div>
           <div className="order-1 sm:order-2">{datasets}</div>
         </div>
       </main>

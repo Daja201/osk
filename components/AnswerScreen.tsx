@@ -157,7 +157,7 @@ export default function AnswerScreen({
               </div>
             )}
           </section>
-          {shown !== null && turns > 0 && <FollowUp turns={turns} max={MAX_TURNS} onAsk={(next) => void ask(next)} />}
+          {shown !== null && turns > 0 && <FollowUp turns={turns} max={MAX_TURNS} onAsk={(next) => void ask(next, view ?? shown.view)} />}
         </div>
         <Footer tone="blue" />
       </main>

@@ -1,6 +1,7 @@
 // Jak stránka získá odpověď. Běží v prohlížeči.
 import { z } from "zod";
 import type { AskAnswer } from "../ai/types";
+import type { ChartView } from "../view";
 import { FORMATS } from "../ai/tools";
 import { FIXTURES } from "./fixtures";
 
@@ -58,13 +59,18 @@ function rateLimitError(question: string, response: Response): AskAnswer {
 }
 
 // conversationId = navazující otázka v konverzaci (server přidá kontext z posledních 2 odpovědí).
-export async function getAnswer(question: string, conversationId: string | null = null): Promise<AskAnswer> {
+// view = aktuální vzhled poslední odpovědi (i neuložený z editoru), aby na něm nová odpověď stavěla.
+export async function getAnswer(question: string, conversationId: string | null = null, view: ChartView | null = null): Promise<AskAnswer> {
   // ?fixture=bar apod. → testovací odpověď bez volání serveru. Čte se až teď, při odeslání.
   const fixture = new URLSearchParams(window.location.search).get("fixture");
   if (fixture && fixture in FIXTURES) return FIXTURES[fixture];
 
   try {
-    const response = await fetch(`/api/ask?q=${encodeURIComponent(question)}${conversationId ? `&c=${conversationId}` : ""}`);
+    const response = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question, conversation_id: conversationId, view }),
+    });
     if (response.status === 429) return rateLimitError(question, response);
     if (response.status === 409) {
       return requestError(question, "CONVERSATION_FULL", "Konverzace je plná.", "Konverzace má nejvýš 10 otázek. Začněte novou.");
