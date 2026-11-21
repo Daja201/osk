@@ -1,7 +1,7 @@
 // Počty vozidel pro víc bran a libovolný časový rozsah, po hodinách, po dnech nebo celkem.
 // Tohle je jediný výpočet, ze kterého AI vrstva bere čísla. Claude tu nic nepočítá.
 import { getCachedDay, getCachedRange, utcStartOfPragueDay } from "./cache";
-import { citiqUrl } from "./client";
+import { CitiqError, citiqUrl } from "./client";
 import { GATE_NAMES, type Gate, MAX_GATES, resolveGate, sensorsOf } from "./gates";
 import { type CitiqGateRow, MS_PER_HOUR, TRAFFIC_CITIQ_PARAMS, VIEW, findGateRow, hourlyOf, isCitiqGateRows } from "./parse";
 
@@ -147,6 +147,9 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
           ? await getCachedRange(VIEW, new Date(dayStart), new Date(stop), TRAFFIC_CITIQ_PARAMS)
           : await getCachedDay(VIEW, date, TRAFFIC_CITIQ_PARAMS);
     } catch (error) {
+      if (error instanceof CitiqError && error.status === 429) {
+        return fail("RATE_LIMIT_ERROR", "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.");
+      }
       return fail("FETCH_FAILED", error instanceof Error ? error.message : "Data z CITIQ se nepodařilo stáhnout.");
     }
     if (!isCitiqGateRows(entry.data)) return fail("BAD_RESPONSE", "CITIQ vrátil neočekávaný formát dat.");
