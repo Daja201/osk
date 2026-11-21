@@ -1,5 +1,4 @@
 import crypto from "crypto";
-
 import { promises as fs } from "fs";
 import path from "path";
 import { fetchCitiq, type CitiqParams } from "./client";
@@ -13,6 +12,7 @@ const pendingFetches = new Map<string, Promise<CacheEntry>>();
 let lastRequestAt = 0;
 let requestQueue = Promise.resolve();
 
+//creates name for cache from hash
 function paramsHash(params: Omit<CitiqParams, "view">): string {
   const normalized = { ...params, format: params.format ?? "json" };
   const stableParams = Object.fromEntries(
@@ -21,6 +21,7 @@ function paramsHash(params: Omit<CitiqParams, "view">): string {
   return crypto.createHash("sha256").update(JSON.stringify(stableParams)).digest("hex");
 }
 
+//saves data to cache with right name
 function cacheFilePath(
   view: string,
   start: Date,
@@ -35,6 +36,7 @@ function cacheFilePath(
   );
 }
 
+// converts Date to time vars
 function datePartsInPrague(date: Date): Record<string, string> {
   return Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", {
@@ -53,22 +55,25 @@ function datePartsInPrague(date: Date): Record<string, string> {
   );
 }
 
+//creates YYYY-MM-DD
 function dateStringInPrague(date: Date): string {
   const parts = datePartsInPrague(date);
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+// helper to get following calendar day
 function addDays(date: string, days: number): string {
   const result = new Date(`${date}T00:00:00.000Z`);
   result.setUTCDate(result.getUTCDate() + days);
   return result.toISOString().slice(0, 10);
 }
 
+// returns oldest date whose cache can exist
 export function getCacheRetentionStartDate(now = new Date()): string {
   return addDays(dateStringInPrague(now), -(CACHE_RETENTION_DAYS - 1));
 }
 
-// exportováno - traffic.ts (a další funkce nástrojů) to potřebují pro period_utc v účtence
+// returns UTC correspondin to prague day (eg 1-2 hours minus)
 export function utcStartOfPragueDay(date: string): Date {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!match) {
@@ -100,11 +105,13 @@ export function utcStartOfPragueDay(date: string): Date {
   return new Date(localMidnightAsUtc - utcOffsetMs);
 }
 
+// shape for item in cache
 export type CacheEntry = {
   data: unknown;
   fetched_at: string;
 };
 
+// reads cached API response from disk
 async function readCacheFile(filePath: string): Promise<CacheEntry | null> {
   let raw: string;
   try {
@@ -131,12 +138,14 @@ async function readCacheFile(filePath: string): Promise<CacheEntry | null> {
   return { data: parsed.data, fetched_at: parsed.fetched_at };
 }
 
+//writes data to cache
 async function writeCacheFile(filePath: string, data: unknown, fetchedAt: string) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const payload = { data, fetched_at: fetchedAt };
   await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }
 
+//deletes 31st day
 export async function pruneExpiredCache(now = new Date()): Promise<void> {
   const firstRetainedDate = getCacheRetentionStartDate(now);
   let views: import("fs").Dirent[];
@@ -167,10 +176,12 @@ export async function pruneExpiredCache(now = new Date()): Promise<void> {
   }
 }
 
+// just wait
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// makes requests wait some time (1000ms) after last one finishes
 async function fetchCitiqAtLimitedRate(params: CitiqParams): Promise<unknown> {
   const previousRequest = requestQueue;
   let releaseRequest!: () => void;
@@ -189,6 +200,7 @@ async function fetchCitiqAtLimitedRate(params: CitiqParams): Promise<unknown> {
   }
 }
 
+// fetch API (dont if cached one exists or is waiting for download)
 export async function getCachedRange(
   view: string,
   start: Date,
@@ -232,6 +244,7 @@ export async function getCachedRange(
   }
 }
 
+// creates start and stop of day from data 00.00>59.00, 1 second between days
 export async function getCachedDay(
   view: string,
   date: string,
