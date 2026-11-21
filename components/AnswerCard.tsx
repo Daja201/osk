@@ -1,0 +1,199 @@
+"use client";
+
+import { type Ref, useState } from "react";
+import { useAsk } from "@/app/ask-context";
+import type { AskAnswer } from "@/lib/ai/types";
+import type { SeriesOk } from "@/lib/citiq/series";
+import { viewOf } from "@/lib/ui/answer";
+import { chartColors } from "@/lib/ui/chart";
+import { copyText } from "@/lib/ui/export";
+import { splitSentence } from "@/lib/ui/sentence";
+import { useTheme } from "@/lib/ui/theme";
+import Chart from "./charts/Chart";
+import DataTable from "./DataTable";
+import { PRESS } from "./styles";
+import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
+
+const OUT_OF_SCOPE_TEXT =
+  "Odpovídám jen na otázky o dopravě v Olomouci z dat dopravních senzorů: kolik vozidel projelo branami v libovolném čase, porovnání míst a dnů, grafy a tabulky.";
+
+function WarningIcon() {
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" className="mt-0.5 shrink-0">
+      <path d="M12 3.5L22 20.5H2L12 3.5z" />
+      <path d="M12 10v4.5" />
+      <path d="M12 17.5v.01" />
+    </svg>
+  );
+}
+
+// Poznámky kódu (chybějící data, úprava formátu). Krátce, jen když nějaké jsou.
+function Notes({ notes, className = "" }: { notes: string[]; className?: string }) {
+  if (notes.length === 0) return null;
+  return (
+    <ul className={`m-0 flex list-none flex-col gap-1 p-0 text-[15px] ${className}`}>
+      {notes.map((note) => (
+        <li key={note} className="flex gap-2">
+          <WarningIcon />
+          {note}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Věta s velkým číslem (součet u jediného místa): text před číslem, číslo + slovo za ním, zbytek.
+function Sentence({ sentence, main }: { sentence: string; main: number | null }) {
+  const parts = splitSentence(sentence, main, []);
+  const text = (segments: { text: string }[]) => segments.map((s) => s.text).join("");
+  if (parts.layout === "plain") {
+    return <p className="m-0 text-[22px] leading-[1.4] font-medium text-pretty sm:text-[26px]">{text(parts.segments)}</p>;
+  }
+  return (
+    <p className="m-0 text-[20px] leading-[1.4] font-medium text-pretty sm:text-[26px]">
+      {parts.before.length > 0 && <span className="block">{text(parts.before)}</span>}
+      <span className="my-1 block sm:my-2">
+        <span className="font-sign text-[68px] leading-none font-bold tracking-[-0.02em] whitespace-nowrap text-accent sm:text-[108px]">{parts.main}</span>
+        {parts.wordAfter && (
+          <>
+            {" "}
+            <span className="font-sign text-[28px] leading-none font-semibold sm:text-[42px]">{parts.wordAfter}</span>
+          </>
+        )}
+      </span>
+      {parts.after.length > 0 && <span className="block">{text(parts.after)}</span>}
+    </p>
+  );
+}
+
+// Zdroj dat: přesné dotazy na CITIQ, ze kterých odpověď je (otevřou se v prohlížeči jako JSON).
+function Sources({ answer, result }: { answer: AskAnswer; result: SeriesOk }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  return (
+    <>
+      <p className="m-0 text-[19px] leading-[1.5] text-pretty sm:text-[21px]">{answer.sentence}</p>
+      <ul className="m-0 mt-5 flex list-none flex-col gap-3 p-0">
+        {result.meta.sources.map((source) => (
+          <li key={source.url} className="flex flex-col gap-1.5">
+            <span className="text-[15px] font-semibold text-muted">Dotaz za {source.date.split("-").reverse().join(". ").replace(/^0/, "")}</span>
+            <code className="block rounded-xl bg-band px-3 py-2 font-mono text-[13px] leading-relaxed break-all">{source.url}</code>
+            <span className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => setCopied((await copyText(source.url)) ? source.url : null)}
+                className={`${PRESS} rounded-full border border-line px-3 py-1.5 text-[15px] font-semibold hover:border-ink`}
+              >
+                {copied === source.url ? "Zkopírováno" : "Kopírovat odkaz"}
+              </button>
+              <a href={source.url} target="_blank" rel="noreferrer" className={`${PRESS} rounded-full border border-line px-3 py-1.5 text-[15px] font-semibold no-underline hover:border-ink`}>
+                Otevřít
+              </a>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function OtherBody({ answer, interactive }: { answer: AskAnswer; interactive: boolean }) {
+  const { ask } = useAsk();
+  const view = viewOf(answer);
+  if (view === "error") {
+    const aiFailed = answer.reason?.code === "AI_ERROR";
+    const detail =
+      answer.reason?.code === "NETWORK_ERROR" ? "Zkontrolujte připojení k internetu a zkuste to znovu." : (answer.reason?.message ?? "Zkuste to prosím za chvíli.");
+    return (
+      <>
+        <p className="m-0 font-sign text-[30px] leading-[1.1] font-bold sm:text-[38px]">
+          {aiFailed ? "Odpověď se teď nepodařilo připravit." : "Data se teď nepodařilo stáhnout."}
+        </p>
+        <p className="m-0 mt-2 text-muted">{detail}</p>
+        {interactive && (
+          <button type="button" onClick={() => void ask(answer.question)} className={`${PRESS} mt-6 h-14 rounded-2xl bg-tabule px-7 text-[19px] font-semibold text-white`}>
+            Zkusit znovu
+          </button>
+        )}
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="m-0 font-sign text-[34px] leading-[1.05] font-bold sm:text-[44px]">{view === "out_of_scope" ? "Na tohle odpověď nemám." : "Tohle nevím."}</p>
+      <p className="m-0 mt-3 text-[19px] leading-[1.45] text-pretty sm:text-[21px]">{view === "out_of_scope" ? OUT_OF_SCOPE_TEXT : answer.sentence}</p>
+      {interactive && (
+        <div className="mt-6 flex flex-col gap-2.5">
+          <p className="m-0 text-[16px] font-semibold">Zkuste se zeptat třeba</p>
+          <Suggestions questions={TOP_EXAMPLES} onPick={(question) => void ask(question)} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// Odpověď podle formátu: věta, graf, tabulka, zdroj dat, nebo „nevím“.
+// svgRef dostane <svg> grafu (pro stažení PNG). interactive = ukázat „Zkusit znovu“ a návrhy otázek.
+export default function AnswerCard({
+  answer,
+  svgRef,
+  interactive = true,
+}: {
+  answer: AskAnswer;
+  svgRef?: Ref<SVGSVGElement>;
+  interactive?: boolean;
+}) {
+  const theme = useTheme();
+  const result = answer.result?.ok ? answer.result : null;
+  const plain = "rounded-3xl bg-surface p-6 text-ink sm:p-10";
+
+  if (viewOf(answer) !== "answer" || !result) {
+    return (
+      <div className={plain}>
+        <OtherBody answer={answer} interactive={interactive} />
+      </div>
+    );
+  }
+
+  const title = answer.title ?? "";
+  if (answer.format === "bar" || answer.format === "line" || answer.format === "pie") {
+    const colors = chartColors(answer.background, theme);
+    return (
+      <div className="flex flex-col gap-3">
+        {/* Graf má vlastní pozadí z palety; tenký okraj, aby byl vidět i na modré stránce. */}
+        <div className="overflow-hidden rounded-3xl ring-1 ring-white/25">
+          <Chart kind={answer.format} result={result} title={title} colors={colors} svgRef={svgRef} />
+        </div>
+        <Notes notes={answer.notes} className="text-white" />
+      </div>
+    );
+  }
+
+  if (answer.format === "table") {
+    const colors = chartColors(answer.background, theme);
+    return (
+      <div className="flex flex-col gap-4 rounded-3xl p-5 ring-1 ring-white/25 sm:p-8" style={{ background: colors.bg, color: colors.text }}>
+        <h2 className="m-0 font-sign text-[24px] leading-tight font-bold sm:text-[28px]">{title}</h2>
+        <DataTable result={result} />
+        <Notes notes={answer.notes} />
+      </div>
+    );
+  }
+
+  if (answer.format === "source") {
+    return (
+      <div className={plain}>
+        <Sources answer={answer} result={result} />
+      </div>
+    );
+  }
+
+  // Věta: velké číslo jen u jediného místa (jeho součet).
+  const main = result.data.series.length === 1 ? result.data.series[0].total : null;
+  return (
+    <div className={plain}>
+      <Sentence sentence={answer.sentence ?? ""} main={main} />
+      <p className="m-0 mt-5 text-[16px] text-muted">{title}</p>
+      <Notes notes={answer.notes} className="mt-2 text-ink" />
+    </div>
+  );
+}

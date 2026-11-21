@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { TrafficCountInput } from "@/lib/ai/tools";
-import { type Facts, type NumberSource, numberSource } from "@/lib/ui/answer";
+import type { AskAnswer } from "@/lib/ai/types";
+import { type NumberSource, explainNumber } from "@/lib/ui/answer";
 import { piecesOf } from "@/lib/ui/sentence";
 
 // Podtržení podle toho, kdo číslo dodal: plné žluté = náš kód, čárkované = AI z otázky, červené = nesedí.
@@ -20,19 +20,13 @@ const WHO_TEXT: Record<NumberSource["who"], string> = {
 
 // Odpověď jako nízký pruh nahoře v podrobnostech. Na každé číslo jde kliknout
 // a pod větou se ukáže, odkud je.
-export default function AnswerStrip({
-  sentence,
-  facts,
-  tool,
-}: {
-  sentence: string;
-  facts: Facts | null;
-  tool: TrafficCountInput | null;
-}) {
+// U grafu a tabulky věta není; pruh pak ukáže nadpis (čísla v něm jsou taky klikací).
+export default function AnswerStrip({ answer }: { answer: AskAnswer }) {
+  const sentence = answer.sentence ?? answer.title ?? answer.question;
   const [selected, setSelected] = useState<number | null>(null);
   const pieces = piecesOf(sentence);
   const picked = selected === null ? null : pieces[selected];
-  const pickedSource = picked?.type === "number" ? numberSource(picked.token, facts, tool) : null;
+  const pickedSource = picked?.type === "number" ? explainNumber(picked.token, answer) : null;
   const hasNumbers = pieces.some((piece) => piece.type === "number");
 
   return (
@@ -40,7 +34,7 @@ export default function AnswerStrip({
       <p className="m-0 text-[18px] leading-[1.6] font-medium sm:text-[21px]">
         {pieces.map((piece, index) => {
           if (piece.type === "text") return <span key={index}>{piece.text}</span>;
-          const source = numberSource(piece.token, facts, tool);
+          const source = explainNumber(piece.token, answer);
           return (
             <button
               key={index}

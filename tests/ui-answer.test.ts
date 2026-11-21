@@ -1,150 +1,93 @@
 import { describe, expect, it } from "vitest";
-import { TrafficCountInput } from "../lib/ai/tools";
-import {
-  checkOf,
-  factsOf,
-  hourlyCsv,
-  missingRanges,
-  modelName,
-  numberSource,
-  periodText,
-  placeOf,
-  timingsOf,
-  toolCallOf,
-  viewOf,
-  wantsChart,
-} from "../lib/ui/answer";
+import { explainNumber, periodOf, timingsOf, viewOf } from "../lib/ui/answer";
+import { chartColors, chartData, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
+import { tableTsv } from "../lib/ui/export";
 import { FIXTURES } from "../lib/ui/fixtures";
 
 const ok = (name: string) => {
   const result = FIXTURES[name].result;
   if (!result?.ok) throw new Error(`fixture ${name} nemá výsledek`);
-  return factsOf(result);
+  return result;
 };
 
 describe("testovací odpovědi", () => {
   it("každá má stav, který stránka umí ukázat", () => {
     expect(Object.fromEntries(Object.entries(FIXTURES).map(([name, answer]) => [name, viewOf(answer)]))).toEqual({
-      ok: "answer",
-      partial: "answer",
+      bar: "answer",
+      line: "answer",
+      pie: "answer",
+      table: "answer",
+      text: "answer",
       fallback: "answer",
-      range: "answer",
+      source: "answer",
       "out-of-scope": "out_of_scope",
       "no-data": "unknown",
       error: "error",
     });
   });
+});
 
-  it("vstup nástroje v trace projde stejným Zod schématem jako v lib/ai", () => {
-    for (const answer of Object.values(FIXTURES)) {
-      const step = answer.trace.steps.find((s) => s.type === "tool");
-      if (step?.type === "tool") expect(TrafficCountInput.safeParse(step.input).success).toBe(true);
-    }
+describe("data pro grafy", () => {
+  it("celkem za období: kategorie = místa, jedna řada", () => {
+    expect(chartData(ok("bar"))).toEqual({ categories: ["17. listopadu", "Kafkova", "Billa (Hynaisova)"], series: [{ name: "Celkem", values: [3314, 3607, 260] }] });
   });
 
-  it("součet v testovacích datech sedí s hodinami", () => {
-    expect(ok("ok").total).toBe(15325);
-    expect(ok("partial").total).toBe(15137);
-    expect(ok("range").total).toBe(4012);
+  it("po dnech: kategorie = dny, řada = místo", () => {
+    const data = chartData(ok("line"));
+    expect(data.categories[0]).toBe("so 14. 11.");
+    expect(data.series).toEqual([{ name: "Parkoviště Flora", values: [804, 272, 320, 179, 394, 453, 410] }]);
+  });
+
+  it("koláč: výseče = místa, procenta dají dohromady 100", () => {
+    const slices = pieSlices(ok("pie"));
+    expect(slices.map((s) => s.label)).toEqual(["17. listopadu", "Kafkova", "Billa (Hynaisova)"]);
+    const shares = percentShares(slices.map((s) => s.value));
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(100);
+    expect(percentShares([1, 1, 1])).toEqual([34, 33, 33]);
+    expect(percentShares([0, 0])).toEqual([0, 0]);
+  });
+
+  it("popisky na ose se ředí, ať se nepřekrývají", () => {
+    expect(labelStep(7)).toBe(1);
+    expect(labelStep(24, 12)).toBe(2);
+    expect(labelStep(168, 12)).toBe(14);
+  });
+
+  it("barvy: zvolená paleta, jinak podle režimu; čitelný text na barvě", () => {
+    expect(chartColors("cervena", "light").bg).toBe("#B3261E");
+    expect(chartColors(null, "light").bg).toBe("#FFFFFF");
+    expect(chartColors(null, "dark").bg).toBe("#14243A");
+    expect(textOn("#FFFFFF")).toBe("#14243A");
+    expect(textOn("#0B4F96")).toBe("#FFFFFF");
+    expect(textOn("#FFC21A")).toBe("#14243A");
+  });
+
+  it("tabulka do schránky: tabulátory, chybějící hodnota prázdná", () => {
+    const lines = tableTsv(ok("table")).split("\n");
+    expect(lines[0]).toBe("Období\tParkoviště Flora");
+    expect(lines[1]).toBe("0:00\t");
+    expect(lines[3]).toBe("2:00\t1");
   });
 });
 
-describe("factsOf", () => {
-  it("celý den: místo, senzory, špička a nejklidnější hodina", () => {
-    const facts = ok("ok");
-    expect(facts).toMatchObject({ place: "17. listopadu", from: 0, to: 24, range: null, scope: "oba směry dohromady" });
-    expect(facts.sensors).toEqual(["17.listopadu JIH", "17.listopadu Sever"]);
-    expect(facts.peak).toEqual({ hour: 7, value: 1318 });
-    expect(facts.low).toEqual({ hour: 3, value: 24 });
-    expect(facts.warnings).toEqual([]);
+describe("vysvětlení čísel a časy", () => {
+  const text = FIXTURES.text;
+  it("čísla z výsledku spočítal kód, datum a název místa jsou z otázky", () => {
+    expect(explainNumber({ value: 133, kind: "number", text: "133" }, text)).toMatchObject({ who: "code", short: "Billa (Hynaisova), 9:00" });
+    expect(explainNumber({ value: 9, kind: "time", text: "9:00" }, text)).toMatchObject({ who: "code", short: "hodina z výsledku" });
+    expect(explainNumber({ value: 2, kind: "number", text: "2" }, text)).toMatchObject({ who: "code", short: "počet hodin bez dat" });
+    expect(explainNumber({ value: 16, kind: "date", text: "16. 11. 2026" }, text)).toMatchObject({ who: "ai", short: "datum" });
+    expect(explainNumber({ value: 17, kind: "date", text: "17. listopadu" }, FIXTURES.bar)).toMatchObject({ who: "ai", short: "název místa „17. listopadu“" });
+    expect(explainNumber({ value: 1300, kind: "number", text: "1300" }, FIXTURES.fallback, [1300])).toMatchObject({ who: "bad" });
   });
 
-  it("chybějící hodiny dají varování, technické poznámky z dat ne", () => {
-    const facts = ok("partial");
-    expect(facts.missing).toEqual([{ from: 3, to: 5 }]);
-    expect(facts.warnings).toEqual(["Senzory nevysílaly mezi 3:00 a 5:00. Součet za den je proto neúplný."]);
+  it("u grafu se věta nepíše: jedno volání modelu", () => {
+    expect(timingsOf(FIXTURES.bar)).toMatchObject({ choose: 1900, compute: 3100, write: null, modelCalls: 1 });
+    expect(timingsOf(text)).toMatchObject({ write: 2600, modelCalls: 2 });
   });
 
-  it("část dne: hodiny mimo rozsah nejsou „chybí“", () => {
-    const facts = ok("range");
-    expect(facts).toMatchObject({ from: 6, to: 10, range: { from: 6, to: 10 }, missing: [], warnings: [] });
-    expect(facts.low).toEqual({ hour: 6, value: 548 });
-    expect(facts.verified).toEqual(expect.arrayContaining([6, 10]));
-    expect(periodText(facts)).toBe("čtvrtek 19. 11. 2026, 6:00–10:00");
-    expect(hourlyCsv(facts).split("\r\n")).toHaveLength(6); // hlavička + 4 hodiny + prázdný konec
-  });
-});
-
-describe("pomocné funkce", () => {
-  it("missingRanges spojí souvislé hodiny", () => {
-    expect(missingRanges([1, null, null, 3, null])).toEqual([
-      { from: 1, to: 3 },
-      { from: 4, to: 5 },
-    ]);
-  });
-
-  it("placeOf u brány bez skupiny", () => {
-    expect(placeOf("Parkoviště Flora")).toEqual({ place: "Parkoviště Flora", sensors: ["Parkoviště Flora"] });
-  });
-
-  it("časy kroků a počet volání modelu", () => {
-    expect(timingsOf(FIXTURES.ok)).toEqual({ choose: 700, compute: 300, write: 600, total: 1620, modelCalls: 2 });
-    expect(timingsOf(FIXTURES["out-of-scope"])).toMatchObject({ choose: 610, compute: null, write: null, modelCalls: 1 });
-  });
-
-  it("toolCallOf a checkOf čtou z trace", () => {
-    expect(toolCallOf(FIXTURES.range)).toMatchObject({ hour_from: 6, hour_to: 10 });
-    expect(toolCallOf(FIXTURES["out-of-scope"])).toBeNull();
-    expect(checkOf(FIXTURES.fallback)).toMatchObject({ passed: false, not_allowed: [1900] });
-  });
-
-  it("CSV: chybějící hodina je prázdná, ne 0", () => {
-    const lines = hourlyCsv(ok("partial")).split("\r\n");
-    expect(lines[0]).toBe("﻿hodina;počet aut");
-    expect(lines[4]).toBe("3:00–4:00;");
-  });
-
-  it("název modelu", () => {
-    expect(modelName("claude-haiku-5-5")).toBe("Claude Haiku 5.5");
-  });
-});
-
-describe("wantsChart", () => {
-  it("graf jen u otázek na průběh nebo špičku", () => {
-    expect(wantsChart("Kolik aut včera projelo ulicí 17. listopadu?")).toBe(false);
-    expect(wantsChart("Kdy byla včera největší špička u Billy?")).toBe(true);
-    expect(wantsChart("Ukaž graf provozu na Kafkově")).toBe(true);
-    expect(wantsChart("Jak se měnil provoz během dne?")).toBe(true);
-  });
-});
-
-describe("numberSource", () => {
-  const facts = ok("ok");
-  const tool = toolCallOf(FIXTURES.ok);
-  const num = (value: number) => ({ value, kind: "number" as const, text: String(value) });
-
-  it("součet a špička jsou od našeho kódu", () => {
-    expect(numberSource(num(15325), facts, tool)).toMatchObject({ who: "code", short: "součet za celý den" });
-    expect(numberSource(num(1318), facts, tool).who).toBe("code");
-    expect(numberSource({ value: 7, kind: "time", text: "7:00" }, facts, tool).who).toBe("code");
-  });
-
-  it("název ulice a datum jsou z otázky (AI)", () => {
-    expect(numberSource({ value: 17, kind: "date", text: "17. listopadu" }, facts, tool)).toMatchObject({ who: "ai", short: "název místa „17. listopadu“" });
-    expect(numberSource({ value: 19, kind: "date", text: "19. 11. 2026" }, facts, tool)).toMatchObject({ who: "ai", short: "datum" });
-    expect(numberSource(num(17), facts, tool).who).toBe("ai");
-  });
-
-  it("rozsah hodin z otázky je od AI, číslo mimo data nesedí", () => {
-    const range = ok("range");
-    expect(numberSource({ value: 6, kind: "time", text: "6:00" }, range, toolCallOf(FIXTURES.range)).who).toBe("ai");
-    expect(numberSource(num(1900), facts, tool, [1900]).who).toBe("bad");
-  });
-
-  it("u data, kdy AI doplnila včerejšek, to vysvětlení řekne", () => {
-    const fallback = FIXTURES.fallback.result;
-    if (!fallback?.ok) throw new Error("fixture bez výsledku");
-    const source = numberSource({ value: 19, kind: "date", text: "19. 11. 2026" }, factsOf(fallback), toolCallOf(FIXTURES.fallback));
-    expect(source.long).toContain("AI proto vzala včerejšek");
+  it("období pro lidi", () => {
+    expect(periodOf(FIXTURES.bar)).toBe("21. 11. 2026, 8:00–11:00");
+    expect(periodOf(FIXTURES.line)).toBe("14.–20. 11. 2026");
   });
 });

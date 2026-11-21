@@ -1,39 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { type Theme, setTheme, useTheme } from "@/lib/ui/theme";
 import { PRESS } from "./styles";
 
-// Přepínač světlý / tmavý. Stránka se vždycky načte podle systému (CSS: color-scheme: light dark).
-// Kliknutí nastaví <html data-theme="light|dark">. Volba se nikam neukládá, po obnovení platí zase systém.
-
-type Theme = "light" | "dark";
-
-const systemDark = () => window.matchMedia("(prefers-color-scheme: dark)");
-
-// Co je teď vidět: ruční volba, jinak systém.
-function readTheme(): Theme {
-  const chosen = document.documentElement.dataset.theme;
-  if (chosen === "light" || chosen === "dark") return chosen;
-  return systemDark().matches ? "dark" : "light";
-}
-
-const listeners = new Set<() => void>();
-
-// Ikona se přepne i při změně vzhledu v systému (dokud uživatel nevybral ručně).
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  const media = systemDark();
-  media.addEventListener("change", listener);
-  return () => {
-    listeners.delete(listener);
-    media.removeEventListener("change", listener);
-  };
-}
-
-function setTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
-  listeners.forEach((listener) => listener());
-}
+// Přepínač světlý / tmavý. Logika je v lib/ui/theme.ts (sdílí ji i grafy).
 
 const ICON = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -56,8 +26,7 @@ function Moon() {
 
 // Ikona ukazuje, na co se kliknutím přepne: ve světlém měsíc, v tmavém slunce.
 export default function ThemeToggle({ tone }: { tone: "light" | "blue" }) {
-  // Na serveru systém neznáme, proto "light"; v prohlížeči se hned přečte skutečný stav.
-  const theme = useSyncExternalStore(subscribe, readTheme, () => "light" as const);
+  const theme = useTheme();
   const next: Theme = theme === "dark" ? "light" : "dark";
   const label = next === "dark" ? "Přepnout na tmavý režim" : "Přepnout na světlý režim";
 

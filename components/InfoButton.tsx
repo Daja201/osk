@@ -3,6 +3,9 @@
 import { useRef } from "react";
 import { PRESS } from "./styles";
 import Suggestions, { EXAMPLES } from "./Suggestions";
+import { PALETTE } from "@/lib/ai/palette";
+
+const PALETTE_LABELS = Object.values(PALETTE).map((color) => color.label).join(", ");
 
 export type InfoTopic = "ask" | "answer" | "details";
 
@@ -22,10 +25,11 @@ function Item({ term, children }: { term: React.ReactNode; children: React.React
 function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
   return (
     <>
-      <p className="m-0 text-muted">Odpovídám z dat dopravních senzorů v Olomouci.</p>
+      <p className="m-0 text-muted">Odpovídám z dat dopravních senzorů (bran) v Olomouci. Čísla počítá náš kód, AI jen pochopí otázku.</p>
       <dl className="m-0 flex flex-col gap-3">
-        <Item term="Co">Kolik aut projelo místem za celý den nebo jen v některých hodinách a kdy byla největší špička.</Item>
-        <Item term="Kdy">Dny v minulosti, třeba „včera“, „předevčírem“, „v pondělí“ nebo „mezi 6 a 10“.</Item>
+        <Item term="Co">Kolik vozidel projelo jedním nebo víc místy (až 12), porovnání míst a dní, špičky, vjezdy a výjezdy.</Item>
+        <Item term="Kdy">Libovolný čas za posledních 30 dní, najednou až 31 dní: „včera“, „v pondělí“, „posledních 7 hodin“, „minulý týden“, „mezi 6 a 10“.</Item>
+        <Item term="Jak">Větou, sloupcovým, čárovým nebo koláčovým grafem, tabulkou, nebo odkazem na zdrojové API. Můžete si říct nadpis a barvu pozadí ({PALETTE_LABELS}).</Item>
         <Item term="Kde">{PLACES.join(", ")}.</Item>
       </dl>
       <div className="flex flex-col gap-2">
@@ -39,12 +43,12 @@ function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
 function AnswerHelp() {
   return (
     <dl className="m-0 flex flex-col gap-3">
-      <Item term="Velké číslo">Hlavní výsledek, třeba kolik aut projelo za den. Spočítal ho náš kód z dat senzorů, ne AI.</Item>
-      <Item term="Věta">Napsala ji AI z hotových výsledků. Náš kód v ní zkontroloval každé číslo.</Item>
-      <Item term="Řádek pod větou">Den, hodiny a směr, ke kterým se odpověď vztahuje.</Item>
+      <Item term="Graf nebo tabulka">Nakreslil je náš kód přímo z dat senzorů. AI do nich nic nepíše, jen vybrala, co ukázat.</Item>
+      <Item term="Věta">U otázky „kolik…“ ji napsala AI z hotových čísel a náš kód v ní zkontroloval každé číslo.</Item>
+      <Item term="Kopírovat odkaz">Odkaz na tuhle odpověď i s důkazem, odkud čísla jsou. Platí 7 dní, dá se vložit do prezentace nebo e-mailu.</Item>
+      <Item term="Stáhnout PNG / CSV">Obrázek grafu (i s nadpisem a zdrojem) a data pro Excel.</Item>
       <Item term="Trojúhelník">Upozornění, že senzory část doby nevysílaly a součet není úplný.</Item>
-      <Item term="Graf">Ukáže se, když se ptáte na průběh dne nebo na špičku.</Item>
-      <Item term="Tlačítko vpravo dole">Podrobnosti: odkud jsou data, jak AI postupovala a jak jsme kontrolovali čísla.</Item>
+      <Item term="Tlačítko vpravo">Podrobnosti: jak odpověď vznikla, všechna čísla a přesné dotazy na zdrojové API.</Item>
     </dl>
   );
 }
@@ -60,9 +64,9 @@ function DetailsHelp() {
       <Item term={<span className="underline decoration-muted decoration-dashed decoration-2 underline-offset-[6px]">Čárkované podtržení</span>}>
         Číslo je z vaší otázky (místo, den, hodiny). Vybrala ho AI.
       </Item>
-      <Item term="Kliknutí na číslo">Ukáže, odkud přesně číslo je.</Item>
       <Item term="Cesta odpovědi">Každý krok od otázky k odpovědi: co dělala AI a co náš kód, a jak dlouho to trvalo.</Item>
-      <Item term="Data po hodinách">Hodnoty, ze kterých je odpověď spočítaná. Dají se stáhnout jako CSV.</Item>
+      <Item term="Data">Všechna čísla, ze kterých je odpověď, včetně součtů.</Item>
+      <Item term="Zdroj dat">Přesné dotazy na API CITIQ. Otevřou se v prohlížeči, takže si čísla může ověřit kdokoli.</Item>
     </dl>
   );
 }

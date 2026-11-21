@@ -1,12 +1,14 @@
 // Navržené otázky. Jeden seznam pro úvod, odpověď i nápovědu „?“, ať vypadají všude stejně.
 export const EXAMPLES = [
   "Kolik aut včera projelo ulicí 17. listopadu?",
-  "Kolik aut včera přijelo na parkoviště Flora?",
-  "Kdy byla včera největší špička u Billy?",
-  "Kolik aut projelo v pondělí mezi 6 a 10 ulicí Kafkova?",
+  "Porovnej sloupcovým grafem 17. listopadu, Kafkovu a Billu za včerejšek",
+  "Jak se měnil provoz na Floře posledních 7 dní?",
+  "Tabulka vjezdů na parkoviště Flora včera po hodinách",
+  "Koláčový graf na modrém pozadí: podíl aut na 17. listopadu a Kafkově za poslední týden",
+  "Odkud berete data? Dej mi odkaz na API",
 ];
 
-// Tři nejčastější: na úvod a pod odpověď „nevím“ stačí.
+// Tři ukázky (věta, graf, čárový graf): na úvod a pod odpověď „nevím“ stačí.
 export const TOP_EXAMPLES = EXAMPLES.slice(0, 3);
 
 // Položky jsou pod sebou v jednom sloupci s mezerou 10 px. Po najetí se tlačítko jen o 1 px zvedne

@@ -1,7 +1,18 @@
+import { PALETTE } from "@/lib/ai/palette";
 import type { AskAnswer } from "@/lib/ai/types";
-import type { TrafficCountInput } from "@/lib/ai/tools";
-import { type Facts, type View, checkOf, modelName, numberSource, placeOf, timingsOf } from "@/lib/ui/answer";
-import { formatCars, formatDayLong, formatHourRange, formatNumber, formatSeconds, quote } from "@/lib/ui/format";
+import {
+  DIRECTION_LABEL,
+  FORMAT_LABEL,
+  GRANULARITY_LABEL,
+  checkOf,
+  explainNumber,
+  modelName,
+  periodOf,
+  timingsOf,
+  viewOf,
+} from "@/lib/ui/answer";
+import { placeName } from "@/lib/ui/chart";
+import { formatNumber, formatSeconds, quote } from "@/lib/ui/format";
 import NumberMark from "./NumberMark";
 
 // „Cesta odpovědi“ jako tramvajová linka: svislá čára, zastávky jsou kroky.
@@ -50,13 +61,11 @@ function Details({ rows }: { rows: [string, React.ReactNode][] }) {
   );
 }
 
-const SCOPE_SHORT = { both: "oba směry", in: "jen směr dovnitř", out: "jen směr ven" } as const;
-
 type CheckRow = { value: number; status: "verified" | "allowed" | "mismatch"; explanation: string };
 
 // Odkud je každé číslo z věty (stejné pravidlo jako v pruhu s odpovědí, lib/ui/answer.ts).
-function explain(value: number, notAllowed: number[], facts: Facts | null, tool: TrafficCountInput | null): CheckRow {
-  const source = numberSource({ value, kind: "number", text: String(value) }, facts, tool, notAllowed);
+function explain(value: number, notAllowed: number[], answer: AskAnswer): CheckRow {
+  const source = explainNumber({ value, kind: "number", text: String(value) }, answer, notAllowed);
   const status = source.who === "code" ? "verified" : source.who === "bad" ? "mismatch" : "allowed";
   return { value, status, explanation: source.short };
 }
@@ -117,19 +126,20 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
   );
 }
 
-function modelCallsText(count: number): string {
+function modelCallsText(answer: AskAnswer, count: number): string {
   if (count === 0) return "Model jsme nevolali.";
-  if (count === 1) return "Model jsme volali jednou.";
-  if (count === 2) return "Model jsme volali dvakrát: jednou pro výběr výpočtu, jednou pro větu.";
-  return `Model jsme volali ${count}krát.`;
+  if (count === 1) return answer.format && answer.format !== "text" ? "Model jsme volali jednou, jen na zadání. Graf ani tabulka další volání nepotřebují." : "Model jsme volali jednou.";
+  if (count === 2 && answer.format === "text") return "Model jsme volali dvakrát: jednou pro zadání, jednou pro větu.";
+  return `Model jsme volali ${count}krát (AI jednou opravovala neplatné zadání).`;
 }
 
-type Props = { answer: AskAnswer; view: View; facts: Facts | null; tool: TrafficCountInput | null };
-
-function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
+function stopsOf(answer: AskAnswer): StopData[] {
+  const view = viewOf(answer);
   const timings = timingsOf(answer);
   const check = checkOf(answer);
   const model = modelName(answer.trace.model);
+  const spec = answer.spec;
+  const result = answer.result?.ok ? answer.result : null;
   const time = (ms: number | null) => (ms === null ? undefined : formatSeconds(ms));
   const stops: StopData[] = [{ marker: "end", title: "Vaše otázka", body: <p className="m-0">{quote(answer.question)}</p> }];
 
@@ -139,81 +149,94 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
         marker: "ai",
         title: "AI nenašla vhodný výpočet",
         time: time(timings.choose),
-        body: <p className="m-0">{model} nenašel výpočet, který by se k otázce hodil, a žádný nevybral.</p>,
+        body: <p className="m-0">{model} usoudil, že se otázka netýká dat o dopravě, a zadání nepřipravil.</p>,
       },
-      {
-        marker: "code",
-        title: "Aplikace odpověděla pevnou větou",
-        body: <p className="m-0">{quote(answer.sentence)} Model sám nic nedoplnil.</p>,
-      },
+      { marker: "code", title: "Aplikace odpověděla pevnou větou", body: <p className="m-0">{quote(answer.sentence ?? "")} Model sám nic nedoplnil.</p> },
     );
-  } else if (answer.reason?.code === "AI_ERROR" && !tool) {
+  } else if (answer.reason?.code === "AI_ERROR" && !spec) {
     stops.push({ marker: "ai", title: "Spojení s AI selhalo", body: <p className="m-0">{answer.reason.message}</p> });
   } else if (answer.reason?.code === "NETWORK_ERROR") {
     stops.push({ marker: "code", title: "Server neodpověděl", body: <p className="m-0">{answer.reason.message}</p> });
   }
 
-  if (tool) {
-    const { place, sensors } = placeOf(tool.gate);
-    const hasRange = tool.hour_from !== undefined || tool.hour_to !== undefined;
+  if (spec) {
     stops.push({
       marker: "ai",
-      title: "AI vybrala, co spočítat",
+      title: "AI připravila zadání",
       time: time(timings.choose),
       body: (
-        <Details
-          rows={[
-            ["Výpočet", hasRange ? "počet aut za vybrané hodiny" : "počet aut za den"],
-            ["Místo", `${place}, ${SCOPE_SHORT[tool.direction]}${sensors.length > 1 ? ` (senzory ${sensors.join(" a ")})` : ""}`],
-            [
-              "Den",
-              <span key="den" className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                <span>{formatDayLong(tool.date)}</span>
-                {tool.date_assumed && (
-                  <>
-                    <span className="rounded border-[1.5px] border-ink px-2 text-[15px] font-semibold">předpoklad AI</span>
-                    <span className="text-[16px] text-muted">v otázce nebylo datum, AI vzala včerejšek</span>
-                  </>
-                )}
-              </span>,
-            ],
-            ["Hodiny", hasRange ? `${tool.hour_from ?? 0}:00–${tool.hour_to ?? 24}:00` : "celý den, 0:00–24:00"],
-            ["Model", model],
-          ]}
-        />
-      ),
-    });
-  }
-
-  if (facts) {
-    const several = facts.sensors.length > 1 || facts.direction === "both";
-    stops.push({
-      marker: "code",
-      title: "Náš kód spočítal výsledek z dat",
-      time: time(timings.compute),
-      body: (
         <>
-          <p className="m-0">
-            Stáhl hodinové hodnoty ze senzorové sítě CITIQ{several ? " a sečetl je" : ""}. AI v tomhle kroku nic nepočítá.
-          </p>
+          <p className="m-0 text-muted">AI jen přeložila otázku na zadání. Žádná čísla nepočítala ani nevymýšlela.</p>
           <Details
             rows={[
-              ["Úplnost", `${facts.coverage.hours} z ${facts.coverage.of} hodin`],
-              ["Celkem", formatCars(facts.total)],
-              ...(facts.peak ? [["Nejvíc", `${formatHourRange(facts.peak.hour)}, ${formatCars(facts.peak.value)}`] as [string, string]] : []),
-              ...(facts.low ? [["Nejméně", `${formatHourRange(facts.low.hour)}, ${formatCars(facts.low.value)}`] as [string, string]] : []),
+              ["Ukázat jako", FORMAT_LABEL[spec.format]],
+              ["Místa", spec.gates.map(placeName).join(", ")],
+              ["Směr", DIRECTION_LABEL[spec.direction]],
+              [
+                "Období",
+                <span key="obdobi" className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <span>{periodOf(answer)}</span>
+                  {spec.date_assumed && <span className="rounded border-[1.5px] border-ink px-2 text-[15px] font-semibold">předpoklad AI</span>}
+                </span>,
+              ],
+              ["Rozlišení", GRANULARITY_LABEL[spec.granularity]],
+              ...(spec.title ? [["Nadpis", quote(spec.title)] as [string, string]] : []),
+              ...(spec.background ? [["Pozadí", PALETTE[spec.background].label] as [string, string]] : []),
+              ["Model", model],
             ]}
           />
         </>
       ),
     });
-  } else if (answer.result && !answer.result.ok) {
-    const sourceDown = answer.result.error.code === "SOURCE_ERROR";
+  }
+
+  if (result) {
+    const dotazu = result.meta.sources.length === 1 ? "jedním dotazem" : `${result.meta.sources.length} dotazy (jeden na den)`;
     stops.push({
       marker: "code",
-      title: sourceDown ? "Data se nepodařilo stáhnout" : "Pro tohle data nemáme",
+      title: "Náš kód stáhl a spočítal data",
+      time: time(timings.compute),
+      body: (
+        <>
+          <p className="m-0">
+            Stáhl hodinové hodnoty ze senzorové sítě CITIQ {dotazu} a sečetl je podle zadání. AI v tomhle kroku nic nepočítá.
+          </p>
+          <Details
+            rows={result.data.series.map((s) => [
+              placeName(s.gate),
+              `${formatNumber(s.total)} vozidel · data za ${s.coverage.hours} z ${s.coverage.of} h${s.sensors.length > 1 ? ` · senzory ${s.sensors.join(", ")}` : ""}`,
+            ])}
+          />
+          {answer.notes.length > 0 && (
+            <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-muted">
+              {answer.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+        </>
+      ),
+    });
+  } else if (answer.result && !answer.result.ok) {
+    stops.push({
+      marker: "code",
+      title: answer.reason?.code === "SOURCE_ERROR" ? "Data se nepodařilo stáhnout" : "Odpověď z dat nejde",
       time: time(timings.compute),
       body: <p className="m-0">{answer.result.error.message}</p>,
+    });
+  }
+
+  if (result && answer.format && answer.format !== "text") {
+    const what = answer.format === "table" ? "tabulku" : answer.format === "source" ? "seznam dotazů na API" : FORMAT_LABEL[answer.format];
+    stops.push({
+      marker: "code",
+      title: `Náš kód vykreslil ${what}`,
+      body: (
+        <p className="m-0">
+          Přímo z čísel výše. AI do {answer.format === "source" ? "odpovědi" : "grafu ani tabulky"} nic nepíše
+          {spec?.title && spec.title === answer.title ? ", jen nadpis je podle vašeho zadání." : ", nadpis složil kód z toho, co se spočítalo."}
+        </p>
+      ),
     });
   }
 
@@ -225,7 +248,7 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
       body:
         answer.sentence_source === "ai" ? (
           <>
-            <p className="m-0 text-[21px] leading-[1.45]">{quote(answer.sentence)}</p>
+            <p className="m-0 text-[21px] leading-[1.45]">{quote(answer.sentence ?? "")}</p>
             <p className="m-0 text-muted">AI dostala jen spočítané výsledky, ne surová data.</p>
           </>
         ) : (
@@ -234,8 +257,8 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
     });
   }
 
-  if (check && (answer.sentence_source === "ai" || check.numbers.length > 0)) {
-    const rows = check.numbers.map((value) => explain(value, check.not_allowed, facts, tool));
+  if (check) {
+    const rows = check.numbers.map((value) => explain(value, check.not_allowed, answer));
     stops.push({
       marker: "code",
       title: "Náš kód zkontroloval každé číslo ve větě",
@@ -245,7 +268,7 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
           {rows.length > 0 ? <CheckTable rows={rows} /> : <p className="m-0">Ve větě nebylo žádné číslo ke kontrole.</p>}
           <p className="m-0">
             {check.passed
-              ? "Všechna čísla sedí, proto ukazujeme větu od AI. Kdyby některé nesedělo, větu bychom složili sami přímo z dat."
+              ? "Všechna čísla sedí, proto ukazujeme větu od AI."
               : `Číslo ${check.not_allowed.map(formatNumber).join(", ")} v datech není, proto větu od AI nezobrazujeme.`}
           </p>
         </>
@@ -257,12 +280,7 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
     stops.push({
       marker: "code",
       title: "Náš kód složil větu sám",
-      body: (
-        <>
-          <p className="m-0 text-[21px] leading-[1.45]">{quote(answer.sentence)}</p>
-          {facts && <p className="m-0 text-muted">Použil jen čísla spočítaná z dat.</p>}
-        </>
-      ),
+      body: <p className="m-0 text-[21px] leading-[1.45]">{quote(answer.sentence ?? "")}</p>,
     });
   }
 
@@ -270,13 +288,18 @@ function stopsOf({ answer, view, facts, tool }: Props): StopData[] {
     marker: "end",
     title: "Odpověď zobrazena",
     time: answer.trace.total_ms > 0 ? `celkem ${formatSeconds(answer.trace.total_ms)}` : undefined,
-    body: <p className="m-0">{modelCallsText(timings.modelCalls)}</p>,
+    body: (
+      <p className="m-0">
+        {modelCallsText(answer, timings.modelCalls)}
+        {answer.id && answer.expires_at && ` Odpověď je uložená a odkaz platí do ${new Date(answer.expires_at).toLocaleDateString("cs-CZ", { timeZone: "Europe/Prague" })}.`}
+      </p>
+    ),
   });
   return stops;
 }
 
-export default function AnswerPath(props: Props) {
-  const stops = stopsOf(props);
+export default function AnswerPath({ answer }: { answer: AskAnswer }) {
+  const stops = stopsOf(answer);
   return (
     <section aria-labelledby="cesta" className="flex max-w-[880px] flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">

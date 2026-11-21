@@ -1,110 +1,85 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { TrafficCountOk, TrafficCountParams, TrafficCountResult } from "../citiq/traffic";
+import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
-import { formatCzDate, pragueDate, weekdayCz } from "./dates";
+import { formatPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
-import { TrafficCountInput, trafficCountTool } from "./tools";
-import type { AskAnswer, TraceStep, TrafficResult, TrafficResultOk } from "./types";
+import { BuildAnswerInput, type Format, buildAnswerTool } from "./tools";
+import type { AskAnswer, TraceStep } from "./types";
 
 // Jen část klienta, kterou potřebujeme. V testech se podstrčí falešný klient.
 export type MessagesClient = {
   messages: { create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message> };
 };
 
-// Podpis Davidovy funkce trafficCount. V testech se podstrčí falešná funkce.
-export type TrafficCountFn = (params: TrafficCountParams) => Promise<TrafficCountResult>;
+// Podpis výpočtu lib/citiq/series.ts. V testech se podstrčí falešná funkce.
+export type SeriesFn = (params: SeriesParams) => Promise<SeriesResult>;
 
 export type AskDeps = {
   client: MessagesClient;
   model: string;
   now: Date;
-  trafficCount: TrafficCountFn;
+  trafficSeries: SeriesFn;
 };
 
+// 1. volání = zadání, případně 2. = oprava neplatného zadání, poslední = věta (jen u formátu text).
 const MAX_STEPS = 3;
+const MAX_PIE_SLICES = 6;
+// Do shrnutí pro Claude dáváme jednotlivé hodnoty jen u kratších řad, jinak jen součty a špičku.
+const MAX_VALUES_FOR_CLAUDE = 48;
+
 const OUT_OF_SCOPE_TEXT =
   "Na tohle odpovědět neumím – mám jen data o průjezdech vozidel dopravními branami v Olomouci.";
 const AI_ERROR_TEXT = "Teď se nepodařilo spojit s AI. Zkuste to prosím znovu.";
+const SOURCE_TEXT =
+  "Data bereme z otevřeného API senzorové sítě Olomouc (CITIQ, view olomouc-traffic-gates): hodinové součty průjezdů dopravními branami. Přesné dotazy pro tuto odpověď jsou v odkazech.";
 const cz = new Intl.NumberFormat("cs-CZ");
 
-// Sečte několik výsledků po hodinách (oba směry nebo brány ve skupině). Počítá kód, ne Claude.
-function sumResults(results: TrafficResultOk[], params: TrafficResultOk["meta"]["params"]): TrafficResultOk {
-  const [first] = results;
-  const hourly = first.data.hourly.map((_, hour) => {
-    const values = results.map((result) => result.data.hourly[hour]);
-    return values.every((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+// Název místa pro lidi: skupina „17. listopadu (obě brány)“ → „17. listopadu“.
+export const placeName = (gate: string) => gate.replace(/\s*\(obě brány\)$/, "");
+
+// Nadpis, když si ho uživatel neřekl. Složí ho kód z toho, co se opravdu spočítalo.
+export function defaultTitle(result: SeriesOk): string {
+  const { direction } = result.meta.params;
+  const places = result.data.series.map((s) => placeName(s.gate));
+  const placeText = places.length > 3 ? `${places.slice(0, 3).join(", ")} a další` : places.join(", ");
+  const what = direction === "in" ? "Vjezdy" : direction === "out" ? "Výjezdy" : "Počet vozidel";
+  return `${what} · ${placeText} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
+}
+
+// Nejvyšší a nejnižší bucket řady (počítá kód, Claude dostane jen výsledek).
+function extremes(labels: string[], values: (number | null)[]) {
+  let peak: { label: string; value: number } | null = null;
+  let low: { label: string; value: number } | null = null;
+  values.forEach((value, i) => {
+    if (value === null) return;
+    if (!peak || value > peak.value) peak = { label: labels[i], value };
+    if (!low || value < low.value) low = { label: labels[i], value };
   });
-  const rangeFrom = params.hour_from ?? 0;
-  const rangeTo = params.hour_to ?? 24;
+  return { peak: peak as { label: string; value: number } | null, low: low as { label: string; value: number } | null };
+}
+
+// Co uvidí Claude u formátu text: hotová čísla s popisky, nic k dopočítání.
+function summaryForClaude(result: SeriesOk) {
+  const labels = result.data.buckets.map((b) => b.label);
+  const withValues = labels.length <= MAX_VALUES_FOR_CLAUDE && result.data.granularity !== "total";
   return {
-    ok: true,
-    data: { total: results.reduce((sum, result) => sum + result.data.total, 0), hourly },
-    meta: {
-      ...first.meta,
-      params,
-      coverage: { hours: hourly.slice(rangeFrom, rangeTo).filter((value) => value !== null).length, of: rangeTo - rangeFrom },
-      notes: [...new Set(results.flatMap((result) => result.meta.notes))],
-    },
-  };
-}
-
-// Zavolá Davidovu funkci. "both" = oba směry, skupina = všechny její brány; součty dělá sumResults.
-async function runTrafficCount(input: TrafficCountInput, fn: TrafficCountFn): Promise<TrafficResult> {
-  const { gate, direction, date, hour_from, hour_to } = input;
-  const members = GATES.find((g) => g.objectName === gate)?.members ?? [gate];
-  const directions = direction === "both" ? (["in", "out"] as const) : [direction];
-
-  const results = await Promise.all(
-    members.flatMap((member) =>
-      directions.map((d) =>
-        fn({
-          gate: member,
-          direction: d,
-          date,
-          ...(hour_from !== undefined ? { hour_from } : {}),
-          ...(hour_to !== undefined ? { hour_to } : {}),
-        }),
-      ),
-    ),
-  );
-  const failed = results.find((result) => !result.ok);
-  if (failed) return failed;
-  const ok = results.filter((result): result is TrafficCountOk => result.ok);
-  if (ok.length === 1) return ok[0];
-  return sumResults(ok, { gate, direction, date, ...(hour_from !== undefined ? { hour_from } : {}), ...(hour_to !== undefined ? { hour_to } : {}) });
-}
-
-// Nejrušnější hodina. Počítá ji kód, Claude dostane jen hotový výsledek.
-function peakOf(hourly: (number | null)[]) {
-  let peak: { hour: number; value: number } | null = null;
-  hourly.forEach((value, hour) => {
-    if (value !== null && (peak === null || value > peak.value)) peak = { hour, value };
-  });
-  return peak as { hour: number; value: number } | null;
-}
-
-// Co uvidí Claude: shrnutí bez pole hodin, aby nemusel nic počítat ani číst pozice v poli.
-function summaryForClaude(result: TrafficResult) {
-  if (!result.ok) return result;
-  const peak = peakOf(result.data.hourly);
-  return {
-    ok: true,
-    gate: result.meta.params.gate,
+    period: formatPeriod(result.meta.period.start, result.meta.period.end),
+    granularity: result.data.granularity,
     direction: result.meta.params.direction,
-    date: result.meta.params.date,
-    ...(result.meta.params.hour_from !== undefined ? { hour_from: result.meta.params.hour_from } : {}),
-    ...(result.meta.params.hour_to !== undefined ? { hour_to: result.meta.params.hour_to } : {}),
-    // Den v týdnu počítá kód, jinak si ho Claude vymýšlí.
-    day: `${weekdayCz(result.meta.params.date)} ${formatCzDate(result.meta.params.date)}`,
-    total: result.data.total,
-    peak: peak && { from: `${peak.hour}:00`, to: `${peak.hour + 1}:00`, value: peak.value },
-    coverage: result.meta.coverage,
+    places: result.data.series.map((s) => ({
+      place: placeName(s.gate),
+      sensors: s.sensors,
+      total: s.total,
+      coverage: s.coverage,
+      ...(result.data.granularity === "total" ? {} : extremes(labels, s.values)),
+      ...(withValues ? { values: labels.map((label, i) => ({ label, value: s.values[i] })) } : {}),
+    })),
     notes: result.meta.notes,
   };
 }
 
-// Čísla, která věta smí obsahovat: vše ze shrnutí, z názvů bran a z data.
+// Čísla, která věta smí obsahovat: vše ze shrnutí (včetně popisků a období) a z názvů bran.
 function allowedNumbers(summary: unknown): Set<number> {
   const allowed = new Set<number>();
   const walk = (value: unknown): void => {
@@ -118,18 +93,11 @@ function allowedNumbers(summary: unknown): Set<number> {
   return allowed;
 }
 
-function fallbackSentence(result: TrafficResultOk): string {
-  const { gate, direction, date, hour_from, hour_to } = result.meta.params;
-  const peak = peakOf(result.data.hourly);
-  const directionText = direction === "both" ? "oba směry" : direction === "in" ? "dovnitř" : "ven";
-  let sentence = `${gate}, ${formatCzDate(date)}: ${cz.format(result.data.total)} vozidel (${directionText})`;
-  if (hour_from !== undefined || hour_to !== undefined) {
-    sentence += ` mezi ${hour_from ?? 0}:00 a ${hour_to ?? 24}:00`;
-  }
-  if (peak) sentence += `, nejvíc mezi ${peak.hour}:00 a ${peak.hour + 1}:00 (${cz.format(peak.value)})`;
-  sentence += ".";
-  const { hours, of } = result.meta.coverage;
-  if (hours < of) sentence += ` Data chybí za ${of - hours} h.`;
+function fallbackSentence(result: SeriesOk): string {
+  const period = formatPeriod(result.meta.period.start, result.meta.period.end);
+  const parts = result.data.series.map((s) => `${placeName(s.gate)} ${cz.format(s.total)} vozidel`);
+  let sentence = `${period}: ${parts.join(", ")}.`;
+  if (result.data.series.some((s) => s.coverage.hours < s.coverage.of)) sentence += " Část dat chybí, součty jsou neúplné.";
   return sentence;
 }
 
@@ -141,31 +109,53 @@ function sanitize(text: string): string {
     .trim();
 }
 
+// Úprava zadání, kterou dělá kód, ne Claude. Vrací výsledný formát a poznámky pro uživatele.
+function finalFormat(format: Format, result: SeriesOk, notes: string[]): Format {
+  const buckets = result.data.buckets.length;
+  const slices = result.data.granularity === "total" ? result.data.series.length : buckets;
+  if (format === "pie" && slices > MAX_PIE_SLICES) {
+    notes.push(`Na koláčový graf je položek moc (${slices}), ukazujeme sloupcový.`);
+    return "bar";
+  }
+  if (format === "pie" && slices < 2) {
+    notes.push("Koláčový graf s jedinou položkou nedává smysl, ukazujeme sloupcový.");
+    return "bar";
+  }
+  if (format === "line" && buckets < 2) {
+    notes.push("Čárový graf potřebuje aspoň dva body, ukazujeme sloupcový.");
+    return "bar";
+  }
+  return format;
+}
+
 export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
   const started = Date.now();
   const steps: TraceStep[] = [];
-  const assumptions: string[] = [];
+  const notes: string[] = [];
   const system = buildSystemPrompt(deps.now);
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
-  let result: TrafficResult | null = null;
-  let toolUsed = false;
+  let spec: BuildAnswerInput | null = null;
+  let result: SeriesResult | null = null;
   let finalText: string | null = null;
+  let title: string | null = null;
 
-  const answer = (rest: Pick<AskAnswer, "kind" | "sentence" | "sentence_source" | "reason">): AskAnswer => ({
+  const answer = (rest: Pick<AskAnswer, "kind" | "format" | "title" | "sentence" | "sentence_source" | "reason">): AskAnswer => ({
+    id: null,
+    expires_at: null,
     question,
+    created_at: deps.now.toISOString(),
+    background: spec?.background ?? null,
     ...rest,
-    assumptions,
+    spec,
     result,
+    notes,
     trace: { model: deps.model, now: deps.now.toISOString(), steps, total_ms: Date.now() - started },
   });
+  const unknown = (code: string, message: string, sentence = message): AskAnswer =>
+    answer({ kind: "unknown", format: null, title: null, sentence, sentence_source: "fixed", reason: { code, message } });
   const aiError = (note: string) => {
     steps.push({ type: "note", text: note });
-    return answer({
-      kind: "unknown",
-      sentence: AI_ERROR_TEXT,
-      sentence_source: "fixed",
-      reason: { code: "AI_ERROR", message: AI_ERROR_TEXT },
-    });
+    return unknown("AI_ERROR", AI_ERROR_TEXT);
   };
 
   for (let step = 0; step < MAX_STEPS && finalText === null; step++) {
@@ -177,7 +167,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
         max_tokens: 2048,
         system,
         messages,
-        tools: [trafficCountTool],
+        tools: [buildAnswerTool],
         tool_choice: { type: "auto", disable_parallel_tool_use: true },
       });
     } catch (error) {
@@ -191,86 +181,90 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
       stop_reason: response.stop_reason,
     });
 
-    if (response.stop_reason === "tool_use") {
-      const block = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-      if (!block || block.name !== trafficCountTool.name) return aiError(`Neznámý nástroj: ${block?.name}`);
-
-      // Obsah odpovědi vracíme beze změny, včetně thinking bloků (jinak API vrátí 400).
-      messages.push({ role: "assistant", content: response.content });
-
-      const toolStarted = Date.now();
-      const parsed = TrafficCountInput.safeParse(block.input);
-      if (!parsed.success) {
-        result = { ok: false, error: { code: "BAD_PARAMS", message: "Neplatné parametry nástroje.", suggestions: [] } };
-      } else if (parsed.data.date > pragueDate(deps.now)) {
-        result = {
-          ok: false,
-          error: { code: "BAD_PARAMS", message: "Na budoucnost data nemám – zkuste se zeptat na včerejšek.", suggestions: [] },
-        };
-      } else {
-        if (parsed.data.date_assumed) assumptions.push(`V otázce nebylo datum, použit ${formatCzDate(parsed.data.date)}.`);
-        try {
-          result = await runTrafficCount(parsed.data, deps.trafficCount);
-        } catch (error) {
-          result = {
-            ok: false,
-            error: { code: "SOURCE_ERROR", message: "Zdroj dat teď neodpovídá. Zkuste to prosím za chvíli.", suggestions: [] },
-          };
-          steps.push({ type: "note", text: `Výjimka v datové funkci: ${String(error)}` });
-        }
-      }
-      toolUsed = true;
-      steps.push({ type: "tool", name: block.name, input: block.input, ms: Date.now() - toolStarted, ok: result.ok });
-
-      messages.push({
-        role: "user",
-        content: [
-          { type: "tool_result", tool_use_id: block.id, content: JSON.stringify(summaryForClaude(result)), is_error: !result.ok },
-        ],
-      });
-      continue;
-    }
-
     if (response.stop_reason === "end_turn") {
       finalText = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === "text")
         .map((b) => b.text)
         .join(" ");
-    } else {
-      return aiError(`Neočekávaný stop_reason: ${response.stop_reason}`);
+      break;
     }
-  }
+    if (response.stop_reason !== "tool_use") return aiError(`Neočekávaný stop_reason: ${response.stop_reason}`);
 
-  if (finalText === null) return aiError("Vyčerpány kroky smyčky.");
+    const block = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    if (!block || block.name !== buildAnswerTool.name) return aiError(`Neznámý nástroj: ${block?.name}`);
+    // Druhé zadání po hotovém výsledku nečekáme; větu pak složí kód.
+    if (result) break;
+
+    // Obsah odpovědi vracíme beze změny, včetně thinking bloků (jinak API vrátí 400).
+    messages.push({ role: "assistant", content: response.content });
+    const toolStarted = Date.now();
+    const parsed = BuildAnswerInput.safeParse(block.input);
+    if (!parsed.success) {
+      // Neplatné zadání: Claude dostane chybu a jeden pokus na opravu.
+      steps.push({ type: "tool", name: block.name, input: block.input, ms: 0, ok: false });
+      messages.push({
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: block.id, is_error: true, content: `Neplatné zadání: ${parsed.error.message}` }],
+      });
+      continue;
+    }
+    spec = parsed.data;
+    if (spec.date_assumed) notes.push("V otázce nebyl čas, ukazujeme celý včerejšek.");
+    // Koláč porovnává místa: s víc místy vždy jedno číslo za místo.
+    const granularity = spec.format === "pie" && spec.gates.length > 1 ? "total" : spec.granularity;
+
+    try {
+      result = await deps.trafficSeries({ gates: spec.gates, direction: spec.direction, from: spec.from, to: spec.to, granularity });
+    } catch (error) {
+      steps.push({ type: "note", text: `Výjimka ve výpočtu: ${String(error)}` });
+      result = { ok: false, error: { code: "SOURCE_ERROR", message: "Zdroj dat teď neodpovídá. Zkuste to prosím za chvíli.", suggestions: [] } };
+    }
+    steps.push({ type: "tool", name: block.name, input: block.input, ms: Date.now() - toolStarted, ok: result.ok });
+
+    if (!result.ok) {
+      const code = result.error.code === "FETCH_FAILED" ? "SOURCE_ERROR" : result.error.code;
+      return unknown(code, result.error.message);
+    }
+    notes.push(...result.meta.notes);
+
+    // Nadpis od Claude smí obsahovat jen čísla z otázky nebo z výsledku, jinak ho složí kód.
+    const allowed = allowedNumbers(summaryForClaude(result));
+    extractNumbers(question).forEach((n) => allowed.add(n));
+    title = spec.title && checkNumbers(spec.title, allowed).passed ? spec.title : defaultTitle(result);
+
+    if (spec.format === "source") {
+      return answer({ kind: "answer", format: "source", title, sentence: SOURCE_TEXT, sentence_source: "fixed", reason: null });
+    }
+    if (spec.format !== "text") {
+      // Graf nebo tabulka: druhé volání modelu není potřeba, žádný zbytečný text.
+      return answer({ kind: "answer", format: finalFormat(spec.format, result, notes), title, sentence: null, sentence_source: null, reason: null });
+    }
+
+    messages.push({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(summaryForClaude(result)) }],
+    });
+  }
 
   // Claude nezavolal nástroj → odpověděl by z hlavy. Jeho text dáme jen do trace.
-  if (!toolUsed || !result) {
+  if (!spec || !result) {
+    if (finalText === null) return aiError("Vyčerpány kroky smyčky bez platného zadání.");
     steps.push({ type: "note", text: `Claude bez nástroje: ${finalText}` });
-    return answer({
-      kind: "unknown",
-      sentence: OUT_OF_SCOPE_TEXT,
-      sentence_source: "fixed",
-      reason: { code: "OUT_OF_SCOPE", message: OUT_OF_SCOPE_TEXT },
-    });
+    return unknown("OUT_OF_SCOPE", OUT_OF_SCOPE_TEXT);
   }
+  // Chybu výpočtu jsme vrátili už ve smyčce, sem se dostane jen platný výsledek u formátu text.
+  if (!result.ok) return aiError("Neočekávaný stav: výsledek s chybou po smyčce.");
 
-  const sentence = sanitize(finalText);
+  const sentence = finalText === null ? "" : sanitize(finalText);
   const check = checkNumbers(sentence, allowedNumbers(summaryForClaude(result)));
   steps.push({ type: "check", ...check });
-
-  if (!result.ok) {
-    return answer({
-      kind: "unknown",
-      sentence: check.passed ? sentence : result.error.message,
-      sentence_source: check.passed ? "ai" : "fallback",
-      reason: { code: result.error.code, message: result.error.message },
-    });
-  }
-
+  const passed = check.passed && sentence.length > 0;
   return answer({
     kind: "answer",
-    sentence: check.passed ? sentence : fallbackSentence(result),
-    sentence_source: check.passed ? "ai" : "fallback",
+    format: "text",
+    title: title ?? defaultTitle(result),
+    sentence: passed ? sentence : fallbackSentence(result),
+    sentence_source: passed ? "ai" : "fallback",
     reason: null,
   });
 }
