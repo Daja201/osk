@@ -86,7 +86,9 @@ export default function AnswerActions({
   view = null,
   onEdit,
   editing = false,
+  onDetails,
 }: {
+  onDetails?: () => void; // „Jak to víme“: první a nejvýraznější akce (otevře podrobnosti)
   answer: AskAnswer;
   svg: RefObject<SVGSVGElement | null>;
   view?: ChartView | null;
@@ -137,11 +139,24 @@ export default function AnswerActions({
       run: async () => flash((await copyText(tableTsv(result))) ? "Data zkopírována, vložte je do Excelu nebo Google Tabulek" : "Kopírování se nepovedlo"),
     });
   }
-  if (!onEdit && downloads.length === 0 && !url) return null;
+  if (!onDetails && !onEdit && downloads.length === 0 && !url) return null;
 
-  // Pořadí: Upravit vzhled · QR kód · Kopírovat odkaz · Stáhnout ▾ (relative: na mobilu se k řadě váže nabídka)
+  // Pořadí: Jak to víme (výrazné) · Upravit vzhled · QR kód · Kopírovat odkaz · Stáhnout ▾
+  // (relative: na mobilu se k řadě váže nabídka Stáhnout)
   return (
     <div className="relative flex flex-wrap items-center gap-2">
+      {onDetails && (
+        <button
+          type="button"
+          onClick={onDetails}
+          className={`${PRESS} inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-[16px] font-bold text-[#0B4F96] shadow-[0_2px_10px_rgba(0,0,0,0.25)]`}
+        >
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 7h14M5 12h14M5 17h9" />
+          </svg>
+          Jak to víme
+        </button>
+      )}
       {onEdit && (
         <button type="button" onClick={onEdit} className={button} aria-expanded={editing}>
           {editing ? "Zavřít úpravy" : "Upravit vzhled"}

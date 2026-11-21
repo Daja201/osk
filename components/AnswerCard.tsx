@@ -4,8 +4,9 @@ import { type Ref, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import type { AskAnswer } from "@/lib/ai/types";
 import type { SeriesOk } from "@/lib/citiq/series";
-import { viewOf } from "@/lib/ui/answer";
+import { checkOf, viewOf } from "@/lib/ui/answer";
 import { copyText } from "@/lib/ui/export";
+import { formatNumber } from "@/lib/ui/format";
 import { splitSentence } from "@/lib/ui/sentence";
 import type { ChartView } from "@/lib/view";
 import { PRESS } from "./styles";
@@ -51,7 +52,10 @@ function Sentence({ sentence, main }: { sentence: string; main: number | null })
     <p className="m-0 text-[20px] leading-[1.4] font-medium text-pretty sm:text-[26px]">
       {parts.before.length > 0 && <span className="block">{text(parts.before)}</span>}
       <span className="my-1 block sm:my-2">
-        <span className="font-sign text-[68px] leading-none font-bold tracking-[-0.02em] whitespace-nowrap text-accent sm:text-[108px]">{parts.main}</span>
+        {/* Velké číslo vždy z hodnoty v datech, naformátované kódem (AI ho jednou píše „30 067“, jindy „30067“). */}
+        <span className="font-sign text-[68px] leading-none font-bold tracking-[-0.02em] whitespace-nowrap text-accent sm:text-[108px]">
+          {main === null ? parts.main : formatNumber(main)}
+        </span>
         {parts.wordAfter && (
           <>
             {" "}
@@ -177,6 +181,15 @@ export default function AnswerCard({
   return (
     <div className={plain}>
       <Sentence sentence={answer.sentence ?? ""} main={main} />
+      {/* Jen když kontrola čísel prošla (stejná data jako tabulka kontroly v Cestě odpovědi). */}
+      {answer.sentence_source === "ai" && checkOf(answer)?.passed && (
+        <p className="m-0 mt-4 flex items-center gap-1.5 text-[15px] font-semibold text-ok">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+          Čísla ve větě ověřil náš kód
+        </p>
+      )}
       <p className="m-0 mt-5 text-[16px] text-muted">{answer.title}</p>
       <Notes notes={answer.notes} className="mt-2 text-ink" />
     </div>

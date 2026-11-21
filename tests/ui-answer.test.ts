@@ -75,7 +75,10 @@ describe("vysvětlení čísel a časy", () => {
     expect(explainNumber({ value: 133, kind: "number", text: "133" }, text)).toMatchObject({ who: "code", short: "Billa (Hynaisova), 9:00" });
     expect(explainNumber({ value: 9, kind: "time", text: "9:00" }, text)).toMatchObject({ who: "code", short: "hodina z výsledku" });
     expect(explainNumber({ value: 2, kind: "number", text: "2" }, text)).toMatchObject({ who: "code", short: "počet hodin bez dat" });
-    expect(explainNumber({ value: 16, kind: "date", text: "16. 11. 2026" }, text)).toMatchObject({ who: "ai", short: "datum" });
+    expect(explainNumber({ value: 16, kind: "date", text: "16. 11. 2026" }, text)).toMatchObject({ who: "ai", short: "datum z otázky" });
+    // Části data jako samostatná čísla (rok, měsíc) nejsou „povolené číslo“, ale datum z otázky.
+    expect(explainNumber({ value: 2026, kind: "number", text: "2026" }, text)).toMatchObject({ who: "ai", short: "datum z otázky" });
+    expect(explainNumber({ value: 11, kind: "number", text: "11" }, FIXTURES.bar)).toMatchObject({ who: "ai", short: "datum z otázky" });
     expect(explainNumber({ value: 17, kind: "date", text: "17. listopadu" }, FIXTURES.bar)).toMatchObject({ who: "ai", short: "název místa „17. listopadu“" });
     expect(explainNumber({ value: 1300, kind: "number", text: "1300" }, FIXTURES.fallback, [1300])).toMatchObject({ who: "bad" });
   });

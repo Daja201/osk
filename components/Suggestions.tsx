@@ -1,12 +1,11 @@
 // Navržené otázky. Jeden seznam pro úvod, odpověď „nevím“ i nápovědu „?“, ať jsou všude stejné.
-// Vybrané tak, aby dohromady předvedly, co aplikace umí:
-//   1. víc míst naráz, sloupcový graf a nadpis podle přání,
-//   2. vývoj v čase přes víc dní (čárový graf),
-//   3. odpověď větou, kterou napíše AI a náš kód v ní zkontroluje každé číslo.
+// Krátké a vybrané tak, aby předvedly hlavní možnosti (graf víc míst, vývoj v čase, věta se špičkou).
+// Jen místa s jednou bránou: u skupin (17. listopadu, Kafkova) backend teď auta počítá dvakrát.
+// Každou jsme vyzkoušeli se skutečným Haiku (21. 11. 2026).
 export const EXAMPLES = [
-  "Porovnej sloupcovým grafem s nadpisem Provoz včera, kolik aut projelo na 17. listopadu, Kafkově a u Billy",
-  "Jak se měnil provoz na 17. listopadu za posledních 7 dní?",
-  "Kdy byla včera největší špička na Kafkově a kolik aut tehdy projelo?",
+  "Porovnej grafem Floru, Billu a U Letadla za včerejšek",
+  "Jak se měnil provoz u Billy za 7 dní?",
+  "Kdy byla včera špička u Letadla?",
 ];
 
 export const TOP_EXAMPLES = EXAMPLES;

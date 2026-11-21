@@ -13,6 +13,7 @@ import {
 } from "@/lib/ui/answer";
 import { placeName } from "@/lib/ui/chart";
 import { formatNumber, formatSeconds, quote } from "@/lib/ui/format";
+import { type NumberToken, findNumbers } from "@/lib/ui/sentence";
 import NumberMark from "./NumberMark";
 
 // „Cesta odpovědi“ jako tramvajová linka: svislá čára, zastávky jsou kroky.
@@ -61,13 +62,28 @@ function Details({ rows }: { rows: [string, React.ReactNode][] }) {
   );
 }
 
-type CheckRow = { value: number; status: "verified" | "allowed" | "mismatch"; explanation: string };
+type CheckRow = { text: string; status: "verified" | "allowed" | "mismatch"; explanation: string };
 
 // Odkud je každé číslo z věty (stejné pravidlo jako v pruhu s odpovědí, lib/ui/answer.ts).
-function explain(value: number, notAllowed: number[], answer: AskAnswer): CheckRow {
-  const source = explainNumber({ value, kind: "number", text: String(value) }, answer, notAllowed);
+function row(token: { value: number; kind: NumberToken["kind"]; text: string }, notAllowed: number[], answer: AskAnswer): CheckRow {
+  const source = explainNumber(token, answer, notAllowed);
   const status = source.who === "code" ? "verified" : source.who === "bad" ? "mismatch" : "allowed";
-  return { value, status, explanation: source.short };
+  return { text: token.text, status, explanation: source.short };
+}
+
+// Řádky tabulky kontroly. U věty od AI bereme čísla přímo z jejího textu (jak jsou napsaná, rok tedy „2026“,
+// ne „2 026“); datum „20. 11. 2026“ se rozdělí na části jako při kontrole. Když větu složil kód (AI napsala
+// číslo, které nesedělo), původní věta od AI nemáme, takže ukážeme čísla, jak je kontrola našla.
+function checkRows(answer: AskAnswer, numbers: number[], notAllowed: number[]): CheckRow[] {
+  if (answer.sentence_source !== "ai" || !answer.sentence) {
+    return numbers.map((value) => row({ value, kind: "number", text: String(value) }, notAllowed, answer));
+  }
+  return findNumbers(answer.sentence).flatMap((token) => {
+    if (token.kind !== "date") return [row(token, notAllowed, answer)];
+    // „20. 11. 2026“ → 20, 11, 2026; „17. listopadu“ → 17 (název ulice nebo den)
+    const parts = token.text.match(/\d+/g) ?? [];
+    return parts.map((text) => row({ value: Number(text), kind: "date", text: parts.length === 1 ? token.text : text }, notAllowed, answer));
+  });
 }
 
 function CheckIcon({ ok }: { ok: boolean }) {
@@ -105,7 +121,7 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
           {rows.map((row, index) => (
             <tr key={index}>
               <td className={`${td} whitespace-nowrap`}>
-                {row.status === "verified" ? <NumberMark size="chip">{formatNumber(row.value)}</NumberMark> : formatNumber(row.value)}
+                {row.status === "verified" ? <NumberMark size="chip">{row.text}</NumberMark> : row.text}
               </td>
               <td className={td}>{row.explanation}</td>
               <td className={`${td} pr-0`}>
@@ -258,7 +274,7 @@ function stopsOf(answer: AskAnswer): StopData[] {
   }
 
   if (check) {
-    const rows = check.numbers.map((value) => explain(value, check.not_allowed, answer));
+    const rows = checkRows(answer, check.numbers, check.not_allowed);
     stops.push({
       marker: "code",
       title: "Náš kód zkontroloval každé číslo ve větě",

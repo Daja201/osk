@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import { useIsWide } from "@/lib/ui/media";
 import Footer from "./Footer";
 import { PRESS } from "./styles";
-import Suggestions, { TOP_EXAMPLES } from "./Suggestions";
+import { TOP_EXAMPLES } from "./Suggestions";
 import TopBar from "./TopBar";
 
 // Kroky animace: tlačítko se roztočí, „roztéká“ (mění tvar) a zvětší přes celou obrazovku.
@@ -19,9 +19,7 @@ function blobFrames(scale: number): Keyframe[] {
   ];
 }
 
-const HINT_DELAY_MS = 5000;
-
-// Úvod: jen pole pro otázku a tlačítko. Po odeslání se tlačítko rozleje přes obrazovku
+// Úvod: nadpis, pole pro otázku a ukázkové otázky. Po odeslání se tlačítko rozleje přes obrazovku
 // a zavolá se onCovered (rodič přepne na modrou obrazovku s odpovědí). Odpověď se mezitím počítá.
 export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const { ask } = useAsk();
@@ -31,15 +29,6 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const blob = useRef<HTMLDivElement>(null);
-  // Nápověda pod polem: tlačítko se objeví až po chvíli, ať úvod na začátku zůstane čistý.
-  const [hintVisible, setHintVisible] = useState(false);
-  const [hintOpen, setHintOpen] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setHintVisible(true), HINT_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, []);
-
   function submit(event: React.FormEvent) {
     event.preventDefault();
     start(value);
@@ -112,57 +101,34 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
     </form>
   );
 
-  const hint = (
-    <div className={`flex flex-col items-center gap-3 ${fade}`}>
-      {/* Tlačítko je ve stránce od začátku (má rezervované místo), jen je neviditelné. Po 5 s se plynule objeví,
-          takže nic neposkočí. Dokud není vidět, nejde na něj kliknout ani se na něj dostat Tabem. */}
-      {!leaving && (
-        <button
-          type="button"
-          aria-expanded={hintOpen}
-          aria-controls="navrhy"
-          aria-hidden={!hintVisible}
-          tabIndex={hintVisible ? 0 : -1}
-          onClick={() => setHintOpen(!hintOpen)}
-          className={`${PRESS} flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted transition-[opacity,translate,background-color,color] duration-700 ease-out hover:bg-band hover:text-ink motion-reduce:transition-none ${
-            hintVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"
-          }`}
-        >
-          Na co se můžu zeptat?
-          <svg
-            aria-hidden="true"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`transition-transform duration-200 ${hintOpen ? "rotate-180" : ""}`}
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-      )}
-      {hintOpen && !leaving && (
-        <Suggestions
-          id="navrhy"
-          questions={TOP_EXAMPLES}
-          className="animate-rise max-w-[560px]"
-          onPick={(question) => {
-            setValue(question);
-            start(question);
-          }}
-        />
-      )}
+  // Ukázkové otázky jako klikací tlačítka: hned vidět, klik otázku rovnou položí (i s animací).
+  const examples = (
+    <div className={`flex flex-col gap-2.5 ${fade}`}>
+      <p className="m-0 text-center text-[15px] font-medium text-muted">Zkuste třeba</p>
+      <ul className="m-0 flex list-none flex-wrap justify-center gap-2 p-0">
+        {TOP_EXAMPLES.map((question) => (
+          <li key={question} className="max-w-full">
+            <button
+              type="button"
+              disabled={leaving}
+              onClick={() => {
+                setValue(question);
+                start(question);
+              }}
+              className={`${PRESS} min-h-11 max-w-full rounded-full border border-line bg-surface px-4 py-2 text-left text-[15px] leading-snug font-medium text-ink hover:border-ink hover:bg-band disabled:hover:scale-100`}
+            >
+              {question}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 
   // Rozložení:
-  // - telefon: nahoře krátké přivítání, pole pro otázku dole u palce (jako v mobilních aplikacích), návrhy nad ním,
-  //   patička je v nápovědě „?“ (úvod zůstane čistý),
-  // - počítač: pole uprostřed obrazovky, návrhy pod ním, patička dole.
+  // - telefon: nahoře nadpis a podtitul, pole pro otázku dole u palce, ukázkové otázky nad ním,
+  //   patička je v nápovědě „?“,
+  // - počítač: nadpis, podtitul, pole a ukázkové otázky pod sebou uprostřed, patička dole.
   return (
     <div className="flex h-dvh flex-col bg-surface">
       <div className={fade}>
@@ -175,20 +141,18 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
           }}
         />
       </div>
-      {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice, rozbalené návrhy), dá se posunout,
-          místo aby se texty a ikony překryly. */}
+      {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice), dá se posunout, místo aby se texty překryly. */}
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:px-8 sm:pb-[8vh]">
-        {/* Přivítání jen na telefonu. Nesmršťuje se (shrink-0); když se rozbalí návrhy, ustoupí jim. */}
-        <div className={`flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:hidden ${hintOpen ? "hidden" : "flex"} ${fade}`}>
-          <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink">Na co se chcete zeptat?</h1>
-          <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted">Grafy, tabulky a čísla z dopravních senzorů v Olomouci.</p>
+        <div className={`flex flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex-none sm:pt-0 sm:pb-8 ${fade}`}>
+          <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">Na co se chcete zeptat?</h1>
+          <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted sm:max-w-none sm:text-[19px]">
+            Grafy, tabulky a čísla z dopravních senzorů v Olomouci.
+          </p>
         </div>
-        <h1 className="sr-only max-sm:hidden">OSK – Zeptej se Olomouce</h1>
-        {/* Na mobilu návrhy nad polem (order), na počítači pod ním. */}
-        {/* Na počítači visí nápověda pod polem samostatně (absolute), takže se pole nehne ani po rozbalení návrhů. */}
-        <div className={`relative flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
+        {/* Na mobilu ukázkové otázky nad polem (order), na počítači pod ním. */}
+        <div className="flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6">
           <div className="order-2 sm:order-1">{composer}</div>
-          <div className="order-1 sm:absolute sm:inset-x-0 sm:top-full sm:order-2 sm:mt-6">{hint}</div>
+          <div className="order-1 sm:order-2">{examples}</div>
         </div>
       </main>
       <div className={`max-sm:hidden ${fade}`}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAsk } from "@/app/ask-context";
 import type { ChartView } from "@/lib/view";
 import AnswerScreen from "./AnswerScreen";
@@ -16,6 +16,7 @@ type Phase = "intro" | "answer" | "details";
 export default function HomeView() {
   const { answer, reset } = useAsk();
   const [phase, setPhase] = useState<Phase>("intro");
+  const frame = useRef<HTMLDivElement>(null);
   // Vzhled upravený v editoru patří k jedné odpovědi; u nové odpovědi začíná znovu od uloženého / výchozího.
   const answerKey = answer ? (answer.id ?? answer.question) : "";
   const [edit, setEdit] = useState<{ key: string; view: ChartView | null }>({ key: "", view: null });
@@ -30,9 +31,16 @@ export default function HomeView() {
   if (phase === "intro") return <IntroScreen onCovered={() => setPhase("answer")} />;
 
   const details = phase === "details";
+  // Rám s overflow-hidden se nesmí nikdy posunout: obrazovky posouvá jen transform. Kdyby ho prohlížeč posunul
+  // (např. focus na prvek během animace), byl by vršek useknutý a dole modrý pruh. Proto ho vracíme na 0
+  // po každém posunu i po skončení animace (otevření i návrat).
+  const resetFrame = () => {
+    if (frame.current && frame.current.scrollTop !== 0) frame.current.scrollTop = 0;
+  };
   return (
-    <div className="h-dvh overflow-hidden bg-tabule">
+    <div ref={frame} onScroll={resetFrame} className="h-dvh overflow-hidden bg-tabule">
       <div
+        onTransitionEnd={resetFrame}
         className="transition-transform duration-700 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none"
         style={{ transform: details ? "translateY(-100dvh)" : "translateY(0)" }}
       >

@@ -25,7 +25,7 @@ function Item({ term, children }: { term: React.ReactNode; children: React.React
 function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
   return (
     <>
-      <p className="m-0 text-[17px] leading-relaxed text-ink/80">Odpovídám z dat dopravních senzorů (bran) v Olomouci. Čísla počítá náš kód, AI jen pochopí otázku.</p>
+      <p className="m-0 text-[17px] leading-relaxed text-ink/80">Odpovídám z dat dopravních senzorů (bran) v Olomouci. AI pochopí otázku a napíše větu. Čísla počítá a kontroluje náš kód.</p>
       <dl className="m-0 flex flex-col gap-3">
         <Item term="Co">Kolik vozidel projelo jedním nebo víc místy (až 12), porovnání míst a dní, špičky, vjezdy a výjezdy.</Item>
         <Item term="Kdy">Libovolný čas za posledních 30 dní, najednou až 31 dní: „včera“, „v pondělí“, „posledních 7 hodin“, „minulý týden“, „mezi 6 a 10“.</Item>

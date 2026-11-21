@@ -9,17 +9,9 @@ import AnswerActions from "./AnswerActions";
 import AnswerCard from "./AnswerCard";
 import ChartEditor from "./ChartEditor";
 import Footer from "./Footer";
-import { PRESS } from "./styles";
 import TopBar from "./TopBar";
 import { effectiveView } from "./ViewChart";
 
-function DetailsIcon() {
-  return (
-    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 7h14M5 12h14M5 17h9" />
-    </svg>
-  );
-}
 
 // Uloží kopii odpovědi s upraveným vzhledem (nový odkaz). Vrátí ji, nebo null, když se to nepovede.
 async function saveVariant(answer: AskAnswer, view: ChartView): Promise<AskAnswer | null> {
@@ -130,19 +122,15 @@ export default function AnswerScreen({
                 <div ref={region} tabIndex={-1} role="region" aria-label="Odpověď" className="animate-rise rounded-3xl">
                   <AnswerCard answer={shown} view={view} svgRef={svg} />
                 </div>
-                <div className="mt-3 flex items-start justify-between gap-3 sm:mt-4">
-                  <AnswerActions answer={shown} view={view} svg={svg} onEdit={result && wide ? toggleEditor : undefined} editing={editing} />
-                  {canOpenDetails && (
-                    <button
-                      type="button"
-                      onClick={onDetails}
-                      aria-label="Podrobnosti: odkud jsou data a jak jsme je ověřili"
-                      title="Podrobnosti"
-                      className={`${PRESS} ml-auto flex size-12 shrink-0 items-center justify-center rounded-xl bg-surface text-accent`}
-                    >
-                      <DetailsIcon />
-                    </button>
-                  )}
+                <div className="mt-3 sm:mt-4">
+                  <AnswerActions
+                    answer={shown}
+                    view={view}
+                    svg={svg}
+                    onDetails={canOpenDetails ? onDetails : undefined}
+                    onEdit={result && wide ? toggleEditor : undefined}
+                    editing={editing}
+                  />
                 </div>
               </div>
               {editor && <div className="animate-rise sticky top-0">{editor}</div>}

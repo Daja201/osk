@@ -79,7 +79,7 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
   if (token.kind === "date") {
     const place = places.find((p) => p.includes(token.text.replace(/\s+/g, " ")));
     if (place) return placeSource(place);
-    return { who: "ai", short: "datum", long: `Datum z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
+    return { who: "ai", short: "datum z otázky", long: `Datum z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
   }
   if (notAllowed.includes(token.value)) {
     return { who: "bad", short: "v datech takové číslo není", long: "Tohle číslo v datech není. Proto jsme větu od AI nepoužili a složili ji sami." };
@@ -117,6 +117,11 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
   }
   const place = places.find((p) => p.match(/\d+/g)?.map(Number).includes(token.value));
   if (place) return placeSource(place);
+  // Den, měsíc nebo rok z období, které AI vybrala z otázky (např. 20, 11, 2026).
+  const dateParts = [answer.spec?.from, answer.spec?.to].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
+  if (dateParts.includes(token.value)) {
+    return { who: "ai", short: "datum z otázky", long: `Část data z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
+  }
   return { who: "ai", short: "povolené číslo", long: "Číslo z věty, které kontrola povolila (např. část data), v datech ho přímo nenajdeme." };
 }
 
