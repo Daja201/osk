@@ -1,15 +1,15 @@
-// Navržené otázky. Jeden seznam pro úvod, odpověď i nápovědu „?“, ať vypadají všude stejně.
+// Navržené otázky. Jeden seznam pro úvod, odpověď „nevím“ i nápovědu „?“, ať jsou všude stejné.
+// Vybrané tak, aby dohromady předvedly, co aplikace umí:
+//   1. víc míst naráz, sloupcový graf a nadpis podle přání,
+//   2. vývoj v čase přes víc dní (čárový graf),
+//   3. odpověď větou, kterou napíše AI a náš kód v ní zkontroluje každé číslo.
 export const EXAMPLES = [
-  "Kolik aut včera projelo ulicí 17. listopadu?",
-  "Porovnej sloupcovým grafem 17. listopadu, Kafkovu a Billu za včerejšek",
-  "Jak se měnil provoz na Floře posledních 7 dní?",
-  "Tabulka vjezdů na parkoviště Flora včera po hodinách",
-  "Koláčový graf na modrém pozadí: podíl aut na 17. listopadu a Kafkově za poslední týden",
-  "Odkud berete data? Dej mi odkaz na API",
+  "Porovnej sloupcovým grafem s nadpisem Provoz včera, kolik aut projelo na 17. listopadu, Kafkově a u Billy",
+  "Jak se měnil provoz na 17. listopadu za posledních 7 dní?",
+  "Kdy byla včera největší špička na Kafkově a kolik aut tehdy projelo?",
 ];
 
-// Tři ukázky (věta, graf, čárový graf): na úvod a pod odpověď „nevím“ stačí.
-export const TOP_EXAMPLES = EXAMPLES.slice(0, 3);
+export const TOP_EXAMPLES = EXAMPLES;
 
 // Položky jsou pod sebou v jednom sloupci s mezerou 10 px. Po najetí se tlačítko jen o 1 px zvedne
 // a ztmavne mu rámeček (žádné zvětšení), takže se ani rámeček focusu nedotkne sousední položky.

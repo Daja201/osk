@@ -5,7 +5,7 @@ import SavedView, { SavedMissing } from "@/components/SavedView";
 import { loadAnswer } from "@/lib/answers";
 
 export const metadata: Metadata = {
-  title: "Uložená odpověď – OKS",
+  title: "Uložená odpověď – OSK",
   description: "Odpověď z dat dopravních senzorů v Olomouci i s tím, jak vznikla a odkud jsou data.",
 };
 

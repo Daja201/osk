@@ -109,10 +109,9 @@ circle.chart-item:focus-visible {
   }
 }
 
-/* Viditelný focus pro ovládání klávesnicí: tmavý obrys a žlutý lem.
-   Je schválně mimo vrstvu, takže má přednost i před stíny tabulek a je vždy vidět. */
+/* Viditelný focus pro ovládání klávesnicí: jen žlutý obrys (bez bílého / tmavého okraje kolem).
+   Je schválně mimo vrstvu, takže má přednost před třídami Tailwindu a je vždy vidět. */
 :focus-visible {
-  outline: 3px solid var(--color-ink);
+  outline: 3px solid var(--color-marking);
   outline-offset: 3px;
-  box-shadow: 0 0 0 7px var(--color-marking);
 }

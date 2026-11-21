@@ -11,7 +11,7 @@ export async function GET(_request: Request, ctx: RouteContext<"/api/answers/[id
   return new Response(seriesCsv(answer.result), {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="oks-${id}.csv"`,
+      "content-disposition": `attachment; filename="osk-${id}.csv"`,
     },
   });
 }

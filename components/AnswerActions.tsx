@@ -98,7 +98,7 @@ export default function AnswerActions({
   const result = answer.result?.ok ? answer.result : null;
   const shown = effectiveView(answer, view);
   const isChart = shown !== null && shown.format !== "table";
-  const name = `oks-${answer.id ?? "odpoved"}`;
+  const name = `osk-${answer.id ?? "odpoved"}`;
   const flash = (text: string) => {
     setStatus(text);
     setTimeout(() => setStatus(null), 2000);

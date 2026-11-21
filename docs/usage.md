@@ -1,7 +1,7 @@
-# OKS: jak ho používat
+# OSK: jak ho používat
 # AI-Generated-Overview
 
-OKS je generátor grafů, tabulek a čísel z dat dopravních senzorů v Olomouci.
+OSK je generátor grafů, tabulek a čísel z dat dopravních senzorů v Olomouci.
 Napíšete česky, co chcete vidět, a dostanete graf, tabulku nebo větu, kterou můžete zkopírovat,
 stáhnout, nebo poslat odkazem. Ke každé odpovědi je důkaz, odkud čísla jsou.
 
@@ -50,7 +50,7 @@ Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba
   ale na hezkém čísle pod nimi (19 000), aby byl rozdíl vidět. Přiblížení je mírné (nejmenší sloupec zabere aspoň
   ~40 % výšky) a vždy označené: přerušení osy a poznámka „Osa začíná na 19 000, ne na nule“ přímo v grafu.
   Při velkých rozdílech osa začíná na nule.
-- **Editor:** tlačítko „Upravit vzhled“ pod odpovědí otevře panel vedle grafu. Změny se ukazují hned:
+- **Editor** (jen na počítači, na telefonu není, byl by nepřehledný): tlačítko „Upravit vzhled“ pod odpovědí otevře panel vedle grafu. Změny se ukazují hned:
   - typ: sloupcový, čárový, koláčový, tabulka (nevhodný typ je vypnutý a po najetí myší řekne proč),
   - nadpis, pozadí (paleta), barva každého místa (vzorník nebo libovolná barva),
   - osa: automaticky, od nuly, nebo vlastní „od–do“. Vlastní rozsah musí obsáhnout všechny hodnoty

@@ -10,7 +10,7 @@ import "./globals.css";
 import { AskProvider } from "./ask-context";
 
 export const metadata: Metadata = {
-  title: "OKS – Zeptej se Olomouce",
+  title: "OSK – Zeptej se Olomouce",
   description: "Odpovědi na otázky o dopravě v Olomouci z dat městských senzorů.",
 };
 

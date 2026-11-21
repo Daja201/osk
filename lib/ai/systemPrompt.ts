@@ -10,7 +10,7 @@ export function buildSystemPrompt(now: Date): string {
     .map((date) => `${weekdayCz(date)} = ${date}`)
     .join(", ");
 
-  return `Jsi asistent aplikace OKS. Z otázky připravíš zadání odpovědi z dat dopravních senzorů (bran) v Olomouci. Čísla nikdy nepočítáš ani nevymýšlíš, spočítá je náš kód.
+  return `Jsi asistent aplikace OSK. Z otázky připravíš zadání odpovědi z dat dopravních senzorů (bran) v Olomouci. Čísla nikdy nepočítáš ani nevymýšlíš, spočítá je náš kód.
 
 Teď je ${weekdayCz(today)} ${formatCzDate(today)}, ${pragueTime(now)}, časové pásmo Europe/Prague. Dnes = ${today}, včera = ${yesterday}.
 Poslední celá hodina končí v ${hour}:00, data jsou nejvýš do ${today}T${hour}:00.

@@ -114,13 +114,19 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
 
   const hint = (
     <div className={`flex flex-col items-center gap-3 ${fade}`}>
-      {hintVisible && !leaving && (
+      {/* Tlačítko je ve stránce od začátku (má rezervované místo), jen je neviditelné. Po 5 s se plynule objeví,
+          takže nic neposkočí. Dokud není vidět, nejde na něj kliknout ani se na něj dostat Tabem. */}
+      {!leaving && (
         <button
           type="button"
           aria-expanded={hintOpen}
           aria-controls="navrhy"
+          aria-hidden={!hintVisible}
+          tabIndex={hintVisible ? 0 : -1}
           onClick={() => setHintOpen(!hintOpen)}
-          className={`${PRESS} animate-rise flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
+          className={`${PRESS} flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted transition-[opacity,translate,background-color,color] duration-700 ease-out hover:bg-band hover:text-ink motion-reduce:transition-none ${
+            hintVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"
+          }`}
         >
           Na co se můžu zeptat?
           <svg
@@ -174,17 +180,15 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:justify-center sm:px-8 sm:pb-[8vh]">
         {/* Přivítání jen na telefonu. Nesmršťuje se (shrink-0); když se rozbalí návrhy, ustoupí jim. */}
         <div className={`flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:hidden ${hintOpen ? "hidden" : "flex"} ${fade}`}>
-          <span aria-hidden="true" className="flex size-14 rounded-[16px] bg-tabule p-[5px]">
-            <span className="flex flex-1 items-center justify-center rounded-[11px] border-[2.5px] border-white font-sign text-[30px] leading-none font-bold text-white">?</span>
-          </span>
           <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink">Na co se chcete zeptat?</h1>
           <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted">Grafy, tabulky a čísla z dopravních senzorů v Olomouci.</p>
         </div>
-        <h1 className="sr-only max-sm:hidden">OKS – Zeptej se Olomouce</h1>
+        <h1 className="sr-only max-sm:hidden">OSK – Zeptej se Olomouce</h1>
         {/* Na mobilu návrhy nad polem (order), na počítači pod ním. */}
-        <div className={`flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
+        {/* Na počítači visí nápověda pod polem samostatně (absolute), takže se pole nehne ani po rozbalení návrhů. */}
+        <div className={`relative flex w-full max-w-[760px] shrink-0 flex-col gap-4 sm:gap-6 ${hintOpen ? "max-sm:mt-auto" : ""}`}>
           <div className="order-2 sm:order-1">{composer}</div>
-          <div className="order-1 sm:order-2">{hint}</div>
+          <div className="order-1 sm:absolute sm:inset-x-0 sm:top-full sm:order-2 sm:mt-6">{hint}</div>
         </div>
       </main>
       <div className={`max-sm:hidden ${fade}`}>

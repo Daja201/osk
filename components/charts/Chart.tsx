@@ -16,7 +16,7 @@ type Kind = "bar" | "line" | "pie";
 
 export const FONT = "Barlow, system-ui, sans-serif";
 export const TITLE_FONT = "'Barlow Semi Condensed', Barlow, system-ui, sans-serif";
-const FOOTNOTE = "Zdroj: senzorová síť Olomouc (CITIQ) · OKS";
+const FOOTNOTE = "Zdroj: senzorová síť Olomouc (CITIQ) · OSK";
 
 // Šířka rodiče, aby SVG mělo skutečné rozměry a písmo nebylo na mobilu zmenšené.
 function useWidth(): [Ref<HTMLDivElement>, number] {
@@ -32,30 +32,61 @@ function useWidth(): [Ref<HTMLDivElement>, number] {
   return [ref, width];
 }
 
-// Nadpis do nejvýš dvou řádků (SVG text se sám nezalamuje).
-function wrap(text: string, maxChars: number): string[] {
-  const words = text.split(" ");
+// Text do nejvýš `maxLines` řádků (SVG text se sám nezalamuje). Dělí se na mezerách i pevných mezerách.
+function wrap(text: string, maxChars: number, maxLines = 2): string[] {
+  const words = text.split(/[ \u00A0]/);
   const lines: string[] = [""];
   for (const word of words) {
     const line = lines[lines.length - 1];
     if ((line + " " + word).trim().length <= maxChars || line === "") lines[lines.length - 1] = (line + " " + word).trim();
-    else if (lines.length < 2) lines.push(word);
+    else if (lines.length < maxLines) lines.push(word);
     else {
-      lines[1] = `${lines[1].slice(0, maxChars - 1)}…`;
+      lines[lines.length - 1] = `${lines[lines.length - 1].slice(0, maxChars - 1)}…`;
       break;
     }
   }
   return lines;
 }
 
+// Kratší popisek dne na úzkém grafu: „so 14. 11.“ → „so 14.“ (měsíc je v nadpisu).
+const compactDay = (label: string) => label.replace(/^(\S+[ \u00A0]\d{1,2}\.)[ \u00A0]\d{1,2}\.$/, "$1");
+
 // Popisky na ose x: kolikátý ukázat (ať se nepřekrývají) a jak je zalomit. Dlouhý popisek („Billa (Hynaisova)“)
 // se zalomí do dvou řádků, místo aby se zkrátil. Každý řádek je samostatný <text> (kvůli exportu do PNG).
-function xLabels(categories: string[], plotW: number) {
+function xLabels(kind: Kind, data: ReturnType<typeof chartData>, plotW: number) {
+  const categories = data.categories;
   const n = Math.max(1, categories.length);
+  // Časový (čárový) graf s jednou řadou a málo body: pod každým popiskem i jeho hodnota (den → číslo pod ním).
+  // Vejde se, když je mezi body místo na nejdelší číslo; popisek se pak klidně rozdělí na víc řádků („so“ / „14.“).
+  const values = data.series[0]?.values ?? [];
+  const longest = Math.max(0, ...values.map((v) => (v === null ? 1 : formatNumber(v).length)));
+  const candidate = kind === "line" && data.series.length === 1 && n >= 2 && n <= 14;
+  // Okraj po stranách čárového grafu, aby i první a poslední číslo šlo vycentrovat pod bod.
+  const inset = candidate ? Math.ceil((longest * 7.5) / 2) + 2 : 0;
+  const spacing = kind === "line" ? (plotW - 2 * inset) / Math.max(1, n - 1) : plotW / n;
+  // Písmo čísel: 14 px, když se nevejde, 12 px. Když se nevejdou ani tak (pěticiferná čísla na telefonu),
+  // napíšou se střídavě do dvou řádků (lichý den výš, sudý níž) – každé pak má dvojnásobek místa.
+  const fitsAt = (room: number) => (room >= longest * 7.5 + 6 ? 14 : room >= longest * 6.4 + 4 ? 12 : 0);
+  const stagger = fitsAt(spacing) === 0 && fitsAt(spacing * 2) > 0;
+  const valueFont = stagger ? fitsAt(spacing * 2) : fitsAt(spacing);
+  if (candidate && valueFont > 0) {
+    const fits = (text: string) => text.length * 7.5 <= spacing - 4;
+    const lines = categories.map((label) => {
+      if (fits(label)) return [label];
+      const short = compactDay(label);
+      return fits(short) ? [short] : short.split(/[ \u00A0]/);
+    });
+    const valueTexts = values.map((v) => (v === null ? "–" : formatNumber(v)));
+    return { step: 1, lines, values: valueTexts, valueFont, inset, stagger, rows: Math.max(1, ...lines.map((l) => l.length)) + (stagger ? 2 : 1) };
+  }
   const step = labelStep(n, Math.max(2, Math.floor(plotW / 64)));
   const maxChars = Math.max(6, Math.floor(((plotW / n) * step) / 7.5));
-  const lines = categories.map((label, i) => (i % step === 0 ? wrap(label, maxChars) : []));
-  return { step, lines, rows: Math.max(1, ...lines.map((l) => l.length)) };
+  const lines = categories.map((label, i) => {
+    if (i % step !== 0) return [];
+    const fitted = label.length > maxChars ? compactDay(label) : label;
+    return wrap(fitted, maxChars);
+  });
+  return { step, lines, values: null, valueFont: 14, inset: 0, stagger: false, rows: Math.max(1, ...lines.map((l) => l.length)) };
 }
 
 type Legend = { label: string; color: string }[];
@@ -143,8 +174,11 @@ export default function Chart({
   // QR kód vpravo nahoře vedle nadpisu; nadpis se zúží, graf začne pod QR.
   const qrSize = qrUrl ? (width < 500 ? 64 : 84) : 0;
   const qrSpace = qrSize ? qrSize + 16 : 0;
-  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / 13));
-  const top = Math.max(pad + titleLines.length * 32 + 10, qrSize ? pad + qrSize + 22 : 0);
+  // Nadpis: na telefonu menší písmem a až na 3 řádky, ať se z něj neztratí období.
+  const titleSize = width < 500 ? 22 : 28;
+  const titleLineHeight = titleSize + 6;
+  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), width < 500 ? 3 : 2);
+  const top = Math.max(pad + titleLines.length * titleLineHeight + 12, qrSize ? pad + qrSize + 22 : 0);
   const data = chartData(result);
   const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
   const axis = axisFor(values, axisSetting);
@@ -179,7 +213,7 @@ export default function Chart({
   const bottom = HEIGHT - pad - 22 - (legend.height > 0 ? legend.height + 12 : 0);
 
   // Místo pod grafem na popisky osy x: jeden, nebo dva řádky.
-  const labelRows = kind === "pie" ? 0 : xLabels(data.categories, width - pad - (pad + 52)).rows;
+  const labelRows = kind === "pie" ? 0 : xLabels(kind, data, width - pad - (pad + 52)).rows;
   const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad, top, bottom: bottom - (kind === "pie" ? 0 : 14 + labelRows * 16) };
   const plotW = plot.right - plot.left;
   const plotH = plot.bottom - plot.top;
@@ -199,7 +233,7 @@ export default function Chart({
       >
         <rect width={width} height={HEIGHT} fill={colors.bg} />
         {titleLines.map((line, i) => (
-          <text key={i} x={pad} y={pad + 24 + i * 32} fontSize="28" fontWeight="700" fontFamily={TITLE_FONT} fill={colors.text}>
+          <text key={i} x={pad} y={pad + titleSize - 4 + i * titleLineHeight} fontSize={titleSize} fontWeight="700" fontFamily={TITLE_FONT} fill={colors.text}>
             {line}
           </text>
         ))}
@@ -255,9 +289,11 @@ function Axes({
   // Hodnota → výška. Osa může začínat nad nulou (axis.min), pak je to u ní vyznačené přerušením.
   const y = (value: number) => plot.bottom - ((value - axis.min) / (axis.max - axis.min)) * plotH;
   const n = data.categories.length;
-  const labels = xLabels(data.categories, plotW);
+  const labels = xLabels(kind, data, plotW);
   const slot = plotW / n;
-  const x = (i: number) => (kind === "bar" ? plot.left + slot * (i + 0.5) : plot.left + (n === 1 ? plotW / 2 : (plotW * i) / (n - 1)));
+  const inner = plotW - 2 * labels.inset;
+  const x = (i: number) =>
+    kind === "bar" ? plot.left + slot * (i + 0.5) : plot.left + labels.inset + (n === 1 ? inner / 2 : (inner * i) / (n - 1));
   const showValues = kind === "bar" && n * data.series.length <= 16;
 
   return (
@@ -286,14 +322,35 @@ function Axes({
         </g>
       )}
 
-      {data.categories.map((label, i) =>
-        labels.lines[i].map((line, row) => (
-          <text key={`${i}-${row}`} x={x(i)} y={plot.bottom + 22 + row * 16} fontSize="14" textAnchor="middle" fill={colors.muted}>
-            <title>{label}</title>
-            {line}
-          </text>
-        )),
-      )}
+      {/* Svislá mřížka u časového grafu: čára u každého bodu, ať jde snadno najít den a jeho číslo pod ním. */}
+      {kind === "line" &&
+        data.categories.map((_, i) => (
+          <line key={`g${i}`} x1={x(i)} x2={x(i)} y1={plot.top} y2={plot.bottom} stroke={colors.grid} strokeWidth="1" />
+        ))}
+
+      {data.categories.map((label, i) => {
+        // U čárového grafu jsou první a poslední bod na okraji: popisek zarovnáme dovnitř, ať nepřeteče.
+        const edge = kind === "line" && !labels.values;
+        const anchor = edge && i === 0 ? "start" : edge && i === n - 1 ? "end" : "middle";
+        return (
+          <g key={`l${i}`}>
+            {labels.lines[i].map((line, row) => (
+              <text key={row} x={x(i)} y={plot.bottom + 22 + row * 16} fontSize="14" textAnchor={anchor} fill={colors.muted}>
+                <title>{label}</title>
+                {line}
+              </text>
+            ))}
+            {labels.values && (
+              <text
+                x={x(i)}
+                y={plot.bottom + 22 + Math.max(...labels.lines.map((l) => l.length)) * 16 + 2 + (labels.stagger && i % 2 === 1 ? 16 : 0)}
+                fontSize={labels.valueFont} fontWeight="700" textAnchor={anchor} fill={colors.text}>
+                {labels.values[i]}
+              </text>
+            )}
+          </g>
+        );
+      })}
 
       {kind === "bar"
         ? data.series.map((s, si) => {

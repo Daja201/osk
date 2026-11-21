@@ -26,10 +26,7 @@ export default function TopBar({ tone, info, onNew, onBack, onPick }: Props) {
           onBlue ? "text-white hover:text-white" : "text-ink hover:text-ink"
         }`}
       >
-        <span className="text-[26px] leading-none font-bold">OKS</span>
-        <span className={`hidden text-[17px] leading-none font-medium sm:inline ${onBlue ? "text-on-sign-muted" : "text-muted"}`}>
-          Zeptej se Olomouce
-        </span>
+        <span className="text-[32px] leading-none font-bold tracking-tight">OSK</span>
       </a>
       <div className="flex items-center gap-2">
         {onBack && (

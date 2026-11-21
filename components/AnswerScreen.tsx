@@ -70,7 +70,8 @@ export default function AnswerScreen({
   }, [active, shown]);
 
   const canOpenDetails = shown !== null && shown.trace.steps.length > 0;
-  const editorOpen = editing && shown !== null && result !== null && current !== null;
+  // Editor vzhledu je jen na široké obrazovce (počítač). Na telefonu by byl nepřehledný, proto tam není vůbec.
+  const editorOpen = wide && editing && shown !== null && result !== null && current !== null;
 
   // U věty nebo zdroje dat editor rovnou přepne na sloupcový graf (jinak by nebylo co upravovat).
   function toggleEditor() {
@@ -112,28 +113,25 @@ export default function AnswerScreen({
     </div>
   ) : null;
 
-  // Rozložení:
-  // - široká obrazovka: editor vedle grafu,
-  // - telefon: editor jako panel zespodu (vlastní posouvání), graf nad ním zmenšený, aby byly změny hned vidět.
-  // Patička je v posouvané části, aby na malém displeji nezabírala místo tlačítkům.
+  // Rozložení: na široké obrazovce editor vedle grafu. Patička je v posouvané části,
+  // aby na malém displeji nezabírala místo tlačítkům.
   return (
     <div className="flex h-dvh flex-col bg-tabule text-white">
       <TopBar tone="blue" info="answer" onNew={onNew} />
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen && wide ? "max-w-[1240px]" : "max-w-[900px]"}`}>
+        <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen ? "max-w-[1240px]" : "max-w-[900px]"}`}>
           {shown === null ? (
             <p aria-live="polite" className="m-0 text-center font-sign text-[24px] font-semibold text-on-sign-muted">
               Počítám z dat senzorů…
             </p>
           ) : (
-            <div className={editorOpen && wide ? "grid items-start gap-5 grid-cols-[minmax(0,1fr)_360px]" : ""}>
+            <div className={editorOpen ? "grid items-start gap-5 grid-cols-[minmax(0,1fr)_360px]" : ""}>
               <div className="min-w-0">
                 <div ref={region} tabIndex={-1} role="region" aria-label="Odpověď" className="animate-rise rounded-3xl">
-                  <AnswerCard answer={shown} view={view} svgRef={svg} chartHeight={editorOpen && !wide ? 220 : undefined} />
+                  <AnswerCard answer={shown} view={view} svgRef={svg} />
                 </div>
-                {/* Při úpravách na telefonu tlačítka schováme: místo dostane graf, editor se zavírá tlačítkem Hotovo. */}
-                <div className={`mt-3 items-start justify-between gap-3 sm:mt-4 ${editorOpen && !wide ? "hidden" : "flex"}`}>
-                  <AnswerActions answer={shown} view={view} svg={svg} onEdit={result ? toggleEditor : undefined} editing={editing} />
+                <div className="mt-3 flex items-start justify-between gap-3 sm:mt-4">
+                  <AnswerActions answer={shown} view={view} svg={svg} onEdit={result && wide ? toggleEditor : undefined} editing={editing} />
                   {canOpenDetails && (
                     <button
                       type="button"
@@ -147,17 +145,12 @@ export default function AnswerScreen({
                   )}
                 </div>
               </div>
-              {wide && editor && <div className="animate-rise sticky top-0">{editor}</div>}
+              {editor && <div className="animate-rise sticky top-0">{editor}</div>}
             </div>
           )}
         </div>
-        {!(editorOpen && !wide) && <Footer tone="blue" />}
+        <Footer tone="blue" />
       </main>
-      {!wide && editor && (
-        <div className="animate-rise max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain rounded-t-3xl bg-surface shadow-[0_-8px_24px_rgba(0,0,0,0.25)]">
-          {editor}
-        </div>
-      )}
     </div>
   );
 }
