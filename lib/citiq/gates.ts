@@ -8,6 +8,9 @@ export type Gate = {
   members?: string[];
   location?: { lat: number; lon: number }; // z metadat CITIQ (olomouc-traffic-gates/metadata), jen u bran ve skupinách
   label?: string; // název pro lidi, když se liší od objectName
+  // Sečíst brány i tehdy, když jsou daleko od sebe (uživatel si o součet výslovně řekl).
+  // Výsledek dostane poznámku, že stejné auto může být v součtu dvakrát.
+  combine?: boolean;
 };
 
 export const GATES: Gate[] = [
@@ -15,6 +18,13 @@ export const GATES: Gate[] = [
     objectName: "17. listopadu (obě brány)",
     aliases: ["17. listopadu", "ulice 17. listopadu"],
     members: ["17.listopadu JIH", "17.listopadu Sever"],
+  },
+  {
+    objectName: "17. listopadu (součet bran)",
+    aliases: ["17. listopadu dohromady", "17. listopadu sečteno"],
+    members: ["17.listopadu JIH", "17.listopadu Sever"],
+    label: "17. listopadu (součet bran)",
+    combine: true,
   },
   { objectName: "17.listopadu JIH", aliases: ["17. listopadu, jižní brána"], label: "17. listopadu (jih)", location: { lat: 49.589588, lon: 17.26064 } },
   { objectName: "17.listopadu Sever", aliases: ["17. listopadu, severní brána"], label: "17. listopadu (sever)", location: { lat: 49.595013, lon: 17.265114 } },
@@ -91,7 +101,7 @@ export function distanceM(a: { lat: number; lon: number }, b: { lat: number; lon
 // Místa, za která se počítá samostatné číslo: brána, skupina blízkých bran (součet), nebo u vzdálené
 // skupiny její jednotlivé brány. Směry IN a OUT jedné brány se sčítají vždy (to jsou jen směry).
 export function placesOf(gate: Gate): Gate[] {
-  if (!gate.members) return [gate];
+  if (!gate.members || gate.combine) return [gate];
   const members = gate.members.map((name) => GATES.find((g) => g.objectName === name)).filter((g): g is Gate => g !== undefined);
   const spread = members.some((a) => members.some((b) => a.location && b.location && distanceM(a.location, b.location) > MAX_GROUP_SPREAD_M));
   return spread ? members : [gate];
@@ -107,7 +117,14 @@ export const TRAFFIC_DATASET = {
   title: "Doprava",
   description: "Počty vozidel, která projela dopravními branami, po hodinách, za posledních 30 dní. Vjezdy i výjezdy.",
   // Místa tak, jak je počítáme: brány mimo skupiny a skupiny (vzdálená skupina rozdělená na brány).
-  places: GATES.filter((gate) => !GATES.some((group) => group.members?.includes(gate.objectName)))
+  places: GATES.filter((gate) => !gate.combine && !GATES.some((group) => group.members?.includes(gate.objectName)))
     .flatMap(placesOf)
     .map((gate) => placeName(gate.objectName)),
 };
+
+// Největší vzdálenost mezi branami skupiny v metrech (null = nejde o skupinu nebo chybí souřadnice).
+export function groupSpreadM(gate: Gate): number | null {
+  const members = (gate.members ?? []).map((name) => GATES.find((g) => g.objectName === name)?.location).filter((l) => l !== undefined);
+  if (members.length < 2) return null;
+  return Math.max(...members.flatMap((a) => members.map((b) => distanceM(a, b))));
+}

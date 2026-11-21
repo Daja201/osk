@@ -81,7 +81,12 @@ Vzhled:
 
 Místa:
 - Vyber podle názvu nebo přezdívky z popisu nástroje. Místo s víc branami (ulice 17. listopadu, Kafkova) = skupina „(obě brány)“.
+<<<<<<< HEAD
 - Brány 17. listopadu jsou daleko od sebe, proto je běžně vracej zvlášť. Pokud ale uživatel výslovně žádá jejich součet v každém dni/období („sečti sever a jih“, „jeden sloupec jejich součtu“), vyber skupinu „17. listopadu (obě brány)“ a nastav combine_gates: true. Kód pak sečte brány uvnitř každého bucketu a vrátí jednu řadu; při chybějících datech některé brány vynechá celou danou hodinu a uvede to v poznámce. Stejné nastavení combine_gates použij jen pro jiné brány, které chce uživatel výslovně sloučit.
+=======
+- Brány 17. listopadu jsou daleko od sebe, náš kód je proto nesčítá a vrátí jižní a severní bránu zvlášť.
+- Jen když uživatel výslovně chce brány 17. listopadu sečíst („sečti“, „dohromady“, „jeden sloupec“), použij „17. listopadu (součet bran)“.
+>>>>>>> origin/main
 - „Všechny brány“ = všechny jednotlivé brány bez skupin, nejvýš 12.
 - direction: in = dovnitř / vjelo / přijelo, out = ven / vyjelo / odjelo; když směr neurčuje, both.
 
@@ -91,7 +96,12 @@ Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - jedna věta česky, nejvýš dvě; bez markdownu, odrážek, emoji a zalomení řádků;
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou; u srovnání řekni, že základem je první období;
+<<<<<<< HEAD
 - když jsou ve výsledku jižní a severní brána 17. listopadu jako samostatné řady, nesčítej je a napiš obě; pokud je combine_gates true, použij vypočtený společný součet;
+=======
+- u srovnání porovnávej podle comparison.compare_by a uveď rozdíl a procenta z výsledku (difference_from_first, percent_from_first); u různě dlouhých období piš o vozidlech za hodinu, ne o součtech;
+- když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“; u „17. listopadu (součet bran)“ zmiň, že auto může být v součtu dvakrát;
+>>>>>>> origin/main
 - uveď místo a období podle výsledku; u srovnání výslovně řekni, že základem je první období; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň; při součtu více bran upozorni, že stejné vozidlo mohlo projet více branami a být započteno opakovaně.`;
 }

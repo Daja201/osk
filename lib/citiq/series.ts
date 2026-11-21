@@ -2,7 +2,7 @@
 // Tohle je jediný výpočet, ze kterého AI vrstva bere čísla. Claude tu nic nepočítá.
 import { getCachedDay, getCachedRange, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
-import { GATE_NAMES, type Gate, MAX_GATES, placesOf, resolveGate, sensorsOf } from "./gates";
+import { GATE_NAMES, type Gate, MAX_GATES, MAX_GROUP_SPREAD_M, groupSpreadM, placeName, placesOf, resolveGate, sensorsOf } from "./gates";
 import { type CitiqGateRow, MS_PER_HOUR, TRAFFIC_CITIQ_PARAMS, VIEW, findGateRow, hourlyOf, isCitiqGateRows } from "./parse";
 import type { ComparisonPeriod, PeriodComparison } from "./comparison";
 import { validateSelectedDays } from "./selectedDays";
@@ -259,6 +259,13 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
     }
   }
   if (otherDayLength) notes.push("V rozsahu je den se změnou času (23 nebo 25 hodin).");
+  // Součet vzdálených bran (jen na výslovné přání): poctivě říct, že může obsahovat stejná auta dvakrát.
+  for (const gate of gates) {
+    const spread = gate.combine ? groupSpreadM(gate) : null;
+    if (spread !== null && spread > MAX_GROUP_SPREAD_M) {
+      notes.push(`${placeName(gate.objectName)}: brány jsou ${Math.round(spread)} m od sebe, auto, které projede obě, je v součtu dvakrát.`);
+    }
+  }
 
   return {
     ok: true,

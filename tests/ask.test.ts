@@ -286,6 +286,7 @@ describe("ask: grafy a tabulky", () => {
     expect(answer.result).toMatchObject({ ok: true, data: { granularity: "period", buckets: [{}, {}], comparison: { periods: [{}, {}] } } });
   });
 
+<<<<<<< HEAD
   it("předá výslovný požadavek na sloučení bran jako jednu denní řadu", async () => {
     const answer = await ask(
       "Sečti každý den sever a jih 17. listopadu do jednoho sloupce",
@@ -307,6 +308,24 @@ describe("ask: grafy a tabulky", () => {
       granularity: "day",
     });
     expect(answer.result).toMatchObject({ ok: true, data: { granularity: "day", series: [{ gate: "17. listopadu (obě brány)" }] } });
+=======
+  it("různě dlouhá období: Claude dostane jen průměr za hodinu, věta se součty neprojde", async () => {
+    const periods = [
+      { from: "2026-11-17T00:00", to: "2026-11-18T00:00" },
+      { from: "2026-11-18T00:00", to: "2026-11-20T00:00" },
+    ];
+    const input = { ...spec, format: "text", gates: ["Parkoviště Flora"], from: periods[0].from, to: periods[1].to, periods, granularity: "period" };
+    const client = fakeClient([toolUse(input), text("Projelo 100 vozidel oproti 100 vozidlům.")]);
+    const answer = await ask("Porovnej úterý se středou a čtvrtkem", deps(client));
+
+    const toolResult = client.calls[1].messages[2].content as Anthropic.ToolResultBlockParam[];
+    const summary = JSON.parse(String(toolResult[0].content));
+    expect(summary.comparison).toMatchObject({ basis: "traffic_per_hour", compare_by: expect.stringContaining("za hodinu") });
+    expect(summary.places[0].periods[0]).not.toHaveProperty("total_vehicles");
+    expect(summary.places[0].periods[0]).toHaveProperty("vehicles_per_hour");
+    // Součet (100) v shrnutí není, proto věta se součty neprojde a větu složí kód.
+    expect(answer.sentence_source).toBe("fallback");
+>>>>>>> origin/main
   });
 
   it("nadpis a barva od uživatele projdou", async () => {
