@@ -90,7 +90,8 @@ function xLabels(kind: Kind, data: ReturnType<typeof chartData>, plotW: number) 
   const lines = categories.map((label, i) => {
     if (i % step !== 0) return [];
     const fitted = label.length > maxChars ? compactDay(label) : label;
-    return wrap(fitted, maxChars);
+    // Málo sloupců (např. porovnání 2 období) = dost místa pod nimi: až 3 řádky, ať se vejde celé období.
+    return wrap(fitted, maxChars, n <= 4 ? 3 : 2);
   });
   return { step, lines, values: null, valueFont: 14, inset: 0, stagger: false, rows: Math.max(1, ...lines.map((l) => l.length)) };
 }
@@ -177,17 +178,19 @@ export default function Chart({
 }: ChartProps) {
   const interaction = { onPick, picked };
   const [box, width] = useWidth();
-  // Výška: zadaná, jinak na telefonu nižší (graf se vejde na obrazovku i s tlačítky pod ním).
-  const HEIGHT = height ?? (width < 500 ? 360 : 460);
-  const pad = width < 500 ? 16 : 28;
+  const narrow = width < 500;
+  // Základní výška: zadaná, jinak na telefonu nižší. Když nadpis, legenda nebo patička potřebují víc místa,
+  // graf se prodlouží (HEIGHT níž), aby samotná plocha grafu zůstala dost velká a nic se nepřekrývalo.
+  const baseHeight = height ?? (narrow ? 360 : 460);
+  const pad = narrow ? 16 : 28;
   // QR kód vpravo nahoře vedle nadpisu; nadpis se zúží, graf začne pod QR.
   const qrSize = qrUrl ? (width < 500 ? 64 : 84) : 0;
   const qrSpace = qrSize ? qrSize + 16 : 0;
   // Nadpis: na telefonu menší písmem a až na 3 řádky, ať se z něj neztratí období.
   const titleSize = width < 500 ? 22 : 28;
   const titleLineHeight = titleSize + 6;
-  // Až 3 řádky: dlouhý nadpis (víc míst + datum) se jinak na počítači uřízne a ztratí se datum.
-  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), 3);
+  // Až 3 řádky (na telefonu 5): dlouhý nadpis (víc míst + datum) se jinak uřízne a ztratí se datum.
+  const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), narrow ? 5 : 3);
   const top = Math.max(pad + titleLines.length * titleLineHeight + 12, qrSize ? pad + qrSize + 22 : 0);
   const data = chartData(result);
   const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
@@ -220,10 +223,15 @@ export default function Chart({
       : data.series
           .map((s) => `${data.series.length > 1 ? `${s.name}: ` : ""}${data.categories.slice(0, 12).map((c, i) => `${c} ${s.values[i] === null ? "bez dat" : formatNumber(s.values[i] ?? 0)}`).join(", ")}`)
           .join("; ");
-  const bottom = HEIGHT - pad - 22 - (legend.height > 0 ? legend.height + 12 : 0);
+  // Patička (zdroj, případně „osa nezačíná nulou“) se na úzkém grafu zalomí, místo aby přetekla.
+  const footLines = wrap(footnote, Math.floor((width - 2 * pad) / 6.2), 2);
+  const footExtra = (footLines.length - 1) * 15;
 
-  // Místo pod grafem na popisky osy x: jeden, nebo dva řádky.
+  // Místo pod grafem na popisky osy x: jeden až tři řádky.
   const labelRows = kind === "pie" ? 0 : xLabels(kind, data, width - pad - (pad + 52)).rows;
+  const below = pad + 22 + footExtra + (legend.height > 0 ? legend.height + 12 : 0) + (kind === "pie" ? 0 : 14 + labelRows * 16);
+  const HEIGHT = Math.max(baseHeight, top + (narrow ? 170 : 220) + below);
+  const bottom = HEIGHT - pad - 22 - footExtra - (legend.height > 0 ? legend.height + 12 : 0);
   const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad, top, bottom: bottom - (kind === "pie" ? 0 : 14 + labelRows * 16) };
   const plotW = plot.right - plot.left;
   const plotH = plot.bottom - plot.top;
@@ -255,9 +263,11 @@ export default function Chart({
         )}
 
         <g transform={`translate(${pad}, ${bottom + 26})`}>{legend.nodes}</g>
-        <text x={pad} y={HEIGHT - pad + 4} fontSize="12" fill={colors.muted}>
-          {footnote}
-        </text>
+        {footLines.map((line, i) => (
+          <text key={i} x={pad} y={HEIGHT - pad + 4 - (footLines.length - 1 - i) * 15} fontSize="12" fill={colors.muted}>
+            {line}
+          </text>
+        ))}
         {qrUrl && (
           <>
             <QrCode inline text={qrUrl} size={qrSize} x={width - pad - qrSize} y={pad} />
