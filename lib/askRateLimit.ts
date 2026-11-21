@@ -2,8 +2,8 @@ import { isIP } from "node:net";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
-const MAX_PER_MINUTE = 1;
-const MAX_PER_DAY = 10;
+const MAX_PER_MINUTE = 5;
+const MAX_PER_DAY = 300;
 const CLEANUP_INTERVAL = 256;
 
 export type AskRateLimitResult =
