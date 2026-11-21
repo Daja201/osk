@@ -3,6 +3,17 @@ API dokumentace: CITIQ datasety pro „Zeptej se Olomouce“
 Základní URL: https://iot.citiq.cloud/portal/api/v2/view/<slug>/
 Bez API klíče, veřejné. Chyby vrací ?uuid= s neplatnou hodnotou jako {"error": "..."}, status kód neznámý (nezkoušel jsem HTTP status, jen tělo).
 
+## Brief datasetu
+
+Na co se lze ptát:
+- počty vozidel na jednotlivých dopravních senzorech v Olomouci;
+- porovnání více míst najednou, nejvýš 12 míst;
+- vjezd, výjezd nebo oba směry dohromady;
+- konkrétní časové období nebo poslední hodiny/dny;
+- špičku, průběh v čase, celkový počet nebo podíl míst;
+- odpověď jako větu, sloupcový graf, čárový graf, koláčový graf, tabulku nebo odkaz na zdroj.
+- příklady: „kolik aut včera projelo?“, „porovnej místa“, „kdy byla špička?“, „ukaž vývoj posledních 7 dní“.
+
 1. olomouc-traffic-gates — hlavní zdroj pro traffic_count
 
 Typ: TIME_SERIES, 19 bran, max rozsah 30 dní, refresh 15 min, SILVER kvalita

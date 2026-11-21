@@ -4,7 +4,7 @@ import { checkNumbers, extractNumbers } from "./checkNumbers";
 import { formatPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
-import { BuildAnswerInput, type Format, buildAnswerTool } from "./tools";
+import { BuildAnswerInput, DATASET_BRIEF, type Format, buildAnswerTool } from "./tools";
 import type { AskAnswer, TraceStep } from "./types";
 
 // Jen část klienta, kterou potřebujeme. V testech se podstrčí falešný klient.
@@ -109,6 +109,17 @@ function sanitize(text: string): string {
     .trim();
 }
 
+function isDatasetHelpQuestion(question: string): boolean {
+  const normalized = question
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[?!.,]+$/g, "")
+    .replace(/\s+/g, " ");
+  return normalized === "na co se mohu zeptat" || normalized === "na co se muzu zeptat";
+}
+
 // Úprava zadání, kterou dělá kód, ne Claude. Vrací výsledný formát a poznámky pro uživatele.
 function finalFormat(format: Format, result: SeriesOk, notes: string[]): Format {
   const buckets = result.data.buckets.length;
@@ -152,6 +163,16 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     view: null,
     trace: { model: deps.model, now: deps.now.toISOString(), steps, total_ms: Date.now() - started },
   });
+  if (isDatasetHelpQuestion(question)) {
+    return answer({
+      kind: "answer",
+      format: "text",
+      title: "Na co se můžete zeptat",
+      sentence: DATASET_BRIEF,
+      sentence_source: "fixed",
+      reason: null,
+    });
+  }
   const unknown = (code: string, message: string, sentence = message): AskAnswer =>
     answer({ kind: "unknown", format: null, title: null, sentence, sentence_source: "fixed", reason: { code, message } });
   const aiError = (note: string) => {

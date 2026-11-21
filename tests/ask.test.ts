@@ -83,6 +83,20 @@ describe("build_answer: nástroj", () => {
 });
 
 describe("ask: grafy a tabulky", () => {
+  it("otázka na možnosti datasetu vrátí pevný uživatelský briefing bez volání modelu", async () => {
+    const client = fakeClient([]);
+    const answer = await ask("Na co se mohu zeptat?", deps(client));
+    expect(answer).toMatchObject({
+      kind: "answer",
+      format: "text",
+      title: "Na co se můžete zeptat",
+      sentence_source: "fixed",
+    });
+    expect(answer.sentence).toContain("počty vozidel");
+    expect(answer.sentence).toContain("graf");
+    expect(client.calls).toHaveLength(0);
+  });
+
   it("graf: jedno volání modelu, žádná věta, nadpis složí kód", async () => {
     const client = fakeClient([toolUse(spec)]);
     const answer = await ask("Porovnej 17. listopadu a Floru včera od 8 do 11", deps(client));
