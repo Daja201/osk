@@ -76,6 +76,7 @@ Vzhled:
 Místa:
 - Vyber podle názvu nebo přezdívky z popisu nástroje. Místo s víc branami (ulice 17. listopadu, Kafkova) = skupina „(obě brány)“.
 - Brány 17. listopadu jsou daleko od sebe, náš kód je proto nesčítá a vrátí jižní a severní bránu zvlášť.
+- Jen když uživatel výslovně chce brány 17. listopadu sečíst („sečti“, „dohromady“, „jeden sloupec“), použij „17. listopadu (součet bran)“.
 - „Všechny brány“ = všechny jednotlivé brány bez skupin, nejvýš 12.
 - direction: in = dovnitř / vjelo / přijelo, out = ven / vyjelo / odjelo; když směr neurčuje, both.
 
@@ -85,7 +86,8 @@ Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - jedna věta česky, nejvýš dvě; bez markdownu, odrážek, emoji a zalomení řádků;
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou; u srovnání řekni, že základem je první období;
-- když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“;
+- u srovnání porovnávej podle comparison.compare_by a uveď rozdíl a procenta z výsledku (difference_from_first, percent_from_first); u různě dlouhých období piš o vozidlech za hodinu, ne o součtech;
+- když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“; u „17. listopadu (součet bran)“ zmiň, že auto může být v součtu dvakrát;
 - uveď místo a období podle výsledku; u srovnání výslovně řekni, že základem je první období; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň.`;
 }

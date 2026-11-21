@@ -39,6 +39,26 @@ export function extremes(values: (number | null)[]): { max: number; min: number 
 // „14:00“ → „14:00–15:00“, „st 18. 11. 22:00“ → „st 18. 11. 22:00–23:00“
 const hourRange = (label: string) => label.replace(/(\d{1,2}):00$/, (_, hour: string) => `${hour}:00–${Number(hour) + 1}:00`);
 
+// Rozdíl u porovnání období pod grafem, spočítaný kódem (delta a procenta z lib/citiq/comparePeriods.ts):
+// „Billa (Hynaisova): 16.–21. 11. 2026 −4,48 vozidel/h (−6,7 %) proti 9.–15. 11. 2026“. Bez porovnání null.
+// Graf rozdíl sám neukáže (a u osy, která nezačíná nulou, vypadá větší), proto ho píšeme slovy.
+export function comparisonSummary(result: SeriesDisplayOk): string[] | null {
+  const comparison = result.data.comparison;
+  if (!comparison) return null;
+  const unit = (seriesUnit: string | null) =>
+    comparison.basis === "traffic_per_hour" ? "vozidel/h" : comparison.basis === "traffic_total" ? "vozidel" : (seriesUnit ?? "");
+  const signed = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${formatNumber(Math.abs(value))}`;
+  const lines = comparison.series.flatMap((series) =>
+    series.points.slice(1).flatMap((point, i) => {
+      if (point.delta === null) return [];
+      const percent = point.percent === null ? "" : ` (${signed(point.percent)} %)`;
+      const place = comparison.series.length > 1 ? `${placeName(series.gate)}: ` : "";
+      return [`${place}${comparison.periods[i + 1].label} ${signed(point.delta)} ${unit(series.unit)}${percent} proti ${comparison.baseline}`];
+    }),
+  );
+  return lines.length > 0 ? lines.slice(0, 6) : null;
+}
+
 // Závěr pod graf po hodinách s jedním místem, spočítaný kódem (ne AI):
 // „Nejvíc vozidel: 14:00–15:00 (2 290). Nejméně: 3:00–4:00 (60).“ U jiných grafů null.
 export function hourSummary(result: SeriesOk): string | null {

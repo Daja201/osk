@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { explainNumber, periodOf, timingsOf, viewOf } from "../lib/ui/answer";
-import { chartColors, chartData, extremes, hourSummary, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
+import { chartColors, chartData, comparisonSummary, extremes, hourSummary, labelStep, percentShares, pieSlices, textOn } from "../lib/ui/chart";
 import { tableTsv } from "../lib/ui/export";
 import { FIXTURES } from "../lib/ui/fixtures";
 import type { SeriesOk, SeriesResult } from "../lib/citiq/series";
@@ -274,5 +274,40 @@ describe("závěr grafu po hodinách", () => {
     );
     expect(hourSummary(result(["3:00", "4:00"], [[1, 2], [3, 4]]))).toBeNull();
     expect(hourSummary(result(["po", "út"], [[1, 2]], "day"))).toBeNull();
+  });
+});
+
+describe("rozdíl u porovnání období pod grafem", () => {
+  const point = (value: number, delta: number | null, percent: number | null) => ({ value, total: null, perHour: value, delta, percent, coverage: { hours: 1, of: 1 } });
+  const result = (series: { gate: string; points: ReturnType<typeof point>[] }[]) =>
+    ({
+      data: {
+        granularity: "period",
+        buckets: [],
+        series: [],
+        comparison: {
+          basis: "traffic_per_hour",
+          baseline: "9.–15. 11. 2026",
+          periods: [{ label: "9.–15. 11. 2026" }, { label: "16.–21. 11. 2026" }],
+          series: series.map((s) => ({ ...s, unit: "vozidel" })),
+        },
+      },
+      meta: {},
+    }) as unknown as Parameters<typeof comparisonSummary>[0];
+
+  it("rozdíl a procenta proti prvnímu období, se znaménkem; u víc míst i místo", () => {
+    expect(comparisonSummary(result([{ gate: "Billa (Hynaisova)", points: [point(66.69, 0, 0), point(62.21, -4.48, -6.7)] }]))).toEqual([
+      "16.–21. 11. 2026 −4,48 vozidel/h (−6,7 %) proti 9.–15. 11. 2026",
+    ]);
+    expect(
+      comparisonSummary(result([
+        { gate: "Billa (Hynaisova)", points: [point(1, 0, 0), point(2, 1, 100)] },
+        { gate: "17. listopadu (obě brány)", points: [point(1, 0, 0), point(1, null, null)] },
+      ])),
+    ).toEqual(["Billa (Hynaisova): 16.–21. 11. 2026 +1 vozidel/h (+100 %) proti 9.–15. 11. 2026"]);
+  });
+
+  it("bez porovnání null", () => {
+    expect(comparisonSummary({ data: { granularity: "day", buckets: [], series: [] }, meta: {} } as unknown as Parameters<typeof comparisonSummary>[0])).toBeNull();
   });
 });

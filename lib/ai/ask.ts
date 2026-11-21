@@ -123,16 +123,23 @@ function summaryForClaude(result: AskSeriesOk) {
         notes: result.meta.notes,
       };
     }
+    // Různě dlouhá období (traffic_per_hour): Claude dostane jen průměr za hodinu, ne součty. Jinak by porovnal
+    // součty 6 a 7 dní („7528 oproti 9803“) a vyšel by klamavě velký pokles. Kontrola čísel pak součty ani nepustí.
+    const perHour = comparison.basis === "traffic_per_hour";
     return {
       dataset: "doprava",
-      comparison: { baseline: comparison.baseline, basis: comparison.basis, periods },
+      comparison: {
+        baseline: comparison.baseline,
+        basis: comparison.basis,
+        compare_by: perHour ? "průměrný počet vozidel za hodinu (období jsou různě dlouhá)" : "celkový počet vozidel",
+        periods,
+      },
       places: result.data.series.map((series, index) => ({
         place: placeName(series.gate),
         sensors: series.sensors,
         periods: comparison.series[index].points.map((point, period) => ({
           label: periods[period],
-          total_vehicles: point.total,
-          vehicles_per_available_hour: point.perHour,
+          ...(perHour ? { vehicles_per_hour: point.perHour } : { total_vehicles: point.total }),
           compared_value: point.value,
           difference_from_first: point.delta,
           percent_from_first: point.percent,
@@ -183,7 +190,11 @@ function summaryForClaude(result: AskSeriesOk) {
 function allowedNumbers(summary: unknown): Set<number> {
   const allowed = new Set<number>();
   const walk = (value: unknown): void => {
-    if (typeof value === "number") allowed.add(value);
+    // I absolutní hodnota: rozdíl −4,48 napíše Claude jako „o 4,48 méně“. Pořád je to číslo spočítané kódem.
+    if (typeof value === "number") {
+      allowed.add(value);
+      allowed.add(Math.abs(value));
+    }
     else if (typeof value === "string") extractNumbers(value).forEach((n) => allowed.add(n));
     else if (Array.isArray(value)) value.forEach(walk);
     else if (value && typeof value === "object") Object.values(value).forEach(walk);

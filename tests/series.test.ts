@@ -129,6 +129,17 @@ describe("trafficSeries: po hodinách", () => {
   });
 });
 
+describe("trafficSeries: součet vzdálených bran na přání", () => {
+  it("„17. listopadu (součet bran)“ sečte jih a sever do jednoho čísla a upozorní na dvojí započtení", async () => {
+    rule = (gate) => (gate === "17.listopadu JIH" ? 3 : 2);
+    const result = await run({ gates: ["17. listopadu dohromady"], direction: "both", from: "2026-11-18T00:00", to: "2026-11-20T00:00", granularity: "day" });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.data.series).toHaveLength(1);
+    expect(result.data.series[0]).toMatchObject({ gate: "17. listopadu (součet bran)", values: [(3 + 2) * 2 * 24, (3 + 2) * 2 * 24] });
+    expect(result.meta.notes).toContain("17. listopadu (součet bran): brány jsou 684 m od sebe, auto, které projede obě, je v součtu dvakrát.");
+  });
+});
+
 describe("trafficSeries: po dnech a celkem", () => {
   it("po dnech pro víc míst", async () => {
     rule = (gate, date) => (gate === "Parkoviště Flora" ? 1 : 2) * Number(date.slice(-2));

@@ -50,6 +50,9 @@ Když napíšete „kruhový nebo sloupcový“, AI vybere ten, který se k dat�
 17. listopadu (obě brány nebo jen Jih / Sever), Kafkova (obě brány), Billa (Hynaisova), Fisherova, Fugnerova,
 Parkoviště Flora, Peškova, Trnkova/Rooseveltova, Trnkova/Zítkova, Tržnice/Polská, U Letadla, Voskovcova, Zikova,
 Aksamitova/Vídeňská, Šmeralova (IN, OUT/17. listopadu, OUT/Blahoslavova). Najednou až 12 míst.
+17. listopadu: brány Jih a Sever jsou 684 m od sebe, proto je ukazujeme zvlášť (auto, které projede celou ulicí,
+by bylo v součtu dvakrát). Když si o součet řeknete („sečti jih a sever“, „dohromady“), sečteme je s upozorněním.
+Porovnání období: u různě dlouhých období porovnáváme průměr vozidel za hodinu; rozdíl a procenta jsou pod grafem.
 Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba směry dohromady.
 
 ### Vzhled
