@@ -42,7 +42,7 @@ function Sentence({ sentence, total }: { sentence: string; total: number }) {
     <p className="m-0 text-[20px] leading-[1.4] font-medium text-pretty sm:text-[26px]">
       {parts.before.length > 0 && <span className="block">{text(parts.before)}</span>}
       <span className="my-1 block sm:my-2">
-        <span className="font-sign text-[68px] leading-none font-bold tracking-[-0.02em] whitespace-nowrap text-tabule sm:text-[108px]">
+        <span className="font-sign text-[68px] leading-none font-bold tracking-[-0.02em] whitespace-nowrap text-accent sm:text-[108px]">
           {parts.main}
         </span>
         {parts.wordAfter && (
@@ -186,7 +186,7 @@ export default function AnswerScreen({
                 tabIndex={-1}
                 aria-label="Odpověď"
                 role="region"
-                className="animate-rise rounded-3xl bg-white p-6 text-ink sm:p-10"
+                className="animate-rise rounded-3xl bg-surface p-6 text-ink sm:p-10"
               >
                 {facts ? <AnswerBody answer={shown} facts={facts} /> : <OtherBody answer={shown} />}
               </div>
@@ -197,7 +197,7 @@ export default function AnswerScreen({
                     onClick={onDetails}
                     aria-label="Podrobnosti: odkud jsou data a jak jsme je ověřili"
                     title="Podrobnosti"
-                    className={`${PRESS} flex size-12 items-center justify-center rounded-xl bg-white text-tabule`}
+                    className={`${PRESS} flex size-12 items-center justify-center rounded-xl bg-surface text-accent`}
                   >
                     <DetailsIcon />
                   </button>

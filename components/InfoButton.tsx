@@ -111,12 +111,12 @@ export default function InfoButton({
         aria-label={TITLES[topic]}
         title={TITLES[topic]}
         onClick={() => dialog.current?.showModal()}
-        className={`${PRESS} flex size-10 shrink-0 rounded-[10px] p-[3px] ${tone === "blue" ? "bg-white" : "bg-tabule"}`}
+        className={`${PRESS} flex size-10 shrink-0 rounded-[10px] p-[3px] ${tone === "blue" ? "bg-surface" : "bg-tabule"}`}
       >
         <span
           aria-hidden="true"
           className={`flex flex-1 items-center justify-center rounded-[7px] border-2 font-sign text-[22px] leading-none font-bold ${
-            tone === "blue" ? "border-tabule text-tabule" : "border-white text-white"
+            tone === "blue" ? "border-accent text-accent" : "border-white text-white"
           }`}
         >
           ?
@@ -128,7 +128,7 @@ export default function InfoButton({
         onClick={(event) => {
           if (event.target === dialog.current) close();
         }}
-        className="m-auto w-[min(560px,calc(100vw-32px))] rounded-3xl bg-white p-0 text-ink backdrop:bg-ink/40"
+        className="m-auto w-[min(560px,calc(100vw-32px))] rounded-3xl bg-surface p-0 text-ink backdrop:bg-black/50"
       >
         <div className="flex flex-col gap-5 p-6 sm:p-8">
           <div className="flex items-start justify-between gap-4">

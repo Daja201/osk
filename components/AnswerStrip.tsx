@@ -61,7 +61,7 @@ export default function AnswerStrip({
 
       <div id="odkud-cislo" aria-live="polite">
         {picked?.type === "number" && pickedSource && (
-          <div className="animate-rise mt-3 flex flex-col gap-0.5 rounded-xl bg-white px-4 py-3 text-[16px] text-ink">
+          <div className="animate-rise mt-3 flex flex-col gap-0.5 rounded-xl bg-surface px-4 py-3 text-[16px] text-ink">
             <span className="font-semibold">
               {picked.token.text} · {WHO_TEXT[pickedSource.who]}
             </span>

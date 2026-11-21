@@ -265,8 +265,11 @@ export async function trafficCount(params: TrafficCountParams): Promise<TrafficC
     const pointMs = Date.parse(point.time);
     if (pointMs < startMs || pointMs >= nextDayStart.getTime()) continue;
 
-    //oprava "-1" kvůli posunu d at z CITIQu
-    const hourIndex = Math.floor((pointMs - startMs) / MS_PER_HOUR)  - 1;
+    // Čas bodu z CITIQ je KONEC hodinového okna (docs/data-notes.md, H2): bod v 1:00 = provoz 0:00–1:00.
+    // Proto ceil(…) - 1, ne floor(…) - 1: poslední okno dne končí v 23:59:59 (= stop dotazu),
+    // floor by ho poslal do hodiny 22 (dvakrát) a hodina 23 by zůstala null.
+    const hourIndex = Math.ceil((pointMs - startMs) / MS_PER_HOUR) - 1;
+    if (hourIndex < 0 || hourIndex >= hourly.length) continue; // bod přesně o půlnoci patří předchozímu dni
     if (hourIndex < rangeFrom || hourIndex >= rangeTo) continue;
     const count = Math.abs(point.value);
     hourly[hourIndex] = (hourly[hourIndex] ?? 0) + count;

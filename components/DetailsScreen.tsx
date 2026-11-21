@@ -56,7 +56,7 @@ function Hourly({ facts }: { facts: Facts }) {
       <button
         type="button"
         onClick={() => downloadCsv(facts)}
-        className={`${PRESS} mt-2 self-start rounded-full border border-line px-4 py-2 text-[16px] font-semibold text-tabule hover:border-tabule`}
+        className={`${PRESS} mt-2 self-start rounded-full border border-line px-4 py-2 text-[16px] font-semibold text-accent hover:border-tabule`}
       >
         Stáhnout data jako CSV
       </button>
@@ -160,7 +160,7 @@ export default function DetailsScreen({
   const sensors = facts?.sensors ?? (tool ? placeOf(tool.gate).sensors : []);
 
   return (
-    <div className="flex h-dvh flex-col bg-white">
+    <div className="flex h-dvh flex-col bg-surface">
       <TopBar tone="light" info="details" onBack={onBack} onNew={onNew} />
       <div className="px-4 sm:px-8">
         <div className="mx-auto max-w-[960px]">

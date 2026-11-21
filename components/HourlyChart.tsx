@@ -69,7 +69,7 @@ export default function HourlyChart(props: Props) {
                 <div
                   key={`m${column.from}`}
                   title={`${column.from}:00–${column.to}:00: data chybí`}
-                  className="mx-px flex justify-center self-stretch rounded-t-md border-2 border-b-0 border-dashed border-muted bg-[#F3F5F8] pt-2.5"
+                  className="mx-px flex justify-center self-stretch rounded-t-md border-2 border-b-0 border-dashed border-muted bg-missing pt-2.5"
                   style={{ gridColumn: `span ${column.to - column.from}` }}
                 >
                   <span
@@ -83,7 +83,7 @@ export default function HourlyChart(props: Props) {
                   key={column.hour}
                   title={`${formatHourRange(column.hour)}: ${formatCars(column.value)}`}
                   className={`relative w-full max-w-6 justify-self-center rounded-t-[4px] ${
-                    peak?.hour === column.hour ? "bg-tabule" : "bg-bar"
+                    peak?.hour === column.hour ? "bg-accent" : "bg-bar"
                   }`}
                   style={{ height: percent(column.value) }}
                 >
@@ -111,7 +111,7 @@ export default function HourlyChart(props: Props) {
           <span className="flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="size-4 rounded-[3px] border-2 border-dashed border-muted bg-[#F3F5F8]"
+              className="size-4 rounded-[3px] border-2 border-dashed border-muted bg-missing"
             />
             data chybí
           </span>

@@ -10,9 +10,9 @@ import NumberMark from "./NumberMark";
 type Marker = "end" | "ai" | "code";
 
 const MARKER_CLASS: Record<Marker, string> = {
-  end: "mt-1 size-7 rounded-full bg-ink shadow-[0_0_0_3px_#fff]",
-  ai: "mt-1.5 size-6 rounded-full border-[5px] border-tabule bg-white",
-  code: "mt-[7px] size-[22px] rounded-[3px] bg-ink shadow-[0_0_0_3px_#fff]",
+  end: "mt-1 size-7 rounded-full bg-ink shadow-[0_0_0_3px_var(--color-surface)]",
+  ai: "mt-1.5 size-6 rounded-full border-[5px] border-accent bg-surface",
+  code: "mt-[7px] size-[22px] rounded-[3px] bg-ink shadow-[0_0_0_3px_var(--color-surface)]",
 };
 const MARKER_LABEL: Record<Marker, string> = { end: "", ai: "Krok AI: ", code: "Krok našeho kódu: " };
 
@@ -21,7 +21,7 @@ type StopData = { marker: Marker; title: string; time?: string; body: React.Reac
 function Stop({ stop, last }: { stop: StopData; last: boolean }) {
   return (
     <li className={`relative grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 sm:grid-cols-[56px_minmax(0,1fr)] sm:gap-x-5 ${last ? "" : "pb-10"}`}>
-      {!last && <span aria-hidden="true" className="absolute top-[18px] -bottom-[18px] left-[19px] w-1.5 bg-tabule sm:left-[25px]" />}
+      {!last && <span aria-hidden="true" className="absolute top-[18px] -bottom-[18px] left-[19px] w-1.5 bg-accent sm:left-[25px]" />}
       <span aria-hidden="true" className={`relative justify-self-center ${MARKER_CLASS[stop.marker]}`} />
       <div className="flex min-w-0 flex-col gap-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -285,7 +285,7 @@ export default function AnswerPath(props: Props) {
         </h2>
         <p className="m-0 flex flex-wrap items-center gap-x-[22px] gap-y-1.5 text-[16px] text-muted">
           <span className="flex items-center gap-2">
-            <span aria-hidden="true" className="size-[18px] rounded-full border-4 border-tabule bg-white" />
+            <span aria-hidden="true" className="size-[18px] rounded-full border-4 border-accent bg-surface" />
             krok AI
           </span>
           <span className="flex items-center gap-2">

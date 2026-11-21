@@ -55,7 +55,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
   const fade = `transition-opacity duration-300 ${leaving ? "opacity-0" : ""}`;
 
   return (
-    <div className="flex h-dvh flex-col bg-white">
+    <div className="flex h-dvh flex-col bg-surface">
       <div className={fade}>
         <TopBar
           tone="light"
@@ -83,7 +83,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
             disabled={leaving}
             onChange={(event) => setValue(event.target.value)}
             placeholder="Kolik aut včera projelo ulicí 17. listopadu?"
-            className={`h-16 w-full min-w-0 rounded-2xl border-2 border-line bg-white px-5 font-sans text-[19px] font-medium text-ink transition-colors hover:border-muted focus:border-ink sm:flex-1 sm:text-[21px] ${fade}`}
+            className={`h-16 w-full min-w-0 rounded-2xl border-2 border-line bg-surface px-5 font-sans text-[19px] font-medium text-ink transition-colors hover:border-muted focus:border-ink sm:flex-1 sm:text-[21px] ${fade}`}
           />
           <button
             ref={button}
