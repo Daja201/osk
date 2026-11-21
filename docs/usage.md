@@ -78,6 +78,9 @@ Směr: „vjelo / přijelo“ = dovnitř, „vyjelo / odjelo“ = ven, jinak oba
 
 ## Pro ty, kdo chtějí data sami
 - `GET /api/ask?q=<otázka>`: odpověď jako JSON (stejná jako na stránce, včetně `id`).
+- Požadavky na Haiku mají limit 1 za minutu a 10 za klouzavých 24 hodin na IP. Při překročení API vrátí `429`
+  a hlavičku `Retry-After`. IP a časy požadavků držíme jen dočasně v RAM procesu; po restartu se limit vynuluje
+  a při více instancích se počítá zvlášť. Proxy před aplikací musí předat správné `X-Real-IP` nebo `X-Forwarded-For`.
 - `GET /api/answers/<id>`: uložená odpověď jako JSON (7 dní).
 - `GET /api/answers/<id>/csv`: data uložené odpovědi jako CSV.
 - Zdroj všech čísel: `https://iot.citiq.cloud/portal/api/v2/view/olomouc-traffic-gates/` s parametry
