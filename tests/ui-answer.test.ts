@@ -5,8 +5,9 @@ import { tableTsv } from "../lib/ui/export";
 import { FIXTURES } from "../lib/ui/fixtures";
 import type { SeriesOk, SeriesResult } from "../lib/citiq/series";
 import type { WeatherSeriesResult } from "../lib/citiq/weatherSeries";
+import type { CombinedSeriesResult } from "../lib/citiq/combinedSeries";
 
-function isTrafficResult(result: SeriesResult | WeatherSeriesResult): result is SeriesOk {
+function isTrafficResult(result: SeriesResult | WeatherSeriesResult | CombinedSeriesResult): result is SeriesOk {
   return result.ok && result.meta.tool === "traffic_series";
 }
 
@@ -198,7 +199,7 @@ describe("odkud je číslo v grafu", () => {
     const { explainPoint } = await import("../lib/ui/answer");
     const { pickAt } = await import("../lib/ui/chart");
     const original = FIXTURES.bar.result;
-    if (!original?.ok || original.meta.tool !== "traffic_series") throw new Error("bar fixture nemá dopravní výsledek");
+    if (!original || !isTrafficResult(original)) throw new Error("bar fixture nemá dopravní výsledek");
     const selected: (typeof FIXTURES)["bar"] = {
       ...FIXTURES.bar,
       result: {

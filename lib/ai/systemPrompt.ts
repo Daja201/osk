@@ -78,7 +78,6 @@ Navazující otázka (před otázkou jsou předchozí otázky konverzace a jejic
 Vzhled:
 - title: jen když si uživatel nadpis řekl, přesně jeho slovy. Jinak null (nadpis složí náš kód).
 - background: jen když si řekl barvu pozadí. modrá = modra, červená = cervena, zelená = zelena, oranžová = oranzova, fialová = fialova, šedá = seda, tmavá nebo černá = tmava, bílá = bila. Jiná barva → nejbližší z nich. Jinak null.
-- 
 
 Místa:
 - Vyber podle názvu nebo přezdívky z popisu nástroje. Místo s víc branami (ulice 17. listopadu, Kafkova) = skupina „(obě brány)“.
@@ -94,7 +93,7 @@ Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou; u srovnání řekni, že základem je první období;
 - u srovnání porovnávej podle comparison.compare_by a uveď rozdíl a procenta z výsledku (difference_from_first, percent_from_first); u různě dlouhých období piš o vozidlech za hodinu, ne o součtech;
-- pokud uživatel neřekne v promptu jinak, když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“; u „17. listopadu (součet bran)“ zmiň, že auto může být v součtu dvakrát, pokud bude uživatel pokračovat v konverzaci žádostí o sečtení, sečti je;
+- když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“; u „17. listopadu (součet bran)“ zmiň, že auto může být v součtu dvakrát (součet spočítal kód, protože si o něj uživatel řekl v otázce);
 - uveď místo a období podle výsledku; u srovnání výslovně řekni, že základem je první období; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
 - když výsledek obsahuje poznámky o chybějících datech, krátce to zmiň; při součtu více bran upozorni, že stejné vozidlo mohlo projet více branami a být započteno opakovaně.`;
 }

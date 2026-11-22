@@ -141,12 +141,12 @@ const fakeWeather: WeatherSeriesResult = {
 describe("build_answer: nástroj", () => {
   it("strict schéma vyžaduje všechna pole", () => {
     expect(buildAnswerTool.strict).toBe(true);
-    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "combine_gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
+    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "combine_gates", "relation", "typical_profile", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
   });
 
   it("weather_series má samostatné strict schéma bez dopravního směru", () => {
     expect(weatherSeriesTool.strict).toBe(true);
-    expect(weatherSeriesTool.input_schema.required).toEqual(["format", "title", "background", "stations", "metrics", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
+    expect(weatherSeriesTool.input_schema.required).toEqual(["format", "title", "background", "stations", "metrics", "relation", "typical_profile", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
     expect(weatherSeriesTool.input_schema.properties).not.toHaveProperty("direction");
     expect(weatherSeriesTool.description).toContain("humidity (%)");
   });

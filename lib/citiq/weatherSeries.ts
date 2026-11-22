@@ -48,6 +48,7 @@ export type WeatherSeriesOk = {
     period: { start: string; end: string; clipped: boolean };
     sources: WeatherSource[];
     notes: string[];
+    analysis?: undefined; // typ analýzy má jen výsledek z lib/citiq/analytics.ts; tady pro jednotný typ
   };
 };
 export type WeatherSeriesError = { ok: false; code: string; message: string };

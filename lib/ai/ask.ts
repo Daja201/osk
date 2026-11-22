@@ -1,12 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
 import type { WeatherSeriesOk, WeatherSeriesParams, WeatherSeriesResult } from "../citiq/weatherSeries";
-import type { AnalyticsSeriesOk, SeriesDisplayOk } from "../citiq/display";
-import { combinedSeries } from "../citiq/combinedSeries";
+import type { AnalyticsSeriesOk } from "../citiq/display";
+import { type CombinedSeriesResult, combinedSeries } from "../citiq/combinedSeries";
 import { deriveRatios, seriesStatistics, typicalDayProfile } from "../citiq/analytics";
 import { compareTrafficPeriods, compareWeatherPeriods } from "../citiq/comparePeriods";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
-import { formatSelectedPeriod } from "./dates";
+import { formatPeriod, formatSelectedPeriod } from "./dates";
 import { GATES } from "./gates";
 import { buildSystemPrompt } from "./systemPrompt";
 import {
@@ -100,15 +100,16 @@ function isCombinedResult(result: AskSeriesOk): result is AnalyticsSeriesOk {
 
 function titleFor(result: AskSeriesOk): string {
   if (result.meta.analysis?.type === "typical_profile") {
-    return `Typický den · ${result.data.series.map((series) => series.gate).join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
+    // Rozsah („9.–20. 11. 2026“), ne výčet všech vybraných dnů, ať je nadpis krátký. Vybrané dny jsou v poznámce.
+    return `Typický den · ${result.data.series.map((series) => placeName(series.gate)).join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
   }
   if (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") {
     return `${result.meta.analysis.type === "ratio" ? "Poměr" : "Podíl"} · ${result.data.series.map((series) => series.gate).join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
   }
   if (isCombinedResult(result)) {
-    const traffic = result.data.series.filter((series) => series.dataset === "traffic").length;
-    const weather = result.data.series.filter((series) => series.dataset === "weather").length;
-    return `Doprava a počasí · ${traffic} dopravních řad, ${weather} meteorologických řad · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
+    // Názvy řad („U Letadla, U Letadla · teplota (°C)“) místo počtů („1 dopravních řad“): čitelné a gramaticky správně.
+    const names = result.data.series.map((series) => placeName(series.gate)).join(", ");
+    return `Doprava a počasí · ${names} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
   }
   if (!isWeatherResult(result)) return defaultTitle(result);
   const stations = [...new Set(result.data.series.map((series) => stationName(series.station)))];
@@ -286,7 +287,7 @@ function fallbackSentence(result: AskSeriesOk): string {
     }
     if (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") {
       const parts = result.data.series.map((series) => {
-        const value = "mean" in series ? series.mean : null;
+        const value = "mean" in series ? (series.mean ?? null) : null;
         return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
       });
       return `Vypočtený ${result.meta.analysis.type === "ratio" ? "poměr" : "podíl"} za vybrané období: ${parts.join("; ")}.`;
@@ -301,7 +302,7 @@ function fallbackSentence(result: AskSeriesOk): string {
     }
     if (isCombinedResult(result)) {
       const parts = result.data.series.map((series) => {
-        const value = "mean" in series ? series.mean : series.total;
+        const value = ("mean" in series ? series.mean : series.total) ?? null;
         return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
       });
       return `Doprava a počasí za vybrané období: ${parts.join("; ")}.`;
@@ -318,14 +319,14 @@ function fallbackSentence(result: AskSeriesOk): string {
       : `${end.delta > 0 ? "+" : ""}${cz.format(end.delta)} ${comparison.basis === "traffic_per_hour" ? "voz/h" : "vozidel"}${end.percent === null ? "" : ` (${end.percent > 0 ? "+" : ""}${cz.format(end.percent)} %)`}`;
     return `${placeName(series.gate)}: ${first} ${basisValue(start)}, ${last} ${basisValue(end)} (${difference} vůči prvnímu období). Podrobnosti všech období jsou v důkazu pod odpovědí.`;
   }
-  const period = formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params.dates);
+  const period = formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates);
   if (isWeatherResult(result)) {
     const parts = result.data.series.map((series) =>
       `${stationName(series.station)}, ${resolveWeatherMetric(series.metric)?.label ?? series.metric}: ${series.mean === null ? "bez dat" : `${cz.format(series.mean)} ${series.unit}`}`,
     );
     return `${period}: průměr ${parts.join("; ")}.`;
   }
-  const parts = result.data.series.map((s) => `${placeName(s.gate)} ${cz.format(s.total)} vozidel`);
+  const parts = result.data.series.map((s) => `${placeName(s.gate)} ${s.total === undefined ? "bez dat" : `${cz.format(s.total)} vozidel`}`);
   let sentence = `${period}: ${parts.join(", ")}.`;
   if (result.data.series.some((s) => s.coverage.hours < s.coverage.of)) sentence += " Část dat chybí, součty jsou neúplné.";
   return sentence;
@@ -516,7 +517,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
           deps.weatherSeries,
         );
         result = base.ok && spec.typical_profile ? typicalDayProfile(base) : base;
-      } else if (isWeatherTool && "stations" in spec) {
+      } else if (isWeatherTool && "stations" in spec && !("gates" in spec)) {
         if (spec.typical_profile && spec.periods?.length) {
           result = { ok: false, code: "BAD_PARAMS", message: "Typický denní profil nelze kombinovat se srovnávacími obdobími." };
         } else if (spec.typical_profile && spec.relation !== "none") {
@@ -569,9 +570,11 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
             ...(spec.periods?.length ? { periods: spec.periods } : {}),
             granularity,
           };
+          // Zadání si uložíme do konstanty: uvnitř funkce TypeScript zúžení proměnné `spec` neudrží.
+          const comparePeriods = Boolean(spec.periods?.length) || spec.granularity === "period";
           const runTraffic = (direction = params.direction) => {
             const next = { ...params, direction };
-            return spec.periods?.length || spec.granularity === "period"
+            return comparePeriods
               ? compareTrafficPeriods(next, deps.trafficSeries)
               : deps.trafficSeries(next);
           };

@@ -34,6 +34,7 @@ export type GateSeries = {
   values: (number | null)[]; // jedna hodnota na bucket; null = žádná data (nikdy 0)
   total: number; // součet všech hodin s daty
   coverage: { hours: number; of: number }; // hodin s daty / hodin v rozsahu
+  unit?: undefined; // jednotku má jen výsledek analýzy (lib/citiq/display.ts); tady pro jednotný typ
 };
 
 export type Source = { date: string; url: string; fetched_at: string };
@@ -48,6 +49,7 @@ export type SeriesOk = {
     period: { start: string; end: string; clipped: boolean };
     sources: Source[]; // přesné dotazy na CITIQ, ze kterých jsou data (jeden na den)
     notes: string[];
+    analysis?: undefined; // typ analýzy má jen výsledek z lib/citiq/analytics.ts; tady pro jednotný typ
   };
 };
 

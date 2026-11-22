@@ -41,11 +41,13 @@ export const GRANULARITY_LABEL = { hour: "po hodinách", day: "po dnech", total:
 export function periodOf(answer: AskAnswer): string | null {
   if (answer.result?.ok) {
     if (answer.result.data.comparison) return answer.result.data.comparison.periods.map((period) => period.label).join("; ");
-    return formatSelectedPeriod(answer.result.meta.period.start, answer.result.meta.period.end, answer.result.meta.params.dates);
+    return formatSelectedPeriod(answer.result.meta.period.start, answer.result.meta.period.end, answer.result.meta.params?.dates);
   }
   if (answer.spec) {
-    if (answer.spec.periods?.length) {
-      return answer.spec.periods.map((period) => formatSelectedPeriod(period.from, period.to)).join("; ");
+    // Srovnávaná období má jen zadání pro dopravu a počasí, kombinovaný výpočet je nemá.
+    const periods = "periods" in answer.spec ? (answer.spec.periods ?? []) : [];
+    if (periods.length) {
+      return periods.map((period) => formatSelectedPeriod(period.from, period.to)).join("; ");
     }
     return answer.spec.dates?.length
       ? formatSelectedPeriod(answer.spec.from, answer.spec.to, answer.spec.dates)
@@ -179,7 +181,7 @@ export function explainNumber(token: TokenLike, answer: AskAnswer, notAllowed: n
     answer.spec?.from,
     answer.spec?.to,
     ...(answer.spec?.dates ?? []),
-    ...(answer.spec?.periods ?? []).flatMap((period) => [period.from, period.to]),
+    ...(answer.spec && "periods" in answer.spec ? (answer.spec.periods ?? []) : []).flatMap((period) => [period.from, period.to]),
   ].flatMap((v) => (v ? v.slice(0, 10).split("-").map(Number) : []));
   if (dateParts.includes(token.value)) {
     return { who: "ai", short: "datum z otázky", long: `Část data z období ${periodOf(answer) ?? ""}. ${fromQuestion}` };
@@ -198,6 +200,8 @@ export type PointSource = {
 };
 
 const DIRECTION_TEXT = { both: "oba směry", in: "jen směr dovnitř", out: "jen směr ven" } as const;
+// Směr z parametrů výpočtu (u kombinovaného výpočtu je obecný řetězec); neznámý = oba směry.
+const directionOf = (direction: string | undefined): keyof typeof DIRECTION_TEXT => (direction === "in" || direction === "out" ? direction : "both");
 const pragueDate = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague" }).format(ms);
 
 export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | null {
@@ -215,7 +219,7 @@ export function explainPoint(answer: AskAnswer, pick: DataPick): PointSource | n
       ? Math.round((Date.parse(end) - Date.parse(start)) / 3600000)
       : series.coverage.of;
   const sensors = series.sensors.length > 1 ? `senzorů ${series.sensors.join(" a ")}` : `senzoru ${series.sensors[0]}`;
-  const direction = result.meta.tool === "weather_series" ? "meteorologické veličiny" : DIRECTION_TEXT[result.meta.params.direction];
+  const direction = result.meta.tool === "weather_series" ? "meteorologické veličiny" : DIRECTION_TEXT[directionOf(result.meta.params?.direction)];
   const firstDate = pragueDate(Date.parse(start));
   const lastDate = pragueDate(Date.parse(end) - 1);
   const period = bucket ? formatPeriod(start, end) : formatSelectedPeriod(start, end, result.meta.params?.dates);
