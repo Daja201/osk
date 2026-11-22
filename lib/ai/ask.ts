@@ -191,6 +191,10 @@ function summaryForClaude(result: AskSeriesOk) {
         name: series.gate,
         unit: series.unit ?? ("mean" in series ? "průměr" : "vozidel"),
         aggregate: "mean" in series ? series.mean : series.total,
+        // Poměr i v procentech (0,21 × = 21 %), spočítané kódem: Claude ho pak smí napsat a kontrola čísel ho pustí.
+        ...(result.meta.analysis?.type === "ratio" && "mean" in series && typeof series.mean === "number"
+          ? { as_percent: Math.round(series.mean * 1000) / 10 }
+          : {}),
         statistics: seriesStatistics(labels, series.values),
         coverage: series.coverage,
         ...(withValues ? { values: labels.map((label, index) => ({ label, value: series.values[index] })) } : {}),
@@ -644,10 +648,13 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     }
     notes.push(...result.meta.notes);
 
-    // Nadpis od Claude smí obsahovat jen čísla z otázky nebo z výsledku, jinak ho složí kód.
+    // Nadpis od Claude projde, jen když ho uživatel opravdu napsal (v této nebo předchozích otázkách konverzace)
+    // a obsahuje jen čísla z otázky nebo z výsledku. Jinak ho složí kód (Claude si nadpisy občas vymýšlí).
     const allowed = allowedNumbers(summaryForClaude(result));
     extractNumbers(question).forEach((n) => allowed.add(n));
-    title = spec.title && checkNumbers(spec.title, allowed).passed ? spec.title : titleFor(result);
+    const said = [question, ...(deps.context ?? []).map((previous) => previous.question)].join(" ").toLocaleLowerCase("cs");
+    const fromUser = spec.title !== null && said.includes(spec.title.trim().toLocaleLowerCase("cs"));
+    title = spec.title && fromUser && checkNumbers(spec.title, allowed).passed ? spec.title : titleFor(result);
 
     if (spec.format === "source") {
       return answer({
@@ -659,7 +666,13 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
         reason: null,
       });
     }
-    if (spec.format !== "text") {
+    // Poměr nebo podíl jedné dvojice je jedno číslo: graf s jediným sloupcem „A / B“ nic neřekne,
+    // proto ho vždy ukážeme jako odpověď větou (s velkým číslem).
+    const singleRatio =
+      (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") &&
+      result.data.series.length === 1 &&
+      result.data.buckets.length === 1;
+    if (spec.format !== "text" && !singleRatio) {
       // Graf nebo tabulka: druhé volání modelu není potřeba, žádný zbytečný text.
       return answer({ kind: "answer", format: finalFormat(spec.format, result, notes), title, sentence: null, sentence_source: null, reason: null });
     }

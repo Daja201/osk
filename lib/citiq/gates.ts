@@ -115,7 +115,7 @@ export function placeName(gate: string): string {
 // Popis datasetu pro lidi (panel „Co za data mám“ pod polem pro otázku). Zdroj: metadata CITIQ olomouc-traffic-gates.
 export const TRAFFIC_DATASET = {
   title: "Doprava",
-  description: "Počty vozidel, která projela dopravními branami, po hodinách, za posledních 30 dní. Vjezdy i výjezdy.",
+  description: "Počty vozidel, která projela dopravními branami, po hodinách, zhruba od září 2024. Vjezdy i výjezdy.",
   // Místa tak, jak je počítáme: brány mimo skupiny a skupiny (vzdálená skupina rozdělená na brány).
   places: GATES.filter((gate) => !gate.combine && !GATES.some((group) => group.members?.includes(gate.objectName)))
     .flatMap(placesOf)

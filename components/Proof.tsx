@@ -52,6 +52,7 @@ function Limits() {
         <li>Dnešek je jen do poslední celé hodiny.</li>
         <li>U bran na ulicích jsme zatím neověřili, který směr je „dovnitř“ a který „ven“. Proto počítáme hlavně oba směry dohromady.</li>
         <li>Najednou umíme nejvýš 31 dní a {MAX_GATES} míst; porovnat lze až 12 období v tomto rozsahu.</li>
+        <li>Posledního půl roku máme uložené u sebe, starší data stahujeme přímo z CITIQ (trvá déle). Doprava je zhruba od září 2024, počasí od léta 2025.</li>
       </ul>
     </section>
   );

@@ -10,7 +10,7 @@ let rule: Rule = () => 1;
 // Brány, které v odpovědi CITIQ úplně chybí (senzor nevysílá).
 let silent = new Set<string>();
 let cacheError: unknown = null;
-const calls: { kind: "day" | "range"; date?: string; stop?: string }[] = [];
+const calls: { kind: "day" | "range" | "old"; date?: string; stop?: string }[] = [];
 
 const GATES = ["17.listopadu JIH", "17.listopadu Sever", "Kafkova - levá", "Kafkova - pravá", "Parkoviště Flora", "Billa (Hynaisova)", "Zikova"];
 
@@ -60,6 +60,27 @@ vi.mock("../lib/citiq/cache", async (importOriginal) => {
       if (cacheError) throw cacheError;
       calls.push({ kind: "range", date: pragueDate(start.getTime()), stop: stop.toISOString() });
       return day(pragueDate(start.getTime()));
+    },
+    // Staré dny (tady před 1. 6. 2026): jeden „dotaz“ na celý úsek, každý den dostane data celého úseku.
+    getUncachedDays: async (_view: string, dates: string[]) => {
+      const old = dates.filter((date) => date < "2026-06-01");
+      const result = new Map<string, ReturnType<typeof day> & { start: Date; stop: Date }>();
+      if (old.length === 0) return result;
+      calls.push({ kind: "old", date: old[0], stop: old.at(-1) });
+      const start = original.utcStartOfPragueDay(old[0]);
+      const stop = new Date(original.utcStartOfPragueDay("2026-01-08").getTime() - 1000);
+      const perDay = old.map(day);
+      const merged = {
+        fetched_at: "2026-11-20T21:14:00.000Z",
+        data: {
+          results: perDay[0].data.results.map((row, i) => ({
+            ...row,
+            measurements: [{ ...row.measurements[0], values: perDay.flatMap((d) => d.data.results[i].measurements[0].values) }],
+          })),
+        },
+      };
+      for (const date of old) result.set(date, { ...merged, start, stop });
+      return result;
     },
   };
 });
@@ -180,6 +201,18 @@ describe("trafficSeries: součet vzdálených bran na přání", () => {
     expect(result.data.series).toHaveLength(1);
     expect(result.data.series[0]).toMatchObject({ gate: "17. listopadu (součet bran)", values: [(3 + 2) * 2 * 24, (3 + 2) * 2 * 24] });
     expect(result.meta.notes).toContain("17. listopadu (součet bran): brány jsou 684 m od sebe, auto, které projede obě, je v součtu dvakrát.");
+  });
+});
+
+describe("trafficSeries: data starší než půl roku", () => {
+  it("staré dny jdou z jednoho dotazu na úsek: každý den si vezme svoje hodiny, zdroj je uvedený jednou", async () => {
+    rule = (_gate, date) => Number(date.slice(-2)); // 5., 6., 7. 1. → 5, 6, 7 aut za hodinu
+    const result = await run({ gates: ["Flora"], direction: "in", from: "2026-01-05T00:00", to: "2026-01-08T00:00", granularity: "day" });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.data.series[0].values).toEqual([5 * 24, 6 * 24, 7 * 24]);
+    expect(calls).toEqual([{ kind: "old", date: "2026-01-05", stop: "2026-01-07" }]);
+    expect(result.meta.sources).toHaveLength(1);
+    expect(result.meta.sources[0].url).toContain("start=2026-01-04T23%3A00%3A00.000Z");
   });
 });
 

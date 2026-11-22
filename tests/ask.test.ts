@@ -304,6 +304,23 @@ describe("ask: grafy a tabulky", () => {
     expect(answer.sentence_source).toBe("fallback");
   });
 
+  it("nadpis, který uživatel neřekl (Claude si ho vymyslel), nahradí kód", async () => {
+    const answer = await ask("Porovnej Floru a Billu", deps(fakeClient([toolUse({ ...spec, title: "Flora a Billa, předevčírem" })])));
+    expect(answer.title).toMatch(/^Počet vozidel/);
+  });
+
+  it("poměr jedné dvojice je vždy věta s číslem a procenty, ne graf s jedním sloupcem „A / B“", async () => {
+    const client = fakeClient([
+      toolUse({ ...spec, format: "bar", relation: "ratio", gates: ["Parkoviště Flora", "Billa (Hynaisova)"], granularity: "total" }),
+      text("Flora měla 0,5 × provozu Billy, tedy 50 %."),
+    ]);
+    const answer = await ask("udělej poměr mezi těmito daty", deps(client));
+    expect(client.calls).toHaveLength(2);
+    expect(answer).toMatchObject({ format: "text", sentence_source: "ai", sentence: "Flora měla 0,5 × provozu Billy, tedy 50 %." });
+    const toolResult = client.calls[1].messages[2].content as Anthropic.ToolResultBlockParam[];
+    expect(JSON.parse(String(toolResult[0].content)).series[0]).toMatchObject({ aggregate: 0.5, as_percent: 50 });
+  });
+
   it("nadpis a barva od uživatele projdou", async () => {
     const answer = await ask("…s červeným pozadím a nadpisem Stav nyní", deps(fakeClient([toolUse({ ...spec, title: "Stav nyní", background: "cervena" })])));
     expect(answer).toMatchObject({ title: "Stav nyní", background: "cervena" });

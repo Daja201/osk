@@ -56,7 +56,7 @@ lib/answers.ts                    ukládání odpovědí do data/answers/ (gitig
 lib/csv.ts                        CSV z výsledku (sdílí server i prohlížeč)
 lib/view.ts                       vzhled grafu z editoru (ChartView + Zod schéma, kontrola vlastní osy)
 lib/ui/                           čisté funkce pro stránku (chart, answer, format, sentence, export, theme, fixtures)
-data/cache/                       cache odpovědí CITIQ (gitignored, 30 dní)
+data/cache/                       cache odpovědí CITIQ (gitignored, posledních 183 dní; starší data se neukládají)
 scripts/ask.ts                    `npm run ask -- "otázka"`: stejná cesta jako /api/ask, vypíše zadání a data
 scripts/check-claude.ts           test API klíče a modelu
 tests/                            testy vitest (bez sítě: falešný Claude a falešná cache)
@@ -96,7 +96,7 @@ Do cizích složek nesahej. Když je to nutné, napiš proč a počkej na OK.
 - `npm test`: testy (vitest)
 - `npm run lint`, `npm run build`, `npx tsc --noEmit` (na čistém klonu nejdřív `npx next typegen`)
 - `node --env-file-if-exists=.env.local --import tsx scripts/ask.ts "otázka"`: položí otázku skutečnému Haiku a vypíše zadání a data (stojí pár haléřů)
-- CITIQ data se automaticky ukládají do `data/cache/`; cache uchovává posledních 30 kalendářních dnů.
+- CITIQ data se automaticky ukládají do `data/cache/`; cache uchovává posledních 183 kalendářních dnů (půl roku). Starší dny se stahují bez ukládání, souvislé úseky jedním dotazem (`getUncachedDays`).
 - `node --env-file=.env.local --import tsx scripts/check-claude.ts`: test API klíče a modelu
 
 ## Proměnné prostředí (`.env.local`, vzor v `.env.example`)

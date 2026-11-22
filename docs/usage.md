@@ -45,7 +45,9 @@ Když napíšete „kruhový nebo sloupcový“, AI vybere ten, který se k dat�
 - U počasí se vybrané dny zobrazí samostatně; „celkem“ zůstává průměrem, ne součtem různých denních průměrů.
 - Lze porovnat 2–12 chronologicky zadaných období, každé vůči prvnímu. Celý rozsah včetně mezer musí být nejvýše 31 dní. U dopravy se při různých délkách porovnává počet vozidel na dostupnou hodinu; tabulka i exporty přesto obsahují celkové součty. U stejně dlouhých období je hlavním srovnáním celkový počet. U počasí se porovnávají průměry a jejich absolutní rozdíl, ne procenta.
 - Bez času se ukáže celý včerejšek a u odpovědi to je napsané.
-- Data jsou za posledních ~30 dní, najednou nejvýš 31 dní. Budoucnost ne.
+- Doprava je zhruba od září 2024, počasí od léta 2025, najednou nejvýš 31 dní. Budoucnost ne.
+  Posledního půl roku je v cache (rychle), starší data se stahují přímo z CITIQ po souvislých úsecích a neukládají se
+  (měsíc trvá zhruba 10 s).
 
 ### Místa
 17. listopadu (obě brány nebo jen Jih / Sever), Kafkova (obě brány), Billa (Hynaisova), Fisherova, Fugnerova,

@@ -34,7 +34,7 @@ function AskHelp({ onPick }: { onPick?: (question: string) => void }) {
       </p>
       <HelpList>
         <Item term="Co">Doprava: kolik vozidel projelo, porovnání míst a dní, špičky, vjezdy a výjezdy. Počasí: teplota, vlhkost, tlak a vítr.</Item>
-        <Item term="Kdy">Posledních 30 dní: „včera“, „v pondělí“, „posledních 7 hodin“, „mezi 6 a 10“.</Item>
+        <Item term="Kdy">Doprava od září 2024, počasí od léta 2025, najednou až 31 dní: „včera“, „posledních 7 hodin“, „loni v listopadu“.</Item>
         <Item term="Jak">Věta, sloupcový, čárový nebo koláčový graf, tabulka, odkaz na API. I s nadpisem a barvou pozadí ({PALETTE_LABELS}).</Item>
         <Item term="Kde">
           {TRAFFIC_DATASET.places.length} dopravních míst a {WEATHER_DATASET.places.length} meteostanic. Seznam je pod polem v „Na co se můžu zeptat?“.

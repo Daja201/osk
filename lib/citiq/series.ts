@@ -1,6 +1,6 @@
 // Počty vozidel pro víc bran a libovolný časový rozsah, po hodinách, po dnech nebo celkem.
 // Tohle je jediný výpočet, ze kterého AI vrstva bere čísla. Claude tu nic nepočítá.
-import { getCachedDay, getCachedRange, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
+import { type UncachedDay, getCachedDay, getCachedRange, getUncachedDays, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
 import { GATE_NAMES, type Gate, MAX_GATES, MAX_GROUP_SPREAD_M, groupSpreadM, placeName, placesOf, resolveGate, sensorsOf } from "./gates";
 import { type CitiqGateRow, MS_PER_HOUR, TRAFFIC_CITIQ_PARAMS, VIEW, findGateRow, hourlyOf, isCitiqGateRows } from "./parse";
@@ -8,7 +8,7 @@ import type { ComparisonPeriod, PeriodComparison } from "./comparison";
 import { validateSelectedDays } from "./selectedDays";
 
 const TIME_ZONE = "Europe/Prague";
-export const MAX_DAYS = 31; // cache drží 30 dní, víc najednou nestahujeme
+export const MAX_DAYS = 31; // víc najednou nestahujeme (starší data mimo cache by se stahovala dlouho)
 
 export type Direction = "in" | "out" | "both";
 export type Granularity = "hour" | "day" | "total" | "period";
@@ -151,6 +151,16 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
   }
   let dayCount = 0;
   let otherDayLength = false;
+  // Dny starší než půl roku (mimo cache) stáhneme najednou po souvislých úsecích, viz getUncachedDays.
+  let oldDays: Map<string, UncachedDay>;
+  try {
+    oldDays = await getUncachedDays(VIEW, datesToFetch, TRAFFIC_CITIQ_PARAMS, new Date(now));
+  } catch (error) {
+    if (error instanceof CitiqError && error.status === 429) {
+      return fail("RATE_LIMIT_ERROR", "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.");
+    }
+    return fail("FETCH_FAILED", error instanceof Error ? error.message : "Data z CITIQ se nepodařilo stáhnout.");
+  }
   for (const date of datesToFetch) {
     const dayStart = utcStartOfPragueDay(date).getTime();
     if (dayStart >= endMs) continue;
@@ -158,12 +168,14 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
     const hours = Math.round((dayEnd - dayStart) / MS_PER_HOUR); // 23 / 24 / 25 (změna času)
     // Dnešek je neúplný: ptáme se jen do poslední celé hodiny (cache má pro každou hodinu jiný soubor).
     const stop = date === today ? lastFullHour - 1000 : dayEnd - 1000;
+    const old = oldDays.get(date);
     let entry: { data: unknown; fetched_at: string };
     try {
       entry =
-        date === today
+        old ??
+        (date === today
           ? await getCachedRange(VIEW, new Date(dayStart), new Date(stop), TRAFFIC_CITIQ_PARAMS)
-          : await getCachedDay(VIEW, date, TRAFFIC_CITIQ_PARAMS);
+          : await getCachedDay(VIEW, date, TRAFFIC_CITIQ_PARAMS));
     } catch (error) {
       if (error instanceof CitiqError && error.status === 429) {
         return fail("RATE_LIMIT_ERROR", "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.");
@@ -171,11 +183,9 @@ export async function trafficSeries(params: SeriesParams, options: { now?: Date 
       return fail("FETCH_FAILED", error instanceof Error ? error.message : "Data z CITIQ se nepodařilo stáhnout.");
     }
     if (!isCitiqGateRows(entry.data)) return fail("BAD_RESPONSE", "CITIQ vrátil neočekávaný formát dat.");
-    sources.push({
-      date,
-      url: citiqUrl({ view: VIEW, start: iso(dayStart), stop: iso(stop), ...TRAFFIC_CITIQ_PARAMS }),
-      fetched_at: entry.fetched_at,
-    });
+    // Zdroj = skutečný dotaz na CITIQ; u starých dnů jeden společný pro celý úsek (uvedený jednou).
+    const url = citiqUrl({ view: VIEW, start: old ? old.start.toISOString() : iso(dayStart), stop: old ? old.stop.toISOString() : iso(stop), ...TRAFFIC_CITIQ_PARAMS });
+    if (!sources.some((source) => source.url === url)) sources.push({ date, url, fetched_at: entry.fetched_at });
     dayCount += 1;
     if (hours !== 24) otherDayLength = true;
 

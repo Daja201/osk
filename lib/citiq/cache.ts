@@ -5,7 +5,9 @@ import { fetchCitiq, type CitiqParams } from "./client";
 
 const CACHE_DIR = path.join(process.cwd(), "data", "cache");
 const LOCAL_TIME_ZONE = "Europe/Prague";
-const CACHE_RETENTION_DAYS = 30;
+// Cache drží posledního půl roku. Starší dny jdou stáhnout taky (CITIQ má data zhruba od roku 2024),
+// ale neukládají se: stahují se po souvislých úsecích jedním dotazem (getUncachedDays).
+const CACHE_RETENTION_DAYS = 183;
 const MIN_REQUEST_INTERVAL_MS = 1000;
 
 const pendingFetches = new Map<string, Promise<CacheEntry>>();
@@ -259,7 +261,9 @@ export async function getCachedRange(
 
   await pruneExpiredCache();
   const filePath = cacheFilePath(view, start, stop, citiqParams);
-  const existing = await readCacheFile(filePath);
+  // Den starší než doba uložení: stáhnout, ale neukládat (prune by ho stejně hned smazal).
+  const keep = dateStringInPrague(start) >= getCacheRetentionStartDate();
+  const existing = keep ? await readCacheFile(filePath) : null;
   if (existing) return existing;
 
   const pending = pendingFetches.get(filePath);
@@ -274,8 +278,10 @@ export async function getCachedRange(
     });
 
     const fetchedAt = new Date().toISOString();
-    await writeCacheFile(filePath, fresh, fetchedAt);
-    await pruneExpiredCache();
+    if (keep) {
+      await writeCacheFile(filePath, fresh, fetchedAt);
+      await pruneExpiredCache();
+    }
     return { data: fresh, fetched_at: fetchedAt };
   })();
   pendingFetches.set(filePath, fetchPromise);
@@ -298,4 +304,93 @@ export async function getCachedDay(
   const nextDayStart = utcStartOfPragueDay(nextLocalDate);
   const stop = new Date(nextDayStart.getTime() - 1000);
   return getCachedRange(view, start, stop, citiqParams);
+}
+
+// Odpověď pro starý den (mimo cache) i s tím, jakým dotazem na CITIQ vznikla (pro „Zdroj dat“).
+export type UncachedDay = CacheEntry & { start: Date; stop: Date };
+
+// Z odpovědi na víc dní vybere body jednoho dne (čas bodu = konec hodiny, tedy v intervalu (začátek dne, konec dne]).
+// Tvar odpovědi je u dopravy i počasí stejný: results[].measurements[].values[].point.time.
+function pointsOfDay(data: unknown, fromMs: number, toMs: number): unknown {
+  if (typeof data !== "object" || data === null || !("results" in data) || !Array.isArray(data.results)) return data;
+  const inDay = (value: unknown) => {
+    if (typeof value !== "object" || value === null || !("point" in value)) return true;
+    const point = value.point;
+    if (typeof point !== "object" || point === null || !("time" in point) || typeof point.time !== "string") return true;
+    const time = Date.parse(point.time);
+    return time > fromMs && time <= toMs;
+  };
+  return {
+    ...data,
+    results: data.results.map((row: unknown) =>
+      typeof row === "object" && row !== null && "measurements" in row && Array.isArray(row.measurements)
+        ? {
+            ...row,
+            measurements: row.measurements.map((measurement: unknown) =>
+              typeof measurement === "object" && measurement !== null && "values" in measurement && Array.isArray(measurement.values)
+                ? { ...measurement, values: measurement.values.filter(inDay) }
+                : measurement,
+            ),
+          }
+        : row,
+    ),
+  };
+}
+
+// Souvislé úseky dnů (5., 6., 7. a 10. → [5–7], [10]).
+function consecutiveRuns(dates: string[]): string[][] {
+  const runs: string[][] = [];
+  for (const date of [...new Set(dates)].sort()) {
+    const run = runs.at(-1);
+    if (run && addDays(run[run.length - 1], 1) === date) run.push(date);
+    else runs.push([date]);
+  }
+  return runs;
+}
+
+// Celé dny, které v cache chybí, nestahujeme po dnech (1 dotaz za sekundu → měsíc ~50 s), ale po souvislých
+// úsecích jedním dotazem (měsíc ~9 s):
+// - dny z posledního půl roku se pak rozdělí po dnech a uloží do cache (další dotaz je vezme z ní),
+// - starší dny se neukládají; vrátí se a každý dostane data celého úseku (výpočet si vezme jen hodiny svého dne).
+// Vrací jen staré dny; ostatní si výpočet přečte z cache přes getCachedDay. Dnešek sem nepatří (je neúplný).
+export async function getUncachedDays(
+  view: string,
+  dates: string[],
+  citiqParams: Omit<CitiqParams, "view" | "start" | "stop"> = {},
+  now = new Date(),
+): Promise<Map<string, UncachedDay>> {
+  const firstRetained = getCacheRetentionStartDate(now);
+  const today = dateStringInPrague(now);
+  const old = dates.filter((date) => date < firstRetained);
+  const missing: string[] = [];
+  for (const date of dates) {
+    if (date < firstRetained || date >= today) continue;
+    const start = utcStartOfPragueDay(date);
+    const stop = new Date(utcStartOfPragueDay(addDays(date, 1)).getTime() - 1000);
+    if (!(await readCacheFile(cacheFilePath(view, start, stop, citiqParams)))) missing.push(date);
+  }
+
+  const fetchRun = async (run: string[]) => {
+    const start = utcStartOfPragueDay(run[0]);
+    const stop = new Date(utcStartOfPragueDay(addDays(run[run.length - 1], 1)).getTime() - 1000);
+    const data = await fetchCitiqAtLimitedRate({ view, start: start.toISOString(), stop: stop.toISOString(), ...citiqParams });
+    return { data, start, stop, fetchedAt: new Date().toISOString() };
+  };
+
+  for (const run of consecutiveRuns(missing)) {
+    const { data, fetchedAt } = await fetchRun(run);
+    for (const date of run) {
+      const dayStart = utcStartOfPragueDay(date);
+      const nextStart = utcStartOfPragueDay(addDays(date, 1));
+      const stop = new Date(nextStart.getTime() - 1000);
+      await writeCacheFile(cacheFilePath(view, dayStart, stop, citiqParams), pointsOfDay(data, dayStart.getTime(), nextStart.getTime()), fetchedAt);
+    }
+  }
+
+  const days = new Map<string, UncachedDay>();
+  for (const run of consecutiveRuns(old)) {
+    const { data, start, stop, fetchedAt } = await fetchRun(run);
+    for (const date of run) days.set(date, { data, fetched_at: fetchedAt, start, stop });
+  }
+  return days;
 }

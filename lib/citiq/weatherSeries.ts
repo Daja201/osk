@@ -1,4 +1,4 @@
-import { getCachedDay, getCachedRange, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
+import { type UncachedDay, getCachedDay, getCachedRange, getUncachedDays, parsePragueDateTime, utcStartOfPragueDay } from "./cache";
 import { CitiqError, citiqUrl } from "./client";
 import { ZodError } from "zod";
 import type { ComparisonPeriod, PeriodComparison } from "./comparison";
@@ -160,25 +160,37 @@ export async function weatherSeries(
   if (!selectedDates) {
     for (let date = pragueDate(fromMs); date <= pragueDate(endMs - 1); date = nextDate(date)) datesToFetch.push(date);
   }
+  const query = {
+    measurement_keys: requestedKeys,
+    window: "1h" as const,
+    agg_func: "mean",
+    format: "json" as const,
+  };
+  // Dny starší než půl roku (mimo cache) stáhneme najednou po souvislých úsecích, viz getUncachedDays.
+  let oldDays: Map<string, UncachedDay>;
+  try {
+    oldDays = await getUncachedDays(VIEW, datesToFetch, query, new Date(now));
+  } catch (error) {
+    if (error instanceof CitiqError && error.status === 429) {
+      return fail("RATE_LIMIT_ERROR", "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.");
+    }
+    return fail("FETCH_FAILED", error instanceof Error ? error.message : "Data z CITIQ se nepodařilo stáhnout.");
+  }
   for (const date of datesToFetch) {
     const dayStart = utcStartOfPragueDay(date).getTime();
     if (dayStart >= endMs) continue;
     const dayEnd = utcStartOfPragueDay(nextDate(date)).getTime();
     const hours = Math.round((dayEnd - dayStart) / MS_PER_HOUR);
     const stop = date === today ? lastFullHour - 1000 : dayEnd - 1000;
-    const query = {
-      measurement_keys: requestedKeys,
-      window: "1h" as const,
-      agg_func: "mean",
-      format: "json" as const,
-    };
+    const old = oldDays.get(date);
 
     let entry: { data: unknown; fetched_at: string };
     try {
       entry =
-        date === today
+        old ??
+        (date === today
           ? await getCachedRange(VIEW, new Date(dayStart), new Date(stop), query)
-          : await getCachedDay(VIEW, date, query);
+          : await getCachedDay(VIEW, date, query));
     } catch (error) {
       if (error instanceof CitiqError && error.status === 429) {
         return fail("RATE_LIMIT_ERROR", "Zdroj dat dočasně omezuje počet dotazů. Zkuste to prosím za chvíli.");
@@ -193,11 +205,9 @@ export async function weatherSeries(
       if (error instanceof ZodError) return fail("BAD_RESPONSE", "CITIQ vrátil neočekávaný formát meteorologických dat.");
       throw error;
     }
-    sources.push({
-      date,
-      url: citiqUrl({ view: VIEW, start: iso(dayStart), stop: iso(stop), ...query }),
-      fetched_at: entry.fetched_at,
-    });
+    // Zdroj = skutečný dotaz na CITIQ; u starých dnů jeden společný pro celý úsek (uvedený jednou).
+    const url = citiqUrl({ view: VIEW, start: old ? old.start.toISOString() : iso(dayStart), stop: old ? old.stop.toISOString() : iso(stop), ...query });
+    if (!sources.some((source) => source.url === url)) sources.push({ date, url, fetched_at: entry.fetched_at });
 
     const perSelection = stations.flatMap((station) => {
       const row = findWeatherRow(data, station.uuid);
