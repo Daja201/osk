@@ -286,29 +286,6 @@ describe("ask: grafy a tabulky", () => {
     expect(answer.result).toMatchObject({ ok: true, data: { granularity: "period", buckets: [{}, {}], comparison: { periods: [{}, {}] } } });
   });
 
-<<<<<<< HEAD
-  it("předá výslovný požadavek na sloučení bran jako jednu denní řadu", async () => {
-    const answer = await ask(
-      "Sečti každý den sever a jih 17. listopadu do jednoho sloupce",
-      deps(fakeClient([
-        toolUse({
-          ...spec,
-          gates: ["17. listopadu (obě brány)"],
-          combine_gates: true,
-          from: "2026-11-17T00:00",
-          to: "2026-11-20T00:00",
-          granularity: "day",
-        }),
-      ])),
-    );
-
-    expect(seriesCalls[0]).toMatchObject({
-      gates: ["17. listopadu (obě brány)"],
-      combineGates: true,
-      granularity: "day",
-    });
-    expect(answer.result).toMatchObject({ ok: true, data: { granularity: "day", series: [{ gate: "17. listopadu (obě brány)" }] } });
-=======
   it("různě dlouhá období: Claude dostane jen průměr za hodinu, věta se součty neprojde", async () => {
     const periods = [
       { from: "2026-11-17T00:00", to: "2026-11-18T00:00" },
@@ -325,7 +302,6 @@ describe("ask: grafy a tabulky", () => {
     expect(summary.places[0].periods[0]).toHaveProperty("vehicles_per_hour");
     // Součet (100) v shrnutí není, proto věta se součty neprojde a větu složí kód.
     expect(answer.sentence_source).toBe("fallback");
->>>>>>> origin/main
   });
 
   it("nadpis a barva od uživatele projdou", async () => {
