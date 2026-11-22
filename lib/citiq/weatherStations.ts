@@ -47,6 +47,8 @@ export function resolveWeatherMetric(key: string) {
 // Popis datasetu pro lidi (panel „Co za data mám“ pod polem pro otázku). Zdroj: metadata CITIQ meteorological-data-olomouc.
 export const WEATHER_DATASET = {
   title: "Počasí",
-  description: "Hodinová měření z meteostanic zhruba od léta 2025: teplota (°C), vlhkost (%), tlak (hPa), rychlost (m/s) a směr větru (°).",
+  since: "od léta 2025",
+  ask: "Teplota, vlhkost, tlak a vítr: průměr, průběh po hodinách, porovnání dní.",
+  placesLabel: "Stanice",
   places: WEATHER_STATIONS.map((station) => stationName(station.nick)),
 };

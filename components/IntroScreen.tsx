@@ -115,7 +115,10 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         onClick={() => {
           setHintOpen(!hintOpen);
           // Na telefonu je pole přilepené dole: rozbalený panel posuneme do pohledu nad pole (pole se nehne).
-          if (!hintOpen && !wide) requestAnimationFrame(() => panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+          // Jen na telefonu (do 640 px, kde je pole přilepené dole); na tabletu by stránka zbytečně poskočila.
+          if (!hintOpen && window.matchMedia("(max-width: 639px)").matches) {
+            requestAnimationFrame(() => panel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+          }
         }}
         className={`${PRESS} flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[16px] font-medium text-muted hover:bg-band hover:text-ink`}
       >
@@ -127,10 +130,25 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
       {hintOpen && (
         <div id="datasety" ref={panel} className="animate-rise grid w-full scroll-mb-28 gap-3 sm:grid-cols-2">
           {[TRAFFIC_DATASET, WEATHER_DATASET].map((dataset) => (
-            <section key={dataset.title} className="rounded-2xl border border-line bg-surface p-4 text-left">
-              <h2 className="m-0 text-[17px] font-bold text-ink">{dataset.title}</h2>
-              <p className="m-0 mt-1 text-[15px] leading-snug text-muted">{dataset.description}</p>
-              <p className="m-0 mt-2 text-[14px] leading-snug text-ink">{dataset.places.join(", ")}</p>
+            // Karta: název a odkdy jsou data, jednou větou co se dá zjistit, místa jako štítky (rychle se projdou očima).
+            <section key={dataset.title} className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-4 text-left">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="m-0 text-[18px] font-bold text-ink">{dataset.title}</h2>
+                <span className="shrink-0 text-[13px] font-medium text-muted">{dataset.since}</span>
+              </div>
+              <p className="m-0 text-[15px] leading-snug text-ink">{dataset.ask}</p>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[12px] font-semibold tracking-wide text-muted uppercase">
+                  {dataset.placesLabel} ({dataset.places.length})
+                </span>
+                <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+                  {dataset.places.map((place) => (
+                    <li key={place} className="rounded-md bg-band px-2 py-0.5 text-[13px] leading-snug text-ink">
+                      {place}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
           ))}
         </div>
@@ -155,7 +173,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
         />
       </div>
       {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice), dá se posunout, místo aby se texty překryly. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:px-8 sm:pt-[max(24px,calc(50dvh-240px))] sm:pb-[8vh]">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:px-8 sm:pt-[max(24px,calc(50dvh-300px))] sm:pb-[8vh]">
         <div className={`flex flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex-none sm:pt-0 sm:pb-8 ${fade}`}>
           <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">OSK me..</h1>
         </div>
@@ -164,7 +182,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
             - telefon: tlačítko a panel nad polem, pole přilepené dole u palce (sticky), obsah nad ním se posouvá,
             - počítač: panel pod polem; blok není centrovaný, ale má pevné odsazení shora. */}
         <div className="flex w-full max-w-[760px] shrink-0 flex-col gap-4">
-          <div className="order-2 bg-surface max-sm:sticky max-sm:bottom-0 max-sm:pb-1 sm:order-1">{composer}</div>
+          <div className="order-2 bg-surface max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:pb-1 sm:order-1">{composer}</div>
           <div className="order-1 sm:order-2">{datasets}</div>
         </div>
       </main>
