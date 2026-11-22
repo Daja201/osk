@@ -24,9 +24,14 @@ function subscribe(listener: () => void) {
   };
 }
 
+// Přepnutí je okamžité: na chvíli vypneme všechny přechody (data-theme-switching, viz app/globals.css),
+// jinak by se barvy tlačítek a ploch „dobarvovaly“ několik setin. Po vykreslení přechody zase zapneme.
 export function setTheme(theme: Theme) {
-  document.documentElement.dataset.theme = theme;
+  const root = document.documentElement;
+  root.dataset.themeSwitching = "";
+  root.dataset.theme = theme;
   listeners.forEach((listener) => listener());
+  requestAnimationFrame(() => requestAnimationFrame(() => delete root.dataset.themeSwitching));
 }
 
 // Aktuální režim. Na serveru ho neznáme, proto "light"; v prohlížeči se hned přečte skutečný.

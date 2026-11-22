@@ -125,6 +125,13 @@ circle.chart-item:focus-visible {
   outline: none;
 }
 
+/* Přepnutí světlého a tmavého režimu bez plynulého přechodu (lib/ui/theme.ts nastaví na chvíli tenhle atribut). */
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after {
+  transition: none !important;
+}
+
 /* Viditelný focus pro ovládání klávesnicí: jen žlutý obrys (bez bílého / tmavého okraje kolem).
    Je schválně mimo vrstvu, takže má přednost před třídami Tailwindu a je vždy vidět. */
 :focus-visible {
