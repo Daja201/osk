@@ -193,9 +193,22 @@ export default function Chart({
   const titleLines = wrap(title, Math.floor((width - 2 * pad - qrSpace) / (titleSize * 0.47)), narrow ? 5 : 3);
   const top = Math.max(pad + titleLines.length * titleLineHeight + 12, qrSize ? pad + qrSize + 22 : 0);
   const data = chartData(result);
-  const values = data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
+  // Pravá osa: graf dopravy a počasí (Davidův combined_series) má řady s jinou jednotkou (vozidla × °C).
+  // Řady počasí jdou na vlastní pravou osu, jinak by teplota (kolem 10) byla u auta (stovky) rovná čára u nuly.
+  const onRight = result.data.buckets.length > 1 ? result.data.series.map((s) => "dataset" in s && s.dataset === "weather") : [];
+  const dual = kind !== "pie" && onRight.some(Boolean) && onRight.some((r) => !r);
+  const valuesOf = (right: boolean) =>
+    data.series.flatMap((s, i) => (dual && (onRight[i] ?? false) !== right ? [] : s.values)).filter((v): v is number => v !== null);
+  const values = valuesOf(false);
   const axis = axisFor(values, axisSetting);
-  const footnote = kind !== "pie" && axis.zoomed ? `Osa začíná na ${formatNumber(axis.min)}, ne na nule · ${FOOTNOTE}` : FOOTNOTE;
+  const rightAxis = dual ? axisFor(valuesOf(true), { mode: "auto" }) : null;
+  const rightSeries = result.data.series.find((_, i) => onRight[i]);
+  const rightUnit = rightSeries && "unit" in rightSeries ? (rightSeries.unit ?? "") : "";
+  const zoomNotes = [
+    kind !== "pie" && axis.zoomed ? `${dual ? "Levá osa" : "Osa"} začíná na ${formatNumber(axis.min)}, ne na nule` : null,
+    rightAxis?.zoomed ? `pravá osa začíná na ${formatNumber(rightAxis.min)}` : null,
+  ].filter((note) => note !== null);
+  const footnote = zoomNotes.length > 0 ? `${zoomNotes.join(", ")} · ${FOOTNOTE}` : FOOTNOTE;
   // Barvy: výchozí jako vždycky (sloupce „celkem za místo“ jednou barvou, jinak 1., 2., 3. barva palety),
   // vlastní barva z editoru jen tam, kde si ji uživatel nastavil. Řada i = místo i; u „celkem za místo“ je místo kategorie.
   const perCategory = result.data.buckets.length === 1;
@@ -213,7 +226,7 @@ export default function Chart({
     kind === "pie"
       ? slices.map((s, i) => ({ label: `${s.label}: ${formatNumber(s.value)} (${shares[i]} %)`, color: sliceColor(i) }))
       : data.series.length > 1
-        ? data.series.map((s, i) => ({ label: s.name, color: seriesColor(i, 0) }))
+        ? data.series.map((s, i) => ({ label: dual && onRight[i] ? `${s.name} (pravá osa)` : s.name, color: seriesColor(i, 0) }))
         : [];
   const legend = legendRows(legendItems, width - 2 * pad, colors, 0, kind === "pie" ? (width < 500 ? 15 : 17) : 14);
   // Popis pro čtečky obrazovky: hodnoty grafu slovy (u dlouhých řad jen prvních 12).
@@ -232,7 +245,7 @@ export default function Chart({
   const below = pad + 22 + footExtra + (legend.height > 0 ? legend.height + 12 : 0) + (kind === "pie" ? 0 : 14 + labelRows * 16);
   const HEIGHT = Math.max(baseHeight, top + (narrow ? 170 : 220) + below);
   const bottom = HEIGHT - pad - 22 - footExtra - (legend.height > 0 ? legend.height + 12 : 0);
-  const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad, top, bottom: bottom - (kind === "pie" ? 0 : 14 + labelRows * 16) };
+  const plot = { left: pad + (kind === "pie" ? 0 : 52), right: width - pad - (dual ? 52 : 0), top, bottom: bottom - (kind === "pie" ? 0 : 14 + labelRows * 16) };
   const plotW = plot.right - plot.left;
   const plotH = plot.bottom - plot.top;
 
@@ -259,7 +272,7 @@ export default function Chart({
         {kind === "pie" ? (
           <Pie slices={slices} shares={shares} sliceColor={sliceColor} cx={plot.left + plotW / 2} cy={plot.top + plotH / 2} r={Math.max(40, Math.min(plotW, plotH) / 2 - 4)} colors={colors} interaction={interaction} />
         ) : (
-          <Axes kind={kind} result={result} data={data} axis={axis} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} interaction={interaction} />
+          <Axes kind={kind} result={result} data={data} axis={axis} rightAxis={rightAxis} onRight={onRight} rightUnit={rightUnit} plot={plot} plotW={plotW} plotH={plotH} colors={colors} seriesColor={seriesColor} interaction={interaction} />
         )}
 
         <g transform={`translate(${pad}, ${bottom + 26})`}>{legend.nodes}</g>
@@ -288,6 +301,9 @@ function Axes({
   result,
   data,
   axis,
+  rightAxis,
+  onRight,
+  rightUnit,
   plot,
   plotW,
   plotH,
@@ -299,6 +315,9 @@ function Axes({
   result: SeriesDisplayOk;
   interaction: Interaction;
   axis: ValueAxis;
+  rightAxis: ValueAxis | null; // pravá osa pro řady s jinou jednotkou (počasí u dopravy), jinak null
+  onRight: boolean[]; // která řada patří na pravou osu
+  rightUnit: string;
   data: ReturnType<typeof chartData>;
   plot: Plot;
   plotW: number;
@@ -308,6 +327,9 @@ function Axes({
 }) {
   // Hodnota → výška. Osa může začínat nad nulou (axis.min), pak je to u ní vyznačené přerušením.
   const y = (value: number) => plot.bottom - ((value - axis.min) / (axis.max - axis.min)) * plotH;
+  const yRight = (value: number) => (rightAxis ? plot.bottom - ((value - rightAxis.min) / (rightAxis.max - rightAxis.min)) * plotH : y(value));
+  // Výška pro řadu: řady na pravé ose podle pravé stupnice.
+  const yOf = (series: number) => (rightAxis && onRight[series] ? yRight : y);
   const n = data.categories.length;
   const labels = xLabels(kind, data, plotW);
   const slot = plotW / n;
@@ -337,6 +359,17 @@ function Axes({
           </text>
         </g>
       ))}
+
+      {/* Pravá osa (počasí u dopravy): jen popisky vpravo i s jednotkou („10 °C“), mřížka patří levé ose. */}
+      {rightAxis && (
+        <g>
+          {rightAxis.ticks.map((tick) => (
+            <text key={`r${tick}`} x={plot.right + 8} y={yRight(tick) + 4} fontSize="13" textAnchor="start" fill={colors.muted}>
+              {`${formatNumber(tick)}${rightUnit ? ` ${rightUnit}` : ""}`}
+            </text>
+          ))}
+        </g>
+      )}
 
       {/* Přerušení osy: dvě šikmé čárky na začátku spodní čáry, když osa nezačíná nulou. */}
       {axis.zoomed && (
@@ -392,9 +425,9 @@ function Axes({
                     <g key={i} {...interactive(pickAt(result, si, i), `${data.categories[i]}, ${s.name}: ${formatNumber(value)}. Ukázat odkud je.`, interaction, colors.text)}>
                       <rect
                         x={start(i) + 1}
-                        y={y(value)}
+                        y={yOf(si)(value)}
                         width={Math.max(1, barW - 2)}
-                        height={plot.bottom - y(value)}
+                        height={plot.bottom - yOf(si)(value)}
                         rx="3"
                         fill={seriesColor(si, i)}
                         stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
@@ -403,7 +436,7 @@ function Axes({
                         <title>{`${data.categories[i]}, ${s.name}: ${formatNumber(value)}`}</title>
                       </rect>
                       {showValues && (
-                        <text x={start(i) + barW / 2} y={y(value) - 7} fontSize="14" fontWeight="600" textAnchor="middle" fill={colors.text}>
+                        <text x={start(i) + barW / 2} y={yOf(si)(value) - 7} fontSize="14" fontWeight="600" textAnchor="middle" fill={colors.text}>
                           {formatNumber(value)}
                         </text>
                       )}
@@ -415,7 +448,7 @@ function Axes({
           })
         : data.series.map((s, si) => {
             // Chybějící hodnota (null) čáru přeruší, nespojujeme přes ni.
-            const d = s.values.map((value, i) => (value === null ? "" : `${i > 0 && s.values[i - 1] !== null ? "L" : "M"}${x(i)},${y(value)}`)).join("");
+            const d = s.values.map((value, i) => (value === null ? "" : `${i > 0 && s.values[i - 1] !== null ? "L" : "M"}${x(i)},${yOf(si)(value)}`)).join("");
             return (
               <g key={si}>
                 <path d={d} fill="none" stroke={seriesColor(si, 0)} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
@@ -425,7 +458,7 @@ function Axes({
                       <circle
                         key={i}
                         cx={x(i)}
-                        cy={y(value)}
+                        cy={yOf(si)(value)}
                         r={samePick(interaction.picked, pickAt(result, si, i)) ? 7 : 4}
                         fill={seriesColor(si, i)}
                         stroke={samePick(interaction.picked, pickAt(result, si, i)) ? colors.text : "none"}
