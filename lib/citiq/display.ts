@@ -7,25 +7,44 @@ export type DisplaySeries = {
   sensors: string[];
   metric?: string;
   unit?: string;
+  dataset?: "traffic" | "weather";
+  direction?: "in" | "out";
   values: (number | null)[];
   coverage: { hours: number; of: number };
 } & ({ total: number; mean?: never } | { mean: number | null; total?: never });
 
+export type AnalysisInfo =
+  | { type: "typical_profile" }
+  | { type: "ratio" | "share"; numerator: string; denominator: string };
+
 export type SeriesDisplayOk = {
   data: {
-    granularity: Granularity | WeatherGranularity;
+    granularity: Granularity | WeatherGranularity | "profile";
     buckets: { label: string; start: string; end: string }[];
     series: DisplaySeries[];
     comparison?: PeriodComparison;
   };
   meta: {
-    tool?: "traffic_series" | "weather_series";
-    params?: { dates?: string[] };
+    tool?: "traffic_series" | "weather_series" | "combined_series";
+    params?: {
+      dates?: string[];
+      direction?: string;
+      gates?: string[];
+      combineGates?: boolean;
+      stations?: string[];
+      metrics?: string[];
+      from?: string;
+      to?: string;
+      granularity?: string;
+    };
+    analysis?: AnalysisInfo;
     period: { start: string; end: string; clipped: boolean };
     sources: { date: string; url: string; fetched_at: string }[];
     notes: string[];
   };
 };
+
+export type AnalyticsSeriesOk = { ok: true } & SeriesDisplayOk;
 
 export function aggregateValue(series: DisplaySeries): number | null {
   if ("mean" in series && series.mean !== undefined) return series.mean;
