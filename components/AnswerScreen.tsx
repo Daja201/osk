@@ -11,7 +11,7 @@ import ChartEditor from "./ChartEditor";
 import FollowUp from "./FollowUp";
 import Footer from "./Footer";
 import { PRESS } from "./styles";
-import TopBar from "./TopBar";
+import TopBar, { FLOATING_OFFSET, Logo } from "./TopBar";
 import { effectiveView } from "./ViewChart";
 
 
@@ -116,10 +116,12 @@ export default function AnswerScreen({
   // Rozložení: na široké obrazovce editor vedle grafu. Patička je v posouvané části,
   // aby na malém displeji nezabírala místo tlačítkům.
   return (
-    <div className="flex h-dvh flex-col bg-tabule text-white">
+    <div className="relative flex h-dvh flex-col bg-tabule text-white">
       {/* Lišta je uvnitř posouvané oblasti: při posouvání odjede nahoru s obsahem. */}
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <TopBar tone="blue" info="answer" onNew={onNew} />
+      {/* Průhledná lišta: nad obsahem zůstanou jen tlačítka; logo je na začátku obsahu a odjede s ním. */}
+      <TopBar tone="blue" info="answer" onNew={onNew} floating />
+      <main className={`relative flex min-h-0 flex-1 flex-col overflow-y-auto ${FLOATING_OFFSET}`}>
+        <Logo tone="blue" inContent />
         <div className={`m-auto flex w-full flex-col px-4 py-3 sm:px-8 sm:py-4 ${editorOpen ? "max-w-[1240px]" : "max-w-[900px]"}`}>
           {/* Předchozí otázky konverzace: otázka, odpověď a odkaz na podrobnosti. */}
           {history.map((previous) => (
@@ -154,7 +156,8 @@ export default function AnswerScreen({
                     />
                   </div>
                 </div>
-                {editor && <div className="animate-rise sticky top-4">{editor}</div>}
+                {/* top: editor se při posouvání zastaví pod plovoucími tlačítky (84 px). */}
+                {editor && <div className="animate-rise sticky top-[92px]">{editor}</div>}
               </div>
             )}
           </section>

@@ -3,10 +3,12 @@
 export const PRESS =
   "cursor-pointer transition-[transform,background-color,color] duration-150 ease-out hover:scale-105 active:scale-95 disabled:cursor-wait disabled:hover:scale-100 motion-reduce:transform-none";
 
-// Povrch tlačítek v horní liště (na bílé a na modré obrazovce), společný pro tlačítka s textem i ikony.
+// Povrch tlačítek v horní liště, společný pro tlačítka s textem i ikony. Lehce průhledný s rozmazáním pozadí:
+// v konverzaci tlačítka plavou nad obsahem (průhledná lišta) a musí zůstat čitelná i nad bílým grafem.
+// Na klidném pozadí vypadají jako dřív (na modré: bílá 15 % přes modrou).
 const BAR_SURFACE = {
-  light: "border border-line bg-surface text-ink hover:border-ink",
-  blue: "bg-white/15 text-white hover:bg-white/25",
+  light: "border border-line bg-surface/85 text-ink backdrop-blur-md hover:border-ink",
+  blue: "bg-[color-mix(in_srgb,color-mix(in_srgb,white_15%,var(--color-tabule))_85%,transparent)] text-white backdrop-blur-md hover:bg-[color-mix(in_srgb,color-mix(in_srgb,white_25%,var(--color-tabule))_90%,transparent)]",
 } as const;
 
 // Kulaté tlačítko s textem v horní liště: na bílé a na modré obrazovce. Výška 44 px = doporučená dotyková plocha na mobilu.
