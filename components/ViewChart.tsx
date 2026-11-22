@@ -22,6 +22,13 @@ export function effectiveView(answer: AskAnswer, edited: ChartView | null | unde
   if (result?.meta.tool === "weather_series" && result.meta.params.metrics.length > 1 && view.format !== "table") {
     return { ...view, format: "table" };
   }
+  if (
+    result?.meta.tool === "combined_series" &&
+    new Set(result.data.series.map((series) => series.unit ?? "")).size > 2 &&
+    view.format !== "table"
+  ) {
+    return { ...view, format: "table" };
+  }
   return view;
 }
 

@@ -159,13 +159,14 @@ export default function ChartEditor({
   const slots = view.format === "table" ? [] : colorSlots(result, view.format);
   const values = result.data.series.flatMap((s) => s.values).filter((v): v is number => v !== null);
   const isChart = view.format !== "table";
+  const dualAxis = result.meta.tool === "combined_series" && new Set(result.data.series.map((series) => series.unit ?? "")).size > 1;
   const id = useId();
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "typ", label: "Typ" },
     { id: "nadpis", label: "Nadpis" },
     { id: "barvy", label: "Barvy" },
-    ...(isChart && view.format !== "pie" ? [{ id: "osa" as const, label: "Osa" }] : []),
+    ...(isChart && view.format !== "pie" && !dualAxis ? [{ id: "osa" as const, label: "Osa" }] : []),
   ];
   const [chosen, setChosen] = useState<Tab>("typ");
   // Když záložka zmizí (např. Osa po přepnutí na koláč), ukáže se Typ.

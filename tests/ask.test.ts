@@ -78,6 +78,7 @@ const spec = {
   title: null,
   background: null,
   gates: ["17. listopadu (obě brány)", "Parkoviště Flora"],
+  combine_gates: false,
   direction: "both",
   from: "2026-11-19T08:00",
   to: "2026-11-19T11:00",
@@ -140,7 +141,7 @@ const fakeWeather: WeatherSeriesResult = {
 describe("build_answer: nástroj", () => {
   it("strict schéma vyžaduje všechna pole", () => {
     expect(buildAnswerTool.strict).toBe(true);
-    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
+    expect(buildAnswerTool.input_schema.required).toEqual(["format", "title", "background", "gates", "combine_gates", "direction", "from", "to", "dates", "periods", "granularity", "date_assumed"]);
   });
 
   it("weather_series má samostatné strict schéma bez dopravního směru", () => {
@@ -243,7 +244,7 @@ describe("ask: grafy a tabulky", () => {
     expect(answer).toMatchObject({ kind: "answer", format: "bar", sentence: null, sentence_source: null, background: null });
     expect(answer.title).toBe("Počet vozidel · 17. listopadu, Parkoviště Flora · 19. 11. 2026, 8:00–11:00");
     expect(seriesCalls).toEqual([
-      { gates: spec.gates, direction: "both", from: "2026-11-19T08:00", to: "2026-11-19T11:00", granularity: "hour" },
+      { gates: spec.gates, combineGates: false, direction: "both", from: "2026-11-19T08:00", to: "2026-11-19T11:00", granularity: "hour" },
     ]);
   });
 

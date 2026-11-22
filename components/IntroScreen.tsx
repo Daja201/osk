@@ -157,10 +157,7 @@ export default function IntroScreen({ onCovered }: { onCovered: () => void }) {
       {/* overflow-y-auto: když se obsah nevejde (otevřená klávesnice), dá se posunout, místo aby se texty překryly. */}
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:items-center sm:px-8 sm:pt-[max(24px,calc(50dvh-240px))] sm:pb-[8vh]">
         <div className={`flex flex-1 shrink-0 flex-col items-center justify-center gap-3 py-6 text-center sm:flex-none sm:pt-0 sm:pb-8 ${fade}`}>
-          <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">Na co se chcete zeptat?</h1>
-          <p className="m-0 max-w-[30ch] text-[16px] leading-snug text-muted sm:max-w-none sm:text-[19px]">
-            Grafy, tabulky a čísla z dopravních senzorů a meteostanic v Olomouci.
-          </p>
+          <h1 className="m-0 font-sign text-[30px] leading-[1.1] font-bold text-ink sm:text-[44px]">OSK me..</h1>
         </div>
         {/* Na mobilu ukázkové otázky nad polem (order), na počítači pod ním. */}
         {/* Panel se vždy rozbalí dolů a pole se nehne:

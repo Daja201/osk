@@ -10,19 +10,19 @@ export { placeName };
 
 // Kategorie na ose x a řady. S jediným bucketem (celkem za období) jsou kategorie místa
 // a řada jen jedna; jinak jsou kategorie období (hodiny / dny) a řada = místo.
-export type ChartData = { categories: string[]; series: { name: string; values: (number | null)[] }[] };
+export type ChartData = { categories: string[]; series: { name: string; unit?: string; values: (number | null)[] }[] };
 
 export function chartData(result: SeriesDisplayOk): ChartData {
   const { buckets, series } = result.data;
-  if (buckets.length === 1) {
+  if (buckets.length === 1 && result.meta.tool !== "combined_series") {
     return {
       categories: series.map((s) => placeName(s.gate)),
-      series: [{ name: buckets[0].label, values: series.map((s) => s.values[0]) }],
+      series: [{ name: buckets[0].label, unit: series[0]?.unit, values: series.map((s) => s.values[0]) }],
     };
   }
   return {
     categories: buckets.map((b) => b.label),
-    series: series.map((s) => ({ name: placeName(s.gate), values: s.values })),
+    series: series.map((s) => ({ name: placeName(s.gate), unit: s.unit, values: s.values })),
   };
 }
 
@@ -76,7 +76,9 @@ export type DataPick = { gate: number; bucket: number | null };
 
 // Kliknutí na graf → bod v datech. S jediným bucketem jsou kategorie místa, jinak období a řady místa.
 export function pickAt(result: SeriesDisplayOk, seriesIndex: number, categoryIndex: number): DataPick {
-  return result.data.buckets.length === 1 ? { gate: categoryIndex, bucket: 0 } : { gate: seriesIndex, bucket: categoryIndex };
+  return result.data.buckets.length === 1 && result.meta.tool !== "combined_series"
+    ? { gate: categoryIndex, bucket: 0 }
+    : { gate: seriesIndex, bucket: categoryIndex };
 }
 
 // Výseče koláče: s víc místy = součet za místo, s jedním místem = jeho buckety. Prázdné (null, 0) vynecháme.
