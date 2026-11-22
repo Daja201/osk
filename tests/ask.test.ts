@@ -323,13 +323,25 @@ describe("ask: grafy a tabulky", () => {
   it("poměr jedné dvojice je vždy věta s číslem a procenty, ne graf s jedním sloupcem „A / B“", async () => {
     const client = fakeClient([
       toolUse({ ...spec, format: "bar", relation: "ratio", gates: ["Parkoviště Flora", "Billa (Hynaisova)"], granularity: "total" }),
-      text("Flora měla 0,5 × provozu Billy, tedy 50 %."),
+      // Poměr se počítá z hodin, kdy mají data obě místa: po hodinách 450 : 600 = 0,75 (falešná data mají
+      // v poslední hodině 250, proto to není 100 : 200 jako u součtu).
+      text("Flora měla 0,75 × provozu Billy, tedy 75 %."),
     ]);
     const answer = await ask("udělej poměr mezi těmito daty", deps(client));
     expect(client.calls).toHaveLength(2);
-    expect(answer).toMatchObject({ format: "text", sentence_source: "ai", sentence: "Flora měla 0,5 × provozu Billy, tedy 50 %." });
+    expect(answer).toMatchObject({ format: "text", sentence_source: "ai", sentence: "Flora měla 0,75 × provozu Billy, tedy 75 %." });
     const toolResult = client.calls[1].messages[2].content as Anthropic.ToolResultBlockParam[];
-    expect(JSON.parse(String(toolResult[0].content)).series[0]).toMatchObject({ aggregate: 0.5, as_percent: 50 });
+    expect(JSON.parse(String(toolResult[0].content)).series[0]).toMatchObject({ aggregate: 0.75, as_percent: 75 });
+  });
+
+  it("náhradní věta u poměru ukáže spočítané číslo, ne „bez dat“", async () => {
+    const client = fakeClient([
+      toolUse({ ...spec, format: "text", relation: "ratio", gates: ["Parkoviště Flora", "Billa (Hynaisova)"], granularity: "total" }),
+      text("Poměr je 9,99."),
+    ]);
+    const answer = await ask("poměr Flory a Billy", deps(client));
+    expect(answer).toMatchObject({ sentence_source: "fallback" });
+    expect(answer.sentence).toContain("0,75 ×");
   });
 
   it("nadpis a barva od uživatele projdou", async () => {

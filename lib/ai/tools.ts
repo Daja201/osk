@@ -56,8 +56,8 @@ export const buildAnswerTool: Anthropic.Tool = {
       },
       relation: {
         type: "string",
-        enum: ["none", "ratio", "share", "direction_ratio", "direction_share"],
-        description: "none = běžná data; ratio = první vybrané místo děleno druhým; share = podíl prvního z obou v %; direction_ratio = vjezdy/výjezdy; direction_share = podíl vjezdů z obou směrů v %.",
+        enum: ["none", "ratio", "share", "difference", "direction_ratio", "direction_share"],
+        description: "none = běžná data; ratio = první vybrané místo děleno druhým; share = podíl prvního z obou v %; difference = rozdíl první minus druhé („o kolik víc / míň“); direction_ratio = vjezdy/výjezdy; direction_share = podíl vjezdů z obou směrů v %.",
       },
       typical_profile: { type: "boolean", description: "true pro typický denní profil: průměr každé hodiny přes vybrané dny." },
       direction: { type: "string", enum: ["in", "out", "both"], description: "Směr; když ho otázka neurčuje, both." },
@@ -126,8 +126,8 @@ export const weatherSeriesTool: Anthropic.Tool = {
       },
       relation: {
         type: "string",
-        enum: ["none", "ratio", "share"],
-        description: "none = běžná data; ratio = první vybraná řada děleno druhou; share = podíl první řady ze součtu dvou řad v % (jen pro slučitelné veličiny).",
+        enum: ["none", "ratio", "share", "difference"],
+        description: "none = běžná data; ratio = první vybraná řada děleno druhou; share = podíl první řady ze součtu dvou řad v % (jen pro slučitelné veličiny); difference = rozdíl první minus druhé („o kolik tepleji / vlhčeji“, i pro teplotu).",
       },
       typical_profile: { type: "boolean", description: "true pro typický denní profil: průměr každé hodiny přes vybrané dny." },
       from: { type: "string", description: "Začátek, pražský čas, tvar YYYY-MM-DDTHH:00." },
@@ -168,7 +168,7 @@ export const BuildAnswerInput = z
     background: z.enum(PALETTE_NAMES).nullable(),
     gates: z.array(z.enum(GATE_NAMES as [string, ...string[]])).min(1).max(MAX_GATES),
     combine_gates: z.boolean().default(false),
-    relation: z.enum(["none", "ratio", "share", "direction_ratio", "direction_share"]).default("none"),
+    relation: z.enum(["none", "ratio", "share", "difference", "direction_ratio", "direction_share"]).default("none"),
     typical_profile: z.boolean().default(false),
     direction: z.enum(["in", "out", "both"]),
     from: z.string().regex(LOCAL_TIME),
@@ -194,7 +194,7 @@ export const WeatherSeriesInput = z
       )
       .min(1)
       .max(WEATHER_METRICS.length),
-    relation: z.enum(["none", "ratio", "share"]).default("none"),
+    relation: z.enum(["none", "ratio", "share", "difference"]).default("none"),
     typical_profile: z.boolean().default(false),
     from: z.string().regex(LOCAL_TIME),
     to: z.string().regex(LOCAL_TIME),

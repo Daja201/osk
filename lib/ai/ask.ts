@@ -1,9 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { SeriesOk, SeriesParams, SeriesResult } from "../citiq/series";
 import type { WeatherSeriesOk, WeatherSeriesParams, WeatherSeriesResult } from "../citiq/weatherSeries";
-import type { AnalyticsSeriesOk } from "../citiq/display";
+import type { AnalyticsSeriesOk, SeriesDisplayOk } from "../citiq/display";
 import { type CombinedSeriesResult, combinedSeries } from "../citiq/combinedSeries";
-import { deriveRatios, seriesStatistics, typicalDayProfile } from "../citiq/analytics";
+import { deriveRatios, pairOverCommonHours, seriesStatistics, typicalDayProfile } from "../citiq/analytics";
 import { compareTrafficPeriods, compareWeatherPeriods } from "../citiq/comparePeriods";
 import { checkNumbers, extractNumbers } from "./checkNumbers";
 import { formatPeriod, formatSelectedPeriod } from "./dates";
@@ -94,6 +94,45 @@ function isWeatherResult(result: AskSeriesOk): result is WeatherSeriesOk {
   return result.meta.tool === "weather_series";
 }
 
+// Vjezdy a výjezdy jako dvojice řad (nejdřív všechny „in“, pak „out“) pro poměr směrů.
+function pairDirections(incoming: SeriesOk, outgoing: SeriesOk): AnalyticsSeriesOk {
+  return {
+    ok: true,
+    data: {
+      granularity: incoming.data.granularity,
+      buckets: incoming.data.buckets,
+      series: [
+        ...incoming.data.series.map((series) => ({ ...series, unit: "vozidel", dataset: "traffic" as const, direction: "in" as const })),
+        ...outgoing.data.series.map((series) => ({ ...series, unit: "vozidel", dataset: "traffic" as const, direction: "out" as const })),
+      ],
+    },
+    meta: {
+      tool: "traffic_series",
+      params: { ...incoming.meta.params, direction: "both" },
+      period: incoming.meta.period,
+      sources: [...incoming.meta.sources, ...outgoing.meta.sources],
+      notes: [...incoming.meta.notes, ...outgoing.meta.notes],
+    },
+  };
+}
+
+// Poměr / podíl jen přes hodiny, kdy mají data obě řady (viz pairOverCommonHours v lib/citiq/analytics.ts).
+function ratioOverCommonHours(
+  shape: SeriesDisplayOk,
+  hourly: SeriesDisplayOk,
+  pairs: { numerator: number; denominator: number }[],
+  type: "ratio" | "share" | "difference",
+): AnalyticsSeriesOk {
+  const paired = pairOverCommonHours(shape, hourly, pairs);
+  return deriveRatios(paired.result, paired.pairs, type);
+}
+
+// Analýzy dvojice řad (poměr, podíl, rozdíl) a jejich název v nadpisu.
+const RELATION_TITLE = { ratio: "Poměr", share: "Podíl", difference: "Rozdíl" } as const;
+function isRelation(type: string | undefined): type is keyof typeof RELATION_TITLE {
+  return type === "ratio" || type === "share" || type === "difference";
+}
+
 function isCombinedResult(result: AskSeriesOk): result is AnalyticsSeriesOk {
   return result.meta.tool === "combined_series";
 }
@@ -103,8 +142,8 @@ function titleFor(result: AskSeriesOk): string {
     // Rozsah („9.–20. 11. 2026“), ne výčet všech vybraných dnů, ať je nadpis krátký. Vybrané dny jsou v poznámce.
     return `Typický den · ${result.data.series.map((series) => placeName(series.gate)).join(", ")} · ${formatPeriod(result.meta.period.start, result.meta.period.end)}`;
   }
-  if (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") {
-    return `${result.meta.analysis.type === "ratio" ? "Poměr" : "Podíl"} · ${result.data.series.map((series) => series.gate).join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
+  if (isRelation(result.meta.analysis?.type)) {
+    return `${RELATION_TITLE[result.meta.analysis.type]} · ${result.data.series.map((series) => series.gate).join(", ")} · ${formatSelectedPeriod(result.meta.period.start, result.meta.period.end, result.meta.params?.dates)}`;
   }
   if (isCombinedResult(result)) {
     // Názvy řad („U Letadla, U Letadla · teplota (°C)“) místo počtů („1 dopravních řad“): čitelné a gramaticky správně.
@@ -275,6 +314,29 @@ function allowedNumbers(summary: unknown): Set<number> {
 }
 
 function fallbackSentence(result: AskSeriesOk): string {
+  // Analýzy (poměr, typický den, doprava + počasí) mají vlastní větu, i bez srovnávání období.
+  if (isRelation(result.meta.analysis?.type)) {
+    const parts = result.data.series.map((series) => {
+      const value = "mean" in series ? (series.mean ?? null) : null;
+      return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
+    });
+    return `Vypočtený ${RELATION_TITLE[result.meta.analysis.type].toLowerCase()} za vybrané období: ${parts.join("; ")}.`;
+  }
+  if (result.meta.analysis?.type === "typical_profile") {
+    const labels = result.data.buckets.map((bucket) => bucket.label);
+    const parts = result.data.series.map((series) => {
+      const stats = seriesStatistics(labels, series.values);
+      return `${series.gate}: ${stats.max ? `nejvyšší průměr ${stats.max.value} v ${stats.max.label}` : "bez dat"}`;
+    });
+    return `Typický den za vybrané období: ${parts.join("; ")}.`;
+  }
+  if (isCombinedResult(result)) {
+    const parts = result.data.series.map((series) => {
+      const value = ("mean" in series ? series.mean : series.total) ?? null;
+      return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
+    });
+    return `Doprava a počasí za vybrané období: ${parts.join("; ")}.`;
+  }
   if (result.data.comparison) {
     const comparison = result.data.comparison;
     const first = comparison.periods[0].label;
@@ -288,28 +350,6 @@ function fallbackSentence(result: AskSeriesOk): string {
       const describe = (point: (typeof points)[number]) => point.value === null ? "bez dat" : `${cz.format(point.value)} ${series.unit}`;
       const difference = end.delta === null ? "rozdíl nelze určit" : `${end.delta > 0 ? "+" : ""}${cz.format(end.delta)} ${series.unit}`;
       return `${stationName(series.station)}, ${metric}: ${first} ${describe(start)}, ${last} ${describe(end)} (${difference} vůči prvnímu období). Podrobnosti všech období jsou v důkazu pod odpovědí.`;
-    }
-    if (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") {
-      const parts = result.data.series.map((series) => {
-        const value = "mean" in series ? (series.mean ?? null) : null;
-        return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
-      });
-      return `Vypočtený ${result.meta.analysis.type === "ratio" ? "poměr" : "podíl"} za vybrané období: ${parts.join("; ")}.`;
-    }
-    if (result.meta.analysis?.type === "typical_profile") {
-      const labels = result.data.buckets.map((bucket) => bucket.label);
-      const parts = result.data.series.map((series) => {
-        const stats = seriesStatistics(labels, series.values);
-        return `${series.gate}: ${stats.max ? `nejvyšší průměr ${stats.max.value} v ${stats.max.label}` : "bez dat"}`;
-      });
-      return `Typický den za vybrané období: ${parts.join("; ")}.`;
-    }
-    if (isCombinedResult(result)) {
-      const parts = result.data.series.map((series) => {
-        const value = ("mean" in series ? series.mean : series.total) ?? null;
-        return `${series.gate}: ${value === null ? "bez dat" : `${cz.format(value)} ${series.unit ?? ""}`}`;
-      });
-      return `Doprava a počasí za vybrané období: ${parts.join("; ")}.`;
     }
     const series = result.data.series[0];
     const points = comparison.series[0].points;
@@ -556,11 +596,17 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
             const descriptor = first ? resolveWeatherMetric(first.metric) : null;
             if (!first || !second) {
               result = { ok: false, code: "BAD_PARAMS", message: "Poměr počasí vyžaduje dvě porovnatelné řady." };
-            } else if (first.metric !== second.metric || first.unit !== second.unit || first.unit === "°C" || first.unit === "°") {
-              result = { ok: false, code: "BAD_PARAMS", message: "Poměr počasí lze počítat jen mezi dvěma stanicemi se stejnou veličinou a jednotkou; teplotu a směr větru nepoměřujeme." };
+            } else if (first.metric !== second.metric || first.unit !== second.unit || first.unit === "°" || (first.unit === "°C" && spec.relation !== "difference")) {
+              // Rozdíl jde i u teploty („o 2 °C tepleji“), poměr a podíl teploty ani směru větru nedávají smysl.
+              result = { ok: false, code: "BAD_PARAMS", message: "Poměr počasí lze počítat jen mezi dvěma stanicemi se stejnou veličinou a jednotkou; teplotu a směr větru nepoměřujeme (rozdíl teploty ano)." };
             } else {
               void descriptor;
-              result = deriveRatios(base, [{ numerator: 0, denominator: 1 }], spec.relation);
+              // Poměr jen přes hodiny, kdy mají data obě stanice (u srovnání období zůstává výpočet po obdobích).
+              const comparing = Boolean(spec.periods?.length) || spec.granularity === "period";
+              const hourly = comparing ? null : await deps.weatherSeries({ ...params, granularity: "hour" });
+              result = hourly?.ok
+                ? ratioOverCommonHours(base, hourly, [{ numerator: 0, denominator: 1 }], spec.relation)
+                : deriveRatios(base, [{ numerator: 0, denominator: 1 }], spec.relation);
             }
           } else {
             result = spec.typical_profile ? typicalDayProfile(base) : base;
@@ -603,30 +649,17 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
             ) {
               result = { ok: false, error: { code: "DATA_ALIGNMENT", message: "Řady vjezdů a výjezdů nemají shodná časová období.", suggestions: [] } };
             } else {
-              const paired: AnalyticsSeriesOk = {
-                ok: true,
-                data: {
-                  granularity: incoming.data.granularity,
-                  buckets: incoming.data.buckets,
-                  series: [
-                    ...incoming.data.series.map((series) => ({ ...series, unit: "vozidel", dataset: "traffic" as const, direction: "in" as const })),
-                    ...outgoing.data.series.map((series) => ({ ...series, unit: "vozidel", dataset: "traffic" as const, direction: "out" as const })),
-                  ],
-                },
-                meta: {
-                  tool: "traffic_series",
-                  params: { ...incoming.meta.params, direction: "both" },
-                  period: incoming.meta.period,
-                  sources: [...incoming.meta.sources, ...outgoing.meta.sources],
-                  notes: [...incoming.meta.notes, ...outgoing.meta.notes],
-                },
-              };
+              const paired = pairDirections(incoming, outgoing);
               const count = incoming.data.series.length;
-              result = deriveRatios(
-                paired,
-                incoming.data.series.map((_, index) => ({ numerator: index, denominator: index + count })),
-                spec.relation === "direction_ratio" ? "ratio" : "share",
-              );
+              const pairs = incoming.data.series.map((_, index) => ({ numerator: index, denominator: index + count }));
+              const type = spec.relation === "direction_ratio" ? "ratio" : "share";
+              // Poměr jen přes hodiny, kdy mají data oba směry.
+              const [hourlyIn, hourlyOut] = comparePeriods
+                ? [null, null]
+                : await Promise.all([deps.trafficSeries({ ...params, direction: "in", granularity: "hour" }), deps.trafficSeries({ ...params, direction: "out", granularity: "hour" })]);
+              result = hourlyIn?.ok && hourlyOut?.ok
+                ? ratioOverCommonHours(paired, pairDirections(hourlyIn, hourlyOut), pairs, type)
+                : deriveRatios(paired, pairs, type);
             }
           } else {
             const base = await runTraffic();
@@ -635,7 +668,11 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
               if (spec.gates.length !== 2 || base.data.series.length !== 2) {
                 result = { ok: false, error: { code: "BAD_PARAMS", message: "Poměr míst vyžaduje právě dvě samostatně vybrané brány.", suggestions: [] } };
               } else {
-                result = deriveRatios(base, [{ numerator: 0, denominator: 1 }], spec.relation);
+                // Poměr jen přes hodiny, kdy mají data obě místa.
+                const hourly = comparePeriods ? null : await deps.trafficSeries({ ...params, granularity: "hour" });
+                result = hourly?.ok
+                  ? ratioOverCommonHours(base, hourly, [{ numerator: 0, denominator: 1 }], spec.relation)
+                  : deriveRatios(base, [{ numerator: 0, denominator: 1 }], spec.relation);
               }
             } else {
               result = spec.typical_profile ? typicalDayProfile(base) : base;
@@ -679,7 +716,7 @@ export async function ask(question: string, deps: AskDeps): Promise<AskAnswer> {
     // Poměr nebo podíl jedné dvojice je jedno číslo: graf s jediným sloupcem „A / B“ nic neřekne,
     // proto ho vždy ukážeme jako odpověď větou (s velkým číslem).
     const singleRatio =
-      (result.meta.analysis?.type === "ratio" || result.meta.analysis?.type === "share") &&
+      (isRelation(result.meta.analysis?.type)) &&
       result.data.series.length === 1 &&
       result.data.buckets.length === 1;
     if (spec.format !== "text" && !singleRatio) {

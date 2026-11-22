@@ -15,7 +15,7 @@ export type DisplaySeries = {
 
 export type AnalysisInfo =
   | { type: "typical_profile" }
-  | { type: "ratio" | "share"; numerator: string; denominator: string };
+  | { type: "ratio" | "share" | "difference"; numerator: string; denominator: string; percent_difference?: number | null };
 
 export type SeriesDisplayOk = {
   data: {

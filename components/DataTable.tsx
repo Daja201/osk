@@ -2,6 +2,9 @@ import { aggregateValue, isMeanSeries, type SeriesDisplayOk } from "@/lib/citiq/
 import { type DataPick, placeName } from "@/lib/ui/chart";
 import { formatNumber } from "@/lib/ui/format";
 
+// Buňka hlavičky: neprůhledná (barva karty), čára dole jako stín v barvě textu (40 %).
+const HEAD = "bg-inherit px-3 py-2 font-semibold shadow-[inset_0_-2px_0_color-mix(in_srgb,currentColor_40%,transparent)]";
+
 // Tabulka dat: řádek = období (hodina / den), sloupec = místo, poslední řádek = součet za období.
 // Součty spočítal náš kód (lib/citiq/series.ts). Chybějící hodnota je „–“, nikdy 0.
 // S onPick je každé číslo tlačítko (v podrobnostech ukáže, odkud je).
@@ -33,16 +36,19 @@ export default function DataTable({
       content
     );
   return (
-    <div className="max-h-[60vh] overflow-auto rounded-xl border border-current/15">
-      <table className="w-full border-collapse text-left text-[16px] tabular-nums">
-        <thead className="sticky top-0 bg-inherit">
-          <tr>
-            <th scope="col" className="border-b-2 border-current/40 px-3 py-2 font-semibold opacity-80">
-              Období
+    // Hlavička (Období, místa) zůstává při posouvání nahoře. Musí mít neprůhledné pozadí: barvu karty zdědí
+    // přes všechny vrstvy (bg-inherit), jinak by data prosvítala přes její text. Čára pod ní je stín,
+    // protože okraj buňky by se při border-collapse posunul s daty.
+    <div className="max-h-[60vh] overflow-auto rounded-xl border border-current/15 bg-inherit">
+      <table className="w-full border-collapse bg-inherit text-left text-[16px] tabular-nums">
+        <thead className="sticky top-0 z-10 bg-inherit">
+          <tr className="bg-inherit">
+            <th scope="col" className={HEAD}>
+              <span className="opacity-80">Období</span>
             </th>
             {series.map((s) => (
-              <th key={s.gate} scope="col" className="border-b-2 border-current/40 px-3 py-2 text-right font-semibold opacity-80">
-                {placeName(s.gate)}
+              <th key={s.gate} scope="col" className={`${HEAD} text-right`}>
+                <span className="opacity-80">{placeName(s.gate)}</span>
               </th>
             ))}
           </tr>

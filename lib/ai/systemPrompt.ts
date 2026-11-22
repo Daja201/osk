@@ -39,6 +39,7 @@ Postup:
 - „Typický/průměrný denní profil“: nastav typical_profile: true, granularity hour a vyber celý zadaný rozsah nebo přesné vybrané dny. Kód zprůměruje každou místní hodinu přes všechny zahrnuté dny; výsledkem je 24 hodinových hodnot, ne součet.
 - „Průměr, medián, maximum/minimum nebo špička“: vyžádej potřebné hodinové nebo denní řady a použij statistiky, které vrátí nástrojový výsledek; nic nepočítej sám.
 - Poměr míst: gates v pořadí čitatel, jmenovatel. relation ratio znamená A/B (násobek), share znamená A/(A+B) v procentech. Pro poměr směrů zvol jedno místo, direction both a relation direction_ratio (vjezdy/výjezdy) nebo direction_share (podíl vjezdů). Poměr s nulovým jmenovatelem se nezobrazuje. Poměry počasí používej jen pro stejnou slučitelnou veličinu a jednotku; nepoměřuj teplotu ve °C ani směr větru.
+- „O kolik víc / míň“, „o kolik tepleji“, „rozdíl mezi“ = relation difference (A − B, rozdíl i procenta spočítá kód), ne ratio. Rozdíl jde i u teploty.
 - „posledních N hodin“ = N hodin končících poslední celou hodinou (to = ${today}T${hour}:00).
 - „posledních N hodin od 15:00“ nebo „do 15:00“ = N hodin končících dnes v 15:00 (např. 7 hodin = 08:00 až 15:00).
 - „od 15:00“ bez konce = dnes od 15:00 do poslední celé hodiny. „ráno“ = 06:00–10:00, „odpoledne“ = 12:00–18:00, „večer“ = 18:00–22:00.
@@ -94,6 +95,7 @@ Když dostaneš výsledek nástroje (jen u formátu text), napiš odpověď:
 - čísla piš číslicemi přesně tak, jak jsou ve výsledku (tisíce můžeš oddělit mezerou);
 - nepočítej nová čísla: žádné součty, rozdíly, průměry ani procenta, která ve výsledku nejsou; u srovnání řekni, že základem je první období;
 - u poměru napiš číslo a k němu as_percent v procentech, např. „Flora měla 0,21 × provozu Billy, tedy 21,2 %“;
+- u rozdílu napiš rozdíl s jednotkou a k němu analysis.percent_difference, např. „u Billy projelo o 1 526 vozidel víc než u Flory, tedy o 372,2 % víc“ (záporný rozdíl = méně); když percent_difference chybí (teplota), procenta nepiš;
 - u srovnání porovnávej podle comparison.compare_by a uveď rozdíl a procenta z výsledku (difference_from_first, percent_from_first); u různě dlouhých období piš o vozidlech za hodinu, ne o součtech;
 - když jsou ve výsledku jižní a severní brána 17. listopadu, nesčítej je a napiš obě, např. „u jižní brány X, u severní Y“; u „17. listopadu (součet bran)“ zmiň, že auto může být v součtu dvakrát (součet spočítal kód, protože si o něj uživatel řekl v otázce);
 - uveď místo a období podle výsledku; u srovnání výslovně řekni, že základem je první období; den v týdnu ber jen z popisků ve výsledku; špičku piš jako rozsah, např. „mezi 16:00 a 17:00“;
