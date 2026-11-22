@@ -352,8 +352,18 @@ function isDatasetHelpQuestion(question: string): boolean {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[?!.,]+$/g, "")
     .replace(/\s+/g, " ");
-  return normalized === "na co se mohu zeptat" || normalized === "na co se muzu zeptat";
+  // Otázky na to, co aplikace umí („Na co se můžu zeptat?“, „Jaká data mi můžeš poskytnout?“, „Co umíš?“).
+  // Rozpoznává je kód: Claude bez nástroje by skončil jako „nevím“ (jeho text bez dat nepouštíme).
+  return DATASET_HELP_PATTERNS.some((pattern) => pattern.test(normalized));
 }
+
+const DATASET_HELP_PATTERNS = [
+  /^na co se (mohu|muzu|da|dá|lze) (te )?zeptat$/,
+  /^(jaka|jake|ktera) data (mi )?(muzes|umis|mas|nabizis|poskytujes|dokazes)( poskytnout| dat| ukazat| nabidnout)?$/,
+  /^(co|co vsechno) (umis|vis|dokazes|mi muzes rict|mi umis rict)$/,
+  /^(s cim|v cem) (mi )?(muzes|umis) pomoct$/,
+  /^jake (mas|nabizis) (data|moznosti|funkce)$/,
+];
 
 // Úprava zadání, kterou dělá kód, ne Claude. Vrací výsledný formát a poznámky pro uživatele.
 function finalFormat(format: Format, result: AskSeriesOk, notes: string[]): Format {

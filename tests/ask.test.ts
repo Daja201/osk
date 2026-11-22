@@ -237,6 +237,17 @@ describe("ask: grafy a tabulky", () => {
     expect(client.calls).toHaveLength(0);
   });
 
+  it("i podobné otázky na možnosti vrátí briefing; běžné otázky ne", async () => {
+    for (const question of ["Jaká data mi můžeš poskytnout?", "jaké data máš", "Na co se můžu zeptat", "Co umíš?", "S čím mi můžeš pomoct?"]) {
+      const answer = await ask(question, deps(fakeClient([])));
+      expect(answer.reason?.code, question).toBe("DATASET_HELP");
+    }
+    for (const question of ["Kolik aut projelo včera?", "Co umíš ukázat za graf u Billy včera?"]) {
+      const answer = await ask(question, deps(fakeClient([toolUse(spec)])));
+      expect(answer.reason?.code ?? null, question).not.toBe("DATASET_HELP");
+    }
+  });
+
   it("graf: jedno volání modelu, žádná věta, nadpis složí kód", async () => {
     const client = fakeClient([toolUse(spec)]);
     const answer = await ask("Porovnej 17. listopadu a Floru včera od 8 do 11", deps(client));
